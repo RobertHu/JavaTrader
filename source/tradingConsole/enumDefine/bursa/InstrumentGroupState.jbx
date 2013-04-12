@@ -1,0 +1,11 @@
+[PropertyInfo]
+_CanCancelOrder,boolean,false,false, , ,true,<default>
+_canCancelOrder,boolean,false,false, , ,false,<default>
+_CanModifyOrder,boolean,false,false, , ,true,<default>
+_canModifyOrder,boolean,false,false, , ,false,<default>
+_canPlaceOrder,boolean,false,false, , ,false,<default>
+[IconNames]
+
+
+
+
