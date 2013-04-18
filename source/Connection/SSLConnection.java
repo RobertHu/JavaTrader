@@ -60,8 +60,13 @@ public class SSLConnection
 			}
 		}
 		}, null);
-
-		sslSocket = (SSLSocket)sslContext.getSocketFactory().createSocket(this._ip, this._port);
+		System.setProperty("java.net.preferIPv4Stack", "true");
+		try{
+			sslSocket = (SSLSocket)sslContext.getSocketFactory().createSocket(this._ip,this._port);
+		}
+		catch(Exception ex){
+			ex.printStackTrace();
+		}
 		this.logger.debug(String.format("ip:%s , port:%d", this._ip, this._port));
 		if (this.sslSocket != null)
 		{

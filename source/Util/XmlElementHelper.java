@@ -34,11 +34,10 @@ public class XmlElementHelper
 		parent.appendChild(create(key,value));
 	}
 
-	public static void appendChild(Element parent,String value)
-{
-	parent.appendChild(create(defaultElementName,value));
-}
-
+	public static void appendChild(Element parent, String value)
+	{
+		parent.appendChild(create(defaultElementName, value));
+	}
 
 
 
@@ -57,13 +56,12 @@ public class XmlElementHelper
 		try
 		{
 			XmlDocument doc = new XmlDocument();
-			logger.debug(xml);
 			doc.loadXml(xml);
 			return doc.get_DocumentElement();
 		}
 		catch (Exception ex)
 		{
-			ex.printStackTrace();
+			logger.error(ex.getStackTrace());
 			return null;
 		}
 
@@ -85,15 +83,19 @@ public class XmlElementHelper
 			if(StringHelper.IsNullOrEmpty(element.getValue())){
 				return null;
 			}
-			ds.readXml(convertToXmlNodeForDataset(element));
+			XmlNode xml = convertToXmlNodeForDataset(element);
+			ds.readXml(xml);
 		}
 		catch (Exception ex)
 		{
-			ex.printStackTrace();
+			logger.error(ex.getStackTrace());
 		}
 		return ds;
 	}
 
 
+	public static String getInnerValue(Element parent,String nodeName){
+		return parent.getFirstChildElement(nodeName).getValue();
+	}
 
 }

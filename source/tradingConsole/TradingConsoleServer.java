@@ -426,10 +426,8 @@ public class TradingConsoleServer implements ITimeSyncService, Scheduler.ISchedu
 				return result;
 			}
 			Element ele= signal.getResult();
-
 			String session =ele.getFirstChildElement("session").getValue();
 			LoginInfoManager.Default.setSession(session);
-			this.logger.info("set session " + session);
 			result = new LoginResult(ele);
 
 		}
@@ -598,6 +596,7 @@ public class TradingConsoleServer implements ITimeSyncService, Scheduler.ISchedu
 			ComunicationObject command = CommandHelper.BuildGetInitDataCommand();
 			SignalObject signal=RequestCommandHelper.request(command);
 			if(signal.getIsError()){
+				this.logger.info("get init data error");
 				return result;
 			}
 			Element content = signal.getResult();

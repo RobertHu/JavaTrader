@@ -18,7 +18,6 @@ import tradingConsole.enumDefine.LoginStatus;
 import Util.RequestCommandHelper;
 import java.util.concurrent.TimeUnit;
 import Packet.Settings;
-import Packet.IpAndPort;
 
 public class ConnectionManager
 {
@@ -98,8 +97,7 @@ public class ConnectionManager
 		{
 			this.tradingConsole.get_LoginInformation().set_LoginStatus(LoginStatus.Connecting);
 			this.tradingConsole.setConnectStatus();
-			IpAndPort ipAndPort = Settings.getIpAndPort();
-			this.sslConnection = new SSLConnection(ipAndPort.getIP(), ipAndPort.getPort());
+			this.sslConnection = new SSLConnection(Settings.getHostName(), Settings.getPort());
 			RequestCommandHelper.setOutputStream(this.sslConnection.getSocket().getOutputStream());
 			this.asyncManager = new AsyncManager();
 			this.msgParser = new MsgParser(this.sslConnection.getSocket().getInputStream(), this.asyncManager);

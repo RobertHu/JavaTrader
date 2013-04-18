@@ -23,6 +23,8 @@ import tradingConsole.ui.language.*;
 import org.apache.log4j.PropertyConfigurator;
 import org.apache.log4j.Logger;
 import Packet.*;
+import Connection.ConnectionManager;
+import Connection.ConnectionManager.TcpInializeTimeoutException;
 public class LoginForm extends JFrame
 {
 	public static int maxTryCount = 3;
@@ -74,7 +76,7 @@ public class LoginForm extends JFrame
 		this( (JFrame) (owner.get_MainForm()));
 		this._owner = owner;
 		this.isRecover = isRecover;
-
+		Settings.setWaitTimeout(this._editingServiceManager.getWaitTimeout());
 		this.serverSettingInitalize();
 
 		//this.setTitle(Login.loginFormTitle);
@@ -358,10 +360,14 @@ public class LoginForm extends JFrame
 
 	private int loginFailedCount = 0;
 
-	private void connect(){
+	private void connect() throws TcpInializeTimeoutException
+	{
 		if(!this.isRecover){
 			try{
 				this._owner.connectHelper();
+			}
+			catch(TcpInializeTimeoutException tcpInitializeException){
+				throw tcpInitializeException;
 			}
 			catch(Exception ex){
 				this._owner.disconnect(this.isRecover);
@@ -372,10 +378,7 @@ public class LoginForm extends JFrame
 
 	private void submit()
 	{
-		this.connect();
-
 		TradingConsole.traceSource.trace(TraceType.Information, "Login-SaveHostSetting");
-
 		boolean isSucceed = true;
 		int selectedServiceHostSequence = this.hostChoice.getSelectedIndex();
 		String host
@@ -387,6 +390,8 @@ public class LoginForm extends JFrame
 		{
 			passwordHost = AppToolkit.getHost(passwordHost);
 		}
+		Settings.setHostName(host);
+		Settings.setPort(this._editingServiceManager.getMapPort());
 		isSucceed = ServiceManager.saveServerSetting(this.hostChoice.getSelectedIndex(), host, passwordHost);
 		if (!isSucceed)
 		{
@@ -410,6 +415,7 @@ public class LoginForm extends JFrame
 
 		try
 		{
+			this.connect();
 			int usingBackupSettingsIndex = 0;
 			while (true)
 			{
@@ -425,7 +431,6 @@ public class LoginForm extends JFrame
 
 				LoginResult result = this._owner.get_TradingConsoleServer().loginForJava(loginName, password, environmentInfo, PacketContants.AppType);
 				TradingConsole.traceSource.trace(TraceType.Information, "Call Service Method: Login-End");
-
 				if (result != null)
 				{
 					Guid customerID = result.get_UserId();

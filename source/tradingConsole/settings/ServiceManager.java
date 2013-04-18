@@ -14,6 +14,11 @@ import tradingConsole.*;
 import tradingConsole.framework.*;
 import tradingConsole.ui.*;
 import tradingConsole.ui.language.*;
+import Packet.Settings;
+import nu.xom.Builder;
+import nu.xom.Document;
+import nu.xom.Element;
+import Util.XmlElementHelper;
 
 public class ServiceManager
 {
@@ -80,6 +85,7 @@ public class ServiceManager
 	private int usingBackupSettingsIndex = -1;
 
 	private boolean useBlackAsBackground = false;
+	private Integer waitTimeout;
 
 	public int getMapPort()
 	{
@@ -397,6 +403,11 @@ public class ServiceManager
 		return this.backupServerNumber;
 	}
 
+	public int getWaitTimeout(){
+		return this.waitTimeout;
+	}
+
+
 	public boolean tryToUsingBackupSettings(int index)
 	{
 		this.usingBackupSettingsIndex = index;
@@ -431,187 +442,183 @@ public class ServiceManager
 	public static ServiceManager Create()
 	{
 		ServiceManager serviceManager = new ServiceManager();
-
-		ServiceManager.checkParameterFilePath();
-
 		try
 		{
-			//String settingDirectory = AppToolkit.get_SettingDirectory();
-			//String parameterFilePath = settingDirectory + "TradingConsole.config";
-			//XmlNode xmlNode = AppToolkit.getXml(parameterFilePath);
-			//XmlNode xmlNode = AppToolkit.getUserSettingXml("TradingConsole.config");
-			XmlNode xmlNode = AppToolkit.getCompanySettingXml("TradingConsole.config");
-			if (xmlNode == null)
-			{
+			File file = new File(Settings.ConfigFileName);
+			if(!file.exists()){
 				return null;
 			}
-			XmlNode xmlNode2 = xmlNode.get_Item("appSettings");
-			//serviceManager.autoUpdateUrl = xmlNode2.get_Item("autoUpdateUrl").get_InnerText();
-			//serviceManager.autoUpdateListenPort = XmlConvert.toInt32(xmlNode2.get_Item("autoUpdateListenPort").get_InnerText());
-			serviceManager.authenticationUrl = xmlNode2.get_Item("authenticationUrl").get_InnerText();
-			serviceManager.serviceUrl = xmlNode2.get_Item("serviceUrl").get_InnerText();
-			serviceManager.serviceHost1 = xmlNode2.get_Item("serviceHost1").get_InnerText();
-			serviceManager.serviceHost2 = xmlNode2.get_Item("serviceHost2").get_InnerText();
-
+			FileInputStream stream = new FileInputStream(file);
+			Builder builder = new Builder();
+			Document document = builder.build(stream);
+			Element root = document.getRootElement();
+			Element settingElement = root.getFirstChildElement("appSettings");
+			serviceManager.authenticationUrl = XmlElementHelper.getInnerValue(settingElement,"authenticationUrl");
+			serviceManager.serviceUrl = XmlElementHelper.getInnerValue(settingElement,"serviceUrl");
+			serviceManager.serviceHost1 = XmlElementHelper.getInnerValue(settingElement,"serviceHost1");
+			serviceManager.serviceHost2 = XmlElementHelper.getInnerValue(settingElement,"serviceHost2");
 			serviceManager.backupServerNumber = 1;
-			if (xmlNode2.get_Item("backupServerNumber") != null)
+			if (settingElement.getFirstChildElement("backupServerNumber") != null)
 			{
-				serviceManager.backupServerNumber = Integer.parseInt(xmlNode2.get_Item("backupServerNumber").get_InnerText());
+				serviceManager.backupServerNumber = Integer.parseInt(XmlElementHelper.getInnerValue(settingElement,"backupServerNumber"));
 			}
 
-			if (xmlNode2.get_Item("serviceUrlFor99Bill") != null)
+			if (settingElement.getFirstChildElement("serviceUrlFor99Bill") != null)
 			{
-				serviceManager.serviceUrlFor99Bill = xmlNode2.get_Item("serviceUrlFor99Bill").get_InnerText();
+				serviceManager.serviceUrlFor99Bill = XmlElementHelper.getInnerValue(settingElement,"serviceUrlFor99Bill");
 			}
-			if(xmlNode2.get_Item("companyCodeForTransfer") != null)
+			if(settingElement.getFirstChildElement("companyCodeForTransfer") != null)
 			{
-				serviceManager.companyCodeForTransfer = xmlNode2.get_Item("companyCodeForTransfer").get_InnerText();
-			}
-
-			if (xmlNode2.get_Item("showMarginAsChuRuJin") != null)
-			{
-				serviceManager.showMarginAsChuRuJin = XmlConvert.toBoolean(xmlNode2.get_Item("showMarginAsChuRuJin").get_InnerText());
+				serviceManager.companyCodeForTransfer = XmlElementHelper.getInnerValue(settingElement,"companyCodeForTransfer");
 			}
 
-
-			if (xmlNode2.get_Item("useBlackAsBackground") != null)
+			if (settingElement.getFirstChildElement("showMarginAsChuRuJin") != null)
 			{
-				serviceManager.useBlackAsBackground = XmlConvert.toBoolean(xmlNode2.get_Item("useBlackAsBackground").get_InnerText());
+				serviceManager.showMarginAsChuRuJin = XmlConvert.toBoolean(XmlElementHelper.getInnerValue(settingElement,"showMarginAsChuRuJin"));
 			}
 
-			if (xmlNode2.get_Item("useGreenAsRiseColor") != null)
+
+			if (settingElement.getFirstChildElement("useBlackAsBackground") != null)
 			{
-				PublicParametersManager.useGreenAsRiseColor = XmlConvert.toBoolean(xmlNode2.get_Item("useGreenAsRiseColor").get_InnerText());
+				serviceManager.useBlackAsBackground = XmlConvert.toBoolean(XmlElementHelper.getInnerValue(settingElement,"useBlackAsBackground"));
 			}
 
-			if (xmlNode2.get_Item("backupAuthenticationUrl") != null)
+			if (settingElement.getFirstChildElement("useGreenAsRiseColor") != null)
 			{
-				serviceManager.backupAuthenticationUrl = xmlNode2.get_Item("backupAuthenticationUrl").get_InnerText();
-			}
-			if (xmlNode2.get_Item("backupServiceUrl") != null)
-			{
-				serviceManager.backupServiceUrl = xmlNode2.get_Item("backupServiceUrl").get_InnerText();
+				PublicParametersManager.useGreenAsRiseColor = XmlConvert.toBoolean(XmlElementHelper.getInnerValue(settingElement,"useGreenAsRiseColor"));
 			}
 
-			if (xmlNode2.get_Item("backupAuthenticationUrl2") != null)
+			if (settingElement.getFirstChildElement("backupAuthenticationUrl") != null)
 			{
-				serviceManager.backupAuthenticationUrl2 = xmlNode2.get_Item("backupAuthenticationUrl2").get_InnerText();
+				serviceManager.backupAuthenticationUrl = XmlElementHelper.getInnerValue(settingElement,"backupAuthenticationUrl");
 			}
-			if (xmlNode2.get_Item("backupServiceUrl2") != null)
+			if (settingElement.getFirstChildElement("backupServiceUrl") != null)
 			{
-				serviceManager.backupServiceUrl2 = xmlNode2.get_Item("backupServiceUrl2").get_InnerText();
-			}
-
-			if (xmlNode2.get_Item("backupAuthenticationUrl3") != null)
-			{
-				serviceManager.backupAuthenticationUrl3 = xmlNode2.get_Item("backupAuthenticationUrl3").get_InnerText();
-			}
-			if (xmlNode2.get_Item("backupServiceUrl3") != null)
-			{
-				serviceManager.backupServiceUrl3 = xmlNode2.get_Item("backupServiceUrl3").get_InnerText();
+				serviceManager.backupServiceUrl = XmlElementHelper.getInnerValue(settingElement,"backupServiceUrl");
 			}
 
-			if (xmlNode2.get_Item("serviceHost3") != null)
+			if (settingElement.getFirstChildElement("backupAuthenticationUrl2") != null)
 			{
-				serviceManager.serviceHost3 = xmlNode2.get_Item("serviceHost3").get_InnerText();
+				serviceManager.backupAuthenticationUrl2 = XmlElementHelper.getInnerValue(settingElement,"backupAuthenticationUrl2");
 			}
-			if (xmlNode2.get_Item("serviceHost4") != null)
+			if (settingElement.getFirstChildElement("backupServiceUrl2") != null)
 			{
-				serviceManager.serviceHost4 = xmlNode2.get_Item("serviceHost4").get_InnerText();
-			}
-			if (xmlNode2.get_Item("serviceHost5") != null)
-			{
-				serviceManager.serviceHost5 = xmlNode2.get_Item("serviceHost5").get_InnerText();
-			}
-			if (xmlNode2.get_Item("serviceHost6") != null)
-			{
-				serviceManager.serviceHost6 = xmlNode2.get_Item("serviceHost6").get_InnerText();
-			}
-			serviceManager.userDefineServiceHost = xmlNode2.get_Item("userDefineServiceHost").get_InnerText();
-			serviceManager.userDefinePasswordLink = xmlNode2.get_Item("userDefinePasswordLink").get_InnerText();
-			serviceManager.selectedServiceHostSequence = XmlConvert.toInt32(xmlNode2.get_Item("selectedServiceHostSequence").get_InnerText());
-			if (xmlNode2.get_Item("totalService") != null)
-			{
-				serviceManager.totalService = XmlConvert.toInt32(xmlNode2.get_Item("totalService").get_InnerText());
-			}
-			if (xmlNode2.get_Item("mapPort") != null)
-			{
-				serviceManager.mapPortString = xmlNode2.get_Item("mapPort").get_InnerText();
-			}
-			if (xmlNode2.get_Item("mapPort1") != null)
-			{
-				serviceManager.mapPortString1 = xmlNode2.get_Item("mapPort1").get_InnerText();
-			}
-			if (xmlNode2.get_Item("mapPort2") != null)
-			{
-				serviceManager.mapPortString2 = xmlNode2.get_Item("mapPort2").get_InnerText();
-			}
-			if (xmlNode2.get_Item("mapPort3") != null)
-			{
-				serviceManager.mapPortString3 = xmlNode2.get_Item("mapPort3").get_InnerText();
-			}
-			if (xmlNode2.get_Item("mapPort4") != null)
-			{
-				serviceManager.mapPortString4 = xmlNode2.get_Item("mapPort4").get_InnerText();
-			}
-			if (xmlNode2.get_Item("mapPort5") != null)
-			{
-				serviceManager.mapPortString5 = xmlNode2.get_Item("mapPort5").get_InnerText();
-			}
-			if (xmlNode2.get_Item("mapPort6") != null)
-			{
-				serviceManager.mapPortString6 = xmlNode2.get_Item("mapPort6").get_InnerText();
-			}
-			if (xmlNode2.get_Item("priceAlign") != null)
-			{
-				serviceManager.priceAlignString = xmlNode2.get_Item("priceAlign").get_InnerText();
-			}
-			if (xmlNode2.get_Item("recoverPasswordAnswerCount") != null)
-			{
-				serviceManager.recoverPasswordAnswerCountString = xmlNode2.get_Item("recoverPasswordAnswerCount").get_InnerText();
-			}
-			if (xmlNode2.get_Item("placardUrl") != null)
-			{
-				serviceManager.placardUrl = xmlNode2.get_Item("placardUrl").get_InnerText();
-			}
-			if (xmlNode2.get_Item("useCell") != null)
-			{
-				serviceManager.useCell = xmlNode2.get_Item("useCell").get_InnerText();
-			}
-			if (xmlNode2.get_Item("forgetPasswordLink") != null)
-			{
-				serviceManager.forgetPasswordLink = xmlNode2.get_Item("forgetPasswordLink").get_InnerText();
-			}
-			if (xmlNode2.get_Item("forgetPasswordLink1") != null)
-			{
-				serviceManager.forgetPasswordLink1 = xmlNode2.get_Item("forgetPasswordLink1").get_InnerText();
-			}
-			if (xmlNode2.get_Item("forgetPasswordLink2") != null)
-			{
-				serviceManager.forgetPasswordLink2 = xmlNode2.get_Item("forgetPasswordLink2").get_InnerText();
-			}
-			if (xmlNode2.get_Item("forgetPasswordLink3") != null)
-			{
-				serviceManager.forgetPasswordLink3 = xmlNode2.get_Item("forgetPasswordLink3").get_InnerText();
-			}
-			if (xmlNode2.get_Item("forgetPasswordLink4") != null)
-			{
-				serviceManager.forgetPasswordLink4 = xmlNode2.get_Item("forgetPasswordLink4").get_InnerText();
-			}
-			if (xmlNode2.get_Item("forgetPasswordLink5") != null)
-			{
-				serviceManager.forgetPasswordLink5 = xmlNode2.get_Item("forgetPasswordLink5").get_InnerText();
-			}
-			if (xmlNode2.get_Item("forgetPasswordLink6") != null)
-			{
-				serviceManager.forgetPasswordLink6 = xmlNode2.get_Item("forgetPasswordLink6").get_InnerText();
+				serviceManager.backupServiceUrl2 = XmlElementHelper.getInnerValue(settingElement,"backupServiceUrl2");
 			}
 
-			if (xmlNode2.get_Item("defaultMainFormColor") != null)
+			if (settingElement.getFirstChildElement("backupAuthenticationUrl3") != null)
 			{
-				serviceManager.defaultMainFormColor = xmlNode2.get_Item("defaultMainFormColor").get_InnerText();
+				serviceManager.backupAuthenticationUrl3 = XmlElementHelper.getInnerValue(settingElement,"backupAuthenticationUrl3");
 			}
-			//serviceManager.autoUpdaterCopy();
+			if (settingElement.getFirstChildElement("backupServiceUrl3") != null)
+			{
+				serviceManager.backupServiceUrl3 = XmlElementHelper.getInnerValue(settingElement,"backupServiceUrl3");
+			}
+
+			if (settingElement.getFirstChildElement("serviceHost3") != null)
+			{
+				serviceManager.serviceHost3 = XmlElementHelper.getInnerValue(settingElement,"serviceHost3");
+			}
+			if (settingElement.getFirstChildElement("serviceHost4") != null)
+			{
+				serviceManager.serviceHost4 = XmlElementHelper.getInnerValue(settingElement,"serviceHost4");
+			}
+			if (settingElement.getFirstChildElement("serviceHost5") != null)
+			{
+				serviceManager.serviceHost5 = XmlElementHelper.getInnerValue(settingElement,"serviceHost5");
+			}
+			if (settingElement.getFirstChildElement("serviceHost6") != null)
+			{
+				serviceManager.serviceHost6 = XmlElementHelper.getInnerValue(settingElement,"serviceHost6");
+			}
+			serviceManager.userDefineServiceHost = XmlElementHelper.getInnerValue(settingElement,"userDefineServiceHost");
+			serviceManager.userDefinePasswordLink = XmlElementHelper.getInnerValue(settingElement,"userDefinePasswordLink");
+			serviceManager.selectedServiceHostSequence = XmlConvert.toInt32(XmlElementHelper.getInnerValue(settingElement,"selectedServiceHostSequence"));
+			if (settingElement.getFirstChildElement("totalService") != null)
+			{
+				serviceManager.totalService = XmlConvert.toInt32(XmlElementHelper.getInnerValue(settingElement,"totalService"));
+			}
+			if (settingElement.getFirstChildElement("mapPort") != null)
+			{
+				serviceManager.mapPortString = XmlElementHelper.getInnerValue(settingElement,"mapPort");
+			}
+			if (settingElement.getFirstChildElement("mapPort1") != null)
+			{
+				serviceManager.mapPortString1 = XmlElementHelper.getInnerValue(settingElement,"mapPort1");
+			}
+			if (settingElement.getFirstChildElement("mapPort2") != null)
+			{
+				serviceManager.mapPortString2 = XmlElementHelper.getInnerValue(settingElement,"mapPort2");
+			}
+			if (settingElement.getFirstChildElement("mapPort3") != null)
+			{
+				serviceManager.mapPortString3 = XmlElementHelper.getInnerValue(settingElement,"mapPort3");
+			}
+			if (settingElement.getFirstChildElement("mapPort4") != null)
+			{
+				serviceManager.mapPortString4 = XmlElementHelper.getInnerValue(settingElement,"mapPort4");
+			}
+			if (settingElement.getFirstChildElement("mapPort5") != null)
+			{
+				serviceManager.mapPortString5 = XmlElementHelper.getInnerValue(settingElement,"mapPort5");
+			}
+			if (settingElement.getFirstChildElement("mapPort6") != null)
+			{
+				serviceManager.mapPortString6 = XmlElementHelper.getInnerValue(settingElement,"mapPort6");
+			}
+			if (settingElement.getFirstChildElement("priceAlign") != null)
+			{
+				serviceManager.priceAlignString = XmlElementHelper.getInnerValue(settingElement,"priceAlign");
+			}
+			if (settingElement.getFirstChildElement("recoverPasswordAnswerCount") != null)
+			{
+				serviceManager.recoverPasswordAnswerCountString = XmlElementHelper.getInnerValue(settingElement,"recoverPasswordAnswerCount");
+			}
+			if (settingElement.getFirstChildElement("placardUrl") != null)
+			{
+				serviceManager.placardUrl = XmlElementHelper.getInnerValue(settingElement,"placardUrl");
+			}
+			if (settingElement.getFirstChildElement("useCell") != null)
+			{
+				serviceManager.useCell = XmlElementHelper.getInnerValue(settingElement,"useCell");
+			}
+			if (settingElement.getFirstChildElement("forgetPasswordLink") != null)
+			{
+				serviceManager.forgetPasswordLink = XmlElementHelper.getInnerValue(settingElement,"forgetPasswordLink");
+			}
+			if (settingElement.getFirstChildElement("forgetPasswordLink1") != null)
+			{
+				serviceManager.forgetPasswordLink1 = XmlElementHelper.getInnerValue(settingElement,"forgetPasswordLink1");
+			}
+			if (settingElement.getFirstChildElement("forgetPasswordLink2") != null)
+			{
+				serviceManager.forgetPasswordLink2 = XmlElementHelper.getInnerValue(settingElement,"forgetPasswordLink2");
+			}
+			if (settingElement.getFirstChildElement("forgetPasswordLink3") != null)
+			{
+				serviceManager.forgetPasswordLink3 = XmlElementHelper.getInnerValue(settingElement,"forgetPasswordLink3");
+			}
+			if (settingElement.getFirstChildElement("forgetPasswordLink4") != null)
+			{
+				serviceManager.forgetPasswordLink4 = XmlElementHelper.getInnerValue(settingElement,"forgetPasswordLink4");
+			}
+			if (settingElement.getFirstChildElement("forgetPasswordLink5") != null)
+			{
+				serviceManager.forgetPasswordLink5 = XmlElementHelper.getInnerValue(settingElement,"forgetPasswordLink5");
+			}
+			if (settingElement.getFirstChildElement("forgetPasswordLink6") != null)
+			{
+				serviceManager.forgetPasswordLink6 = XmlElementHelper.getInnerValue(settingElement,"forgetPasswordLink6");
+			}
+
+			if (settingElement.getFirstChildElement("defaultMainFormColor") != null)
+			{
+				serviceManager.defaultMainFormColor = XmlElementHelper.getInnerValue(settingElement,"defaultMainFormColor");
+			}
+			if(settingElement.getFirstChildElement("waitTimeout")!=null)
+			{
+				serviceManager.waitTimeout = Integer.parseInt(XmlElementHelper.getInnerValue(settingElement,"waitTimeout"));
+			}
 		}
 		catch (Throwable exception)
 		{
@@ -621,6 +628,10 @@ public class ServiceManager
 
 		return serviceManager;
 	}
+
+
+
+
 
 	//private void autoUpdaterCopy()
 	//{
@@ -1037,6 +1048,11 @@ public class ServiceManager
 		{
 			defaultMainFormColor = xmlNode2.get_Item("defaultMainFormColor").get_InnerText();
 		}
+		String waitTimeout="";
+		if(xmlNode2.get_Item("waitTimeout")!=null)
+		{
+			waitTimeout= xmlNode2.get_Item("waitTimeout").get_InnerText();
+		}
 
 		//String settingDirectory = AppToolkit.get_SettingDirectory();
 		String settingDirectory = AppToolkit.get_CompanySettingDirectory();
@@ -1100,6 +1116,7 @@ public class ServiceManager
 		xml += "<userDefinePasswordLink>" + userDefinePasswordLink + "</userDefinePasswordLink>";
 		xml += "<recoverPasswordAnswerCount>" + recoverPasswordAnswerCountString + "</recoverPasswordAnswerCount>";
 		xml += "<defaultMainFormColor>" + defaultMainFormColor + "</defaultMainFormColor>";
+		xml += "<waitTimeout>" + waitTimeout +"</waitTimeout>";
 		xml += "</appSettings>";
 		xml += "</configuration>";
 		XmlDocument xmlDocument = new XmlDocument();
@@ -1342,7 +1359,8 @@ public class ServiceManager
 						|| sourceLocalName.equalsIgnoreCase("backupServerNumber")
 						|| sourceLocalName.equalsIgnoreCase("serviceUrlFor99Bill")
 						|| sourceLocalName.equalsIgnoreCase("companyCodeForTransfer")
-						|| sourceLocalName.equalsIgnoreCase("showMarginAsChuRuJin"))
+						|| sourceLocalName.equalsIgnoreCase("showMarginAsChuRuJin")
+						|| sourceLocalName.equalsIgnoreCase("waitTimeout"))
 					{
 						if (!sourceXmlNode2.get_InnerText().equalsIgnoreCase(destinationXmlNode2.get_InnerText()))
 						{

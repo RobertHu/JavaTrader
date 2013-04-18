@@ -7,45 +7,39 @@ import org.apache.log4j.PropertyConfigurator;
 
 public class Settings
 {
-	private static final String configPath = "Configuration/config.xml";
-	private static final String log4jPath = "Configuration/log4j.properties";
+	private static final String log4jPath = "log4j.properties";
 	private static Logger logger= Logger.getLogger(Settings.class);
-	private static IpAndPort ipAndPort;
-	private static int waitTimeout;
-	static{
-		try
-		{
-			Document doc = DocumentHelper.load(configPath);
-			Element root = doc.getRootElement();
-			Element server = root.getFirstChildElement("server");
-			Element ipE = server.getFirstChildElement("ip");
-			Element portE = server.getFirstChildElement("port");
-			String ip= ipE.getValue();
-			int port = Integer.parseInt(portE.getValue());
-			ipAndPort = new IpAndPort(ip,port);
-			Element waitTimeoutE = root.getFirstChildElement("waitTimeout");
-			waitTimeout = Integer.parseInt(waitTimeoutE.getValue());
-		}
-		catch (Exception e)
-		{
-			logger.error(e.getStackTrace());
-		}
+	private static int  waitTimeout=20000;
+	private static String hostName;
+	private static int port;
+	public static final String ConfigFileName = "config.xml";
 
+	public static String getHostName(){
+		return hostName;
+	}
+	public static int getPort(){
+		return port;
 	}
 
-	public static void initialize(){
-		PropertyConfigurator.configure(log4jPath);
+	public static void setHostName(String hostName){
+		Settings.hostName = hostName;
 	}
-
+	public static void setPort(int port){
+		Settings.port = port;
+	}
 
 	public static int getWaitTimeout(){
 		return waitTimeout;
 	}
 
-
-	public static IpAndPort getIpAndPort()
-	{
-		return ipAndPort;
+	public static void setWaitTimeout(int value){
+		if(value <=0){
+			return;
+		}
+		waitTimeout = value;
 	}
 
+	public static void initialize(){
+		PropertyConfigurator.configure(log4jPath);
+	}
 }

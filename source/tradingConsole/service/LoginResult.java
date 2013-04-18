@@ -5,6 +5,7 @@ import framework.xml.XmlNode;
 import framework.data.DataSet;
 import nu.xom.Element;
 import Util.*;
+import org.apache.log4j.Logger;
 public class LoginResult
 {
 	private Guid _userId;
@@ -17,6 +18,7 @@ public class LoginResult
 	private XmlNode _settings;
 	private DataSet _recoverPasswordData;
 	private DataSet _tradingAccountData;
+	private Logger logger = Logger.getLogger(LoginResult.class);
 
 	public Guid get_UserId()
 	{
@@ -70,17 +72,16 @@ public class LoginResult
 
 	public LoginResult(Element result)
 	{
-		this._companyName=result.getFirstChildElement("companyName").getValue();
-		this._disallowLogin=Boolean.parseBoolean(result.getFirstChildElement("disallowLogin").getValue());
-		this._needActiveAccount=Boolean.parseBoolean(result.getFirstChildElement("isActivateAccount").getValue());
-		this._companyLogo=Base64Helper.decode(result.getFirstChildElement("companyLogo").getValue());
-		this._colorSettings=XmlElementHelper.ConvertToXmlNode(result.getFirstChildElement("colorSettings"));
-		this._parameter=XmlElementHelper.ConvertToXmlNode(result.getFirstChildElement("parameter"));
-		this._settings=XmlElementHelper.ConvertToXmlNode(result.getFirstChildElement("settings"));
-		this._recoverPasswordData= XmlElementHelper.convertToDataset(result.getFirstChildElement("recoverPasswordData"));
-		this._tradingAccountData=XmlElementHelper.convertToDataset(result.getFirstChildElement("tradingAccountData"));
-		this._userId=new Guid(result.getFirstChildElement("userId").getValue());
-
+		this._tradingAccountData = XmlElementHelper.convertToDataset(result.getFirstChildElement("tradingAccountData"));
+		this._recoverPasswordData = XmlElementHelper.convertToDataset(result.getFirstChildElement("recoverPasswordData"));
+		this._companyName = result.getFirstChildElement("companyName").getValue();
+		this._disallowLogin = Boolean.parseBoolean(result.getFirstChildElement("disallowLogin").getValue());
+		this._needActiveAccount = Boolean.parseBoolean(result.getFirstChildElement("isActivateAccount").getValue());
+		this._companyLogo = Base64Helper.decode(result.getFirstChildElement("companyLogo").getValue());
+		this._colorSettings = XmlElementHelper.ConvertToXmlNode(result.getFirstChildElement("colorSettings"));
+		this._parameter = XmlElementHelper.ConvertToXmlNode(result.getFirstChildElement("parameter"));
+		this._settings = XmlElementHelper.ConvertToXmlNode(result.getFirstChildElement("settings"));
+		this._userId = new Guid(result.getFirstChildElement("userId").getValue());
 	}
 
 

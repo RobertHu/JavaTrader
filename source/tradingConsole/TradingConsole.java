@@ -1037,6 +1037,7 @@ public class TradingConsole extends Applet implements Scheduler.ISchedulerCallba
 		}
 
 		GetInitDataResult getInitDataResult = this._tradingConsoleServer.getInitData(this._commandSequence);
+		this.logger.info("get init data");
 		try
 		{
 			DataSet ds = getInitDataResult.get_DataSet();
