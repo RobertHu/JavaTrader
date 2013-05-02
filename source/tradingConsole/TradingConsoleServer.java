@@ -647,6 +647,9 @@ public class TradingConsoleServer implements ITimeSyncService, Scheduler.ISchedu
 		{
 			ComunicationObject command = CommandHelper.buildGetLostCommands(firstSequence, lastSequence);
 			SignalObject signal = RequestCommandHelper.request(command);
+			if(signal.getIsError()){
+				return result;
+			}
 			result = RequestCommandHelper.getNodeFromResponse(signal.getResult());
 		}
 		catch (Exception ex)
@@ -668,12 +671,30 @@ public class TradingConsoleServer implements ITimeSyncService, Scheduler.ISchedu
 
 	public void quote2(Guid instrumentId, BigDecimal buyQuoteLot, BigDecimal sellQuoteLot, int tick)
 	{
-		throw new UnsupportedOperationException();
+		try{
+			ComunicationObject command = CommandHelper.buildQuote2Command(instrumentId,buyQuoteLot,sellQuoteLot,tick);
+			SignalObject signal = RequestCommandHelper.request(command);
+			if(signal.getIsError()){
+				this.logger.error("quote2 error");
+			}
+		}
+		catch(Exception e){
+			this.logger.error(e.getStackTrace());
+		}
 	}
 
 	public void quote(Guid instrumentId, BigDecimal quoteLot, int BSStatus)
 	{
-		throw new UnsupportedOperationException();
+		try{
+			ComunicationObject command = CommandHelper.buildQuoteCommand(instrumentId,quoteLot,BSStatus);
+			SignalObject signal = RequestCommandHelper.request(command);
+			if(signal.getIsError()){
+				this.logger.error("quote error");
+			}
+		}
+		catch(Exception e){
+			this.logger.error(e.getStackTrace());
+		}
 	}
 
 	public IAsyncResult beginCancelLMTOrder(Guid transactionId, IAsyncCallback callback, Object asyncState)

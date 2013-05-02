@@ -48,34 +48,60 @@ public class AliveKeeper implements Runnable {
 	}
 
 
-	public void run(){
-		while(true){
-			try {
-				if(this.isStop){
+	public void run()
+	{
+		while (true)
+		{
+			try
+			{
+				if (this.isStop)
+				{
 					break;
 				}
 				TimeUnit.MILLISECONDS.sleep(this.sleepTime);
+				if (!this.loginInfo.get_LoginStatus().equals(LoginStatus.LoginSucceed)
+				    &&
+					!this.loginInfo.get_LoginStatus().equals(LoginStatus.Ready))
+				{
+					System.out.println("not equals login succeed or ready");
+					continue;
+				}
 				SignalObject signalObject = RequestCommandHelper.request(this.buildRequest());
-				if(this.isSessionLost(signalObject)){
+				if (this.isSessionLost(signalObject))
+				{
 					this.logger.info("session lost");
 					this.fireConnectionBroken();
 					break;
 				}
-				else{
+				else
+				{
 					sleepTime = SLEEP_TIME;
 					this.exceptionCount = 0;
 				}
 
-			} catch (Exception e) {
+			}
+			catch (Exception e)
+			{
 				logger.error("has exception");
-				this.exceptionCount++;
-				if(this.exceptionCount >= MAX_EXCEPTION_COUNT){
+				if (IsExceedMaxExceptionCount())
+				{
 					this.fireConnectionBroken();
 					break;
 				}
-				sleepTime = SLEEP_TIME / (2 * this.exceptionCount);
 			}
 		}
+	}
+
+	private boolean IsExceedMaxExceptionCount()
+	{
+		boolean result = false;
+		this.exceptionCount++;
+		if (this.exceptionCount >= MAX_EXCEPTION_COUNT)
+		{
+			result = true;
+		}
+		sleepTime = SLEEP_TIME / (2 * this.exceptionCount);
+		return result;
 	}
 
 

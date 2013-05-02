@@ -10,6 +10,7 @@ import framework.Guid;
 import Packet.PacketContants;
 import framework.xml.XmlNode;
 import Packet.StringConstants;
+import java.math.BigDecimal;
 
 public final class CommandHelper
 {
@@ -286,11 +287,22 @@ public final class CommandHelper
 		return request;
 	}
 
+	public static ComunicationObject buildQuoteCommand(Guid instrumentId, BigDecimal quoteLot, Integer BSStatus){
+		RequestWithRootAndArgumentNode target = newRootElementWithArgument();
+		buildRequestArgumentsHelper(target.args,instrumentId.toString(),quoteLot.toString(),BSStatus.toString());
+		ComunicationObject request = RequestCommandHelper.newCommandWithSession("Quote",target.root);
+		return request;
+	}
 
-
+	public static ComunicationObject buildQuote2Command(Guid instrumentId, BigDecimal buyQuoteLot, BigDecimal sellQuoteLot, Integer tick){
+		RequestWithRootAndArgumentNode target = newRootElementWithArgument();
+		buildRequestArgumentsHelper(target.args,instrumentId.toString(),buyQuoteLot.toString(),sellQuoteLot.toString(),tick.toString());
+		ComunicationObject request = RequestCommandHelper.newCommandWithSession("Quote2",target.root);
+		return request;
+	}
 
 	public static ComunicationObject buildGetAccountsForSettingCommand(){
-		return buildNoArgumentsCommandCommon("GetAccountsForSetting");
+		return buildNoArgumentsCommandCommon("GetAccsountsForSetting");
 	}
 
 

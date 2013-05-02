@@ -37,7 +37,7 @@ public class PacketParser
 		}
 		else
 		{
-			contentBytes = ZlibHelper.Decompress(contentBytes);
+			//contentBytes = ZlibHelper.Decompress(contentBytes);
 			int sessionIndex = PacketContants.HeadTotalLength;
 			byte[] sessionBytes = new byte[sessionLength];
 			System.arraycopy(packet, sessionIndex, sessionBytes, 0,

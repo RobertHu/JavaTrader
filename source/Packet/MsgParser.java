@@ -24,6 +24,7 @@ public class MsgParser implements Runnable {
 
 	public void start() {
 		Thread thread = new Thread(this);
+		thread.setDaemon(true);
 		thread.start();
 	}
 

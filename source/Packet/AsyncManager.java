@@ -42,6 +42,7 @@ public class AsyncManager implements Runnable
 	{
 		if(!this.isStarted){
 			Thread thread = new Thread(this);
+			thread.setDaemon(true);
 			thread.start();
 			this.isStarted=true;
 		}
