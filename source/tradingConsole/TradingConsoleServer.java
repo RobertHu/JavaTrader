@@ -34,6 +34,9 @@ import Util.SignalHelper;
 import tradingConsole.Transaction.PlaceCallback;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import tradingConsole.ui.BankAccountForm;
+import tradingConsole.ui.BankAccountCallback;
+import tradingConsole.settings.VerificationOrderManager.MultipleCloseCallback;
 
 public class TradingConsoleServer implements ITimeSyncService, Scheduler.ISchedulerCallback, TimeAdjustedEventHandler, SlidingWindow.ICommandStream, SlidingWindow.ICommandProcessor
 {
@@ -721,7 +724,7 @@ public class TradingConsoleServer implements ITimeSyncService, Scheduler.ISchedu
 			SignalObject signal=RequestCommandHelper.request(command);
 			Element result=signal.getResult();
 			logger.debug(result.toXML());
-			Element timeInfoElement=result.getFirstChildElement(StringConstants.ResultNodeName);
+			Element timeInfoElement=result.getFirstChildElement(StringConstants.SingleContentNodeName);
 			timeInfo=new TimeInfo();
 			timeInfo.readXml(XmlNodeHelper.Parse(timeInfoElement.getValue()));
 			logger.debug(String.format("%s %s", timeInfo.get_AdjustedTime().toString(),timeInfo.get_DateTime().toString()));
@@ -745,9 +748,30 @@ public class TradingConsoleServer implements ITimeSyncService, Scheduler.ISchedu
 		throw new UnsupportedOperationException();
 	}
 
-	public IAsyncResult beginMultipleClose(Guid[] orderIds, IAsyncCallback callback, Object asyncState)
+	public void beginMultipleClose(final Guid[] orderIds, final MultipleCloseCallback callback, Object asyncState)
 	{
-		throw new UnsupportedOperationException();
+		try{
+			ExecutorService executorService = Executors.newCachedThreadPool();
+			executorService.execute(new Runnable(){
+			public void run()
+			{
+				try{
+					ComunicationObject command = CommandHelper.buildMultipleCloseCommand(orderIds);
+					SignalObject signal = RequestCommandHelper.request(command);
+					callback.asyncCallback(signal);
+				}
+				catch(Exception ex){
+					ex.printStackTrace();
+				}
+			}
+		});
+
+		}
+		catch (Throwable throwable)
+		{
+			this.throwableProcess("beginMultipleClose", throwable);
+		}
+
 	}
 
 	public MultipleCloseResult endMultipleClose(IAsyncResult asyncResult)
@@ -791,9 +815,30 @@ public class TradingConsoleServer implements ITimeSyncService, Scheduler.ISchedu
 		throw new UnsupportedOperationException();
 	}
 
-	public IAsyncResult beginGetAccountBanksApproved(Guid accountId, IAsyncCallback callback, Object state)
+	public void beginGetAccountBanksApproved(final Guid accountId, final BankAccountCallback callback, Object state)
 	{
-		throw new UnsupportedOperationException();
+		try{
+			ExecutorService executorService = Executors.newCachedThreadPool();
+			executorService.execute(new Runnable(){
+			public void run()
+			{
+				try{
+					ComunicationObject command = CommandHelper.buildGetAccountBanksApprovedCommand(accountId,PublicParametersManager.version);
+					SignalObject signal = RequestCommandHelper.request(command);
+					callback.asyncCallback(signal);
+				}
+				catch(Exception ex){
+					ex.printStackTrace();
+				}
+			}
+		});
+
+		}
+		catch (Throwable throwable)
+		{
+			this.throwableProcess("beginGetAccountBanksApproved", throwable);
+		}
+
 	}
 
 	public DataSet endGetAccountBanksApproved(IAsyncResult asyncResult)
@@ -807,7 +852,27 @@ public class TradingConsoleServer implements ITimeSyncService, Scheduler.ISchedu
 						   String idType, //#0;身份证|#1;户口簿|#2;护照|#3;军官证|#4;士兵证|#5;港澳居民来往内地通行证|#6;台湾同胞来往内地通行证|#7;临时身份证|#8;外国人居留证|#9;警官证|#x;其他证件
 						   String idNo, String bankProvinceId, String bankCityId, String bankAddress, String swiftCode, int applicationType)
 	{
-		throw new UnsupportedOperationException();
+		boolean[] result = new boolean[2];
+		try{
+			ComunicationObject command = CommandHelper.buildApplyCommand(id, accountBankApprovedId, accountId, countryId, bankId, bankName,
+						   accountBankNo, accountBankType, //#00;银行卡|#01;存折
+						   accountOpener, accountBankProp, accountBankBCId, accountBankBCName,
+						   idType, //#0;身份证|#1;户口簿|#2;护照|#3;军官证|#4;士兵证|#5;港澳居民来往内地通行证|#6;台湾同胞来往内地通行证|#7;临时身份证|#8;外国人居留证|#9;警官证|#x;其他证件
+						   idNo, bankProvinceId, bankCityId, bankAddress, swiftCode, applicationType);
+			SignalObject signal = RequestCommandHelper.request(command);
+			if(signal.getIsError()){
+				return result;
+			}
+			boolean isApproved  = RequestCommandHelper.getBoolFromResponse(signal.getResult());
+			result[0]=true;
+			result[1]=isApproved;
+		}
+		catch (Throwable throwable)
+		{
+			this.throwableProcess("apply", throwable);
+		}
+		return result;
+
 	}
 
 	public void beginPlace(final XmlNode tran, final PlaceCallback callback, Object asyncState) throws IOException, InterruptedException
@@ -900,7 +965,20 @@ public class TradingConsoleServer implements ITimeSyncService, Scheduler.ISchedu
 
 	public PlaceResult place(XmlNode tran)
 	{
-		throw new UnsupportedOperationException();
+		PlaceResult result = null;
+		try{
+			ComunicationObject command = CommandHelper.buildPlaceCommand(tran);
+			SignalObject signal = RequestCommandHelper.request(command);
+			if(signal.getIsError()){
+				return result;
+			}
+			result = new PlaceResult(signal.getResult());
+		}
+		catch (Throwable throwable)
+		{
+			this.throwableProcess("place", throwable);
+		}
+		return result;
 	}
 
 	public IAsyncResult beginAssign(XmlNode xmlTransaction, IAsyncCallback callback, Object asyncState)
@@ -935,7 +1013,21 @@ public class TradingConsoleServer implements ITimeSyncService, Scheduler.ISchedu
 
 	public DataSet queryOrder(Guid customerId, String accountId, String instrumentId, int lastDays)
 	{
-		throw new UnsupportedOperationException();
+		DataSet result = null;
+		try{
+			ComunicationObject command = CommandHelper.buildQueryOrderCommand(customerId, accountId, instrumentId, lastDays);
+			SignalObject signal = RequestCommandHelper.request(command);
+			if(signal.getIsError()){
+				return result;
+			}
+			result = RequestCommandHelper.getDataFromResponse(signal.getResult());
+		}
+		catch (Throwable throwable)
+		{
+			this.throwableProcess("queryOrder", throwable);
+		}
+		return result;
+
 	}
 
 	public AssignResult assign( XmlNode xmlTransaction, XmlNode xmlAccount,  XmlNode xmlInstrument)
@@ -1034,7 +1126,21 @@ public class TradingConsoleServer implements ITimeSyncService, Scheduler.ISchedu
 
 	public boolean deleteMessage(Guid id)
 	{
-		throw new UnsupportedOperationException();
+		boolean result= false;
+		try{
+			ComunicationObject command = CommandHelper.buildDeleteMessageCommand(id);
+			SignalObject signal = RequestCommandHelper.request(command);
+			if(signal.getIsError()){
+				return result;
+			}
+			result = RequestCommandHelper.getBoolFromResponse(signal.getResult());
+		}
+		catch (Throwable throwable)
+		{
+			this.throwableProcess("deleteMessage", throwable);
+		}
+		return result;
+
 	}
 
 	public GetCustomerInfoResult getCustomerInfo( /*out*/String customerName)
@@ -1112,7 +1218,22 @@ public class TradingConsoleServer implements ITimeSyncService, Scheduler.ISchedu
 
 	public boolean recoverPasswordDatas(String[][] recoverPasswordDatas)
 	{
-		throw new UnsupportedOperationException();
+		boolean result = false;
+		try{
+			ComunicationObject command = CommandHelper.buildRecoverPasswordDatasCommand(recoverPasswordDatas);
+			SignalObject signal = RequestCommandHelper.request(command);
+			if(signal.getIsError()){
+				return result;
+			}
+			result = RequestCommandHelper.getBoolFromResponse(signal.getResult());
+		}
+		catch (Throwable throwable)
+		{
+			this.throwableProcess("recoverPasswordDatas", throwable);
+		}
+		return result;
+
+
 	}
 
 	public void statementForJava(int statementReportType, String tradeDay, String IDs, String reportxml)
@@ -1468,12 +1589,40 @@ public class TradingConsoleServer implements ITimeSyncService, Scheduler.ISchedu
 
 	public boolean verifyMarginPin(Guid accountId, String marginPin)
 	{
-		throw new UnsupportedOperationException();
+		boolean result = false;
+		try{
+			ComunicationObject command = CommandHelper.buildVerifyMarginPinCommand(accountId,marginPin);
+			SignalObject signal = RequestCommandHelper.request(command);
+			if(signal.getIsError()){
+				return result;
+			}
+			result = RequestCommandHelper.getBoolFromResponse(signal.getResult());
+		}
+		catch (Throwable throwable)
+		{
+			this.throwableProcess("verifyMarginPin", throwable);
+		}
+		return result;
+
 	}
 
 	public boolean changeMarginPin(Guid accountId, String oldMarginPin, String newMarginPin)
 	{
-		throw new UnsupportedOperationException();
+		boolean result = false;
+		try{
+			ComunicationObject command = CommandHelper.buildChangeMarginPinCommand(accountId,oldMarginPin,newMarginPin);
+			SignalObject signal = RequestCommandHelper.request(command);
+			if(signal.getIsError()){
+				return result;
+			}
+			result =result = RequestCommandHelper.getBoolFromResponse(signal.getResult());
+		}
+		catch (Throwable throwable)
+		{
+			this.throwableProcess("changeMarginPin", throwable);
+		}
+		return result;
+
 	}
 
 	public XmlNode getOuterNews(String newsUrl)
@@ -1571,11 +1720,26 @@ public class TradingConsoleServer implements ITimeSyncService, Scheduler.ISchedu
 
 	public boolean modifyTelephoneIdentificationCode(Guid accountId, String oldCode, String newCode)
 	{
-		throw new UnsupportedOperationException();
+		boolean result = false;
+		try{
+			ComunicationObject command = CommandHelper.buildModifyTelephoneIdentificationCodeCommand(accountId,oldCode,newCode);
+			SignalObject signal = RequestCommandHelper.request(command);
+			if(signal.getIsError()){
+				return result;
+			}
+			result = RequestCommandHelper.getBoolFromResponse(signal.getResult());
+		}
+		catch (Throwable throwable)
+		{
+			this.throwableProcess("saveLog", throwable);
+		}
+		return result;
+
 	}
 
 	public boolean isReady()
 	{
-		throw new UnsupportedOperationException();
+		LoginStatus status= this._tradingConsole.get_LoginInformation().get_LoginStatus();
+		return status.equals(LoginStatus.Ready);
 	}
 }

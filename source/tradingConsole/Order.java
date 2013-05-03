@@ -1345,7 +1345,7 @@ public class Order
 	//WorkingOrderList use
 	public static PropertyDescriptor[] getPropertyDescriptorsForWorkingOrderList(SettingsManager settingsManager)
 	{
-		PropertyDescriptor[] propertyDescriptors = new PropertyDescriptor[13];
+		PropertyDescriptor[] propertyDescriptors = new PropertyDescriptor[14];
 
 		UISetting uiSetting = settingsManager.getUISetting(UISetting.workingOrderListUiSetting);
 		HashMap<String, UISetting2> uiSetting2s = uiSetting.get_UiSetting2s();
@@ -1396,6 +1396,11 @@ public class Order
 			uiSetting2.get_ColWidth(), SwingConstants.RIGHT, null, null);
 		propertyDescriptors[uiSetting2.get_Sequence()] = propertyDescriptor;
 
+		uiSetting2 = uiSetting2s.get(OpenOrderColKey.ExecutePriceString);
+		propertyDescriptor = PropertyDescriptor.create(Order.class, OpenOrderColKey.ExecutePriceString, true, null, Language.executePriceCaption,
+			uiSetting2.get_ColWidth(), SwingConstants.RIGHT, null, null);
+		propertyDescriptors[uiSetting2.get_Sequence()] = propertyDescriptor;
+
 		uiSetting2 = uiSetting2s.get(OrderColKey.OrderTypeString);
 		propertyDescriptor = PropertyDescriptor.create(Order.class, OrderColKey.OrderTypeString, true, null, OrderLanguage.OrderTypeString,
 			uiSetting2.get_ColWidth(), SwingConstants.CENTER, null, null);
@@ -1419,7 +1424,8 @@ public class Order
 		ArrayList<PropertyDescriptor> propertyDescriptorList = new ArrayList<PropertyDescriptor> ();
 		for (PropertyDescriptor item : propertyDescriptors)
 		{
-			if (Parameter.isShouldShowColumn("WorkingOrderList", item.get_Name()))
+			if (Parameter.isShouldShowColumn("WorkingOrderList", item.get_Name())
+				|| item.get_Name().equalsIgnoreCase(OpenOrderColKey.ExecutePriceString))
 			{
 				propertyDescriptorList.add(item);
 			}
@@ -1430,7 +1436,24 @@ public class Order
 			propertyDescriptors = propertyDescriptorList.toArray(propertyDescriptors);
 		}
 
-		return ColumnUIInfoManager.applyUIInfo(GridNames.OrderGrid, propertyDescriptors);
+		propertyDescriptors = ColumnUIInfoManager.applyUIInfo(GridNames.OrderGrid, propertyDescriptors);
+		if(propertyDescriptors[propertyDescriptors.length - 1].get_Name().equalsIgnoreCase(OpenOrderColKey.ExecutePriceString))
+		{
+			PropertyDescriptor[] propertyDescriptors2 = new PropertyDescriptor[propertyDescriptors.length];
+
+			int offset = 0;
+			for(int index = 0; index < propertyDescriptors.length - 1; index++)
+			{
+				propertyDescriptors2[index + offset] = propertyDescriptors[index];
+				if(propertyDescriptors[index].get_Name().equalsIgnoreCase(OrderColKey.SetPriceString))
+				{
+					offset = 1;
+					propertyDescriptors2[index + 1] = propertyDescriptors[propertyDescriptors.length - 1];
+				}
+			}
+			propertyDescriptors = propertyDescriptors2;
+		}
+		return propertyDescriptors;
 	}
 
 	public static void rebindOpenOrderList(SettingsManager settingsManager, tradingConsole.ui.grid.DockableTable grid, String dataSourceKey,
@@ -3211,10 +3234,10 @@ public class Order
 		writer.println(info);
 	}
 
-	public static SetPriceError checkLMTOrderSetPrice(boolean isCheckAccept, Instrument instrument, boolean isBuy, TradeOption previousTradeOption,
-		Price setPrice, Price marketPrice, boolean isOpen)
+	public static SetPriceError checkLMTOrderSetPrice(Account account, boolean isCheckAccept, Instrument instrument, boolean isBuy, TradeOption previousTradeOption,
+		Price setPrice, Price marketPrice, BigDecimal lot, Order amendedOrder, HashMap<Guid, RelationOrder> placeRelations, boolean hasAnotherPlacingTran)
 	{
-		int variation = (isCheckAccept) ? instrument.get_AcceptLmtVariation(isOpen) : instrument.get_CancelLmtVariation();
+		int variation = (isCheckAccept) ? instrument.get_AcceptLmtVariation(account, isBuy, lot, amendedOrder, placeRelations, hasAnotherPlacingTran) : instrument.get_CancelLmtVariation();
 
 		SetPriceError setPriceError = SetPriceError.Ok;
 		TradeOption currentTradeOption;
@@ -3271,7 +3294,7 @@ public class Order
 	{
 		Instrument instrument = order.get_Transaction().get_Instrument();
 		Price marketPrice = instrument.get_LastQuotation().getBuySell(order.get_IsBuy());
-		return Order.checkLMTOrderSetPrice(false, instrument, order.get_IsBuy(), order.get_TradeOption(), order.get_SetPrice(), marketPrice, order.get_IsOpen());
+		return Order.checkLMTOrderSetPrice(order.get_Account(), false, instrument, order.get_IsBuy(), order.get_TradeOption(), order.get_SetPrice(), marketPrice, order.get_Lot(), null, null, false);
 	}
 
 	public static String checkSpotSetPrice(Order order)

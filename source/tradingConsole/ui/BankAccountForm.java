@@ -22,8 +22,10 @@ import java.awt.event.WindowListener;
 import java.awt.event.WindowEvent;
 import com.jidesoft.swing.JideSwingUtilities;
 import java.awt.event.WindowAdapter;
+import Packet.SignalObject;
+import Util.XmlElementHelper;
 
-public class BankAccountForm extends JDialog
+public class BankAccountForm extends JDialog implements InitializeBankAccount
 {
 	private DataGrid bankAccountsTable = new DataGrid("BankAccount");
 	private PVButton2 addButton = new PVButton2();
@@ -47,13 +49,13 @@ public class BankAccountForm extends JDialog
 		this.getBankAccounts();
 	}
 
-	private void showWarning(String info)
+	public void showWarning(String info)
 	{
 		AlertDialogForm.showDialog(this, Language.BankAccount, true, info);
 	}
 
 	private ArrayList<BankAccount> _BankAccounts;
-	private void initialize(DataSet dataSet)
+	public  void initialize(DataSet dataSet)
 	{
 		this._tradingConsole.get_BankAccountHelper().initializeReferenceData(dataSet);
 
@@ -134,29 +136,7 @@ public class BankAccountForm extends JDialog
 	{
 	try
 		{
-			this._tradingConsole.get_TradingConsoleServer().beginGetAccountBanksApproved(this._account.get_Id(), new IAsyncCallback()
-			{
-				public void asyncCallback(IAsyncResult asyncResult)
-				{
-					DataSet bankAccountsDataSet = _tradingConsole.get_TradingConsoleServer().endGetAccountBanksApproved(asyncResult);
-					if (bankAccountsDataSet == null)
-					{
-						SwingUtilities.invokeLater(new Runnable()
-						{
-							public void run()
-							{
-								String info = StringHelper.format(Language.CannotGetBankAccounts, new Object[]
-									{_account.get_Code()});
-								showWarning(info);
-							}
-						});
-					}
-					else
-					{
-						initialize(bankAccountsDataSet);
-					}
-				}
-			}, null);
+			this._tradingConsole.get_TradingConsoleServer().beginGetAccountBanksApproved(this._account.get_Id(), new BankAccountCallback(this._account.get_Code(),this), null);
 		}
 		catch(Exception e)
 		{
@@ -168,6 +148,9 @@ public class BankAccountForm extends JDialog
 			}
 		}
 	}
+
+
+
 
 	private void modify(BankAccount bankAccount)
 	{

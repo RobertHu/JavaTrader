@@ -542,6 +542,16 @@ public class CommandsManager
 				TradePolicyDetail.updateTradePolicyDetail(this._tradingConsole, this._settingsManager, xmlNode, updateType);
 				isNeedCalculatePLFloat = updateType.equalsIgnoreCase("Modify");
 			}
+			else if(nodeName.equals("VolumeNecessary"))
+			{
+				VolumeNecessary.update(this._settingsManager, xmlNode, updateType);
+				isNeedCalculatePLFloat = updateType.equalsIgnoreCase("Modify");
+			}
+			else if(nodeName.equals("VolumeNecessaryDetail"))
+			{
+				VolumeNecessaryDetail.update(this._settingsManager, xmlNode, updateType);
+				isNeedCalculatePLFloat = true;
+			}
 			else if(nodeName.equals("DealingPolicyDetail"))
 			{
 				DealingPolicyDetail.updateDealingPolicyDetail(this._tradingConsole, this._settingsManager, xmlNode, updateType);

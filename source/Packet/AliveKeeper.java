@@ -90,6 +90,7 @@ public class AliveKeeper implements Runnable {
 				}
 			}
 		}
+		this.logger.info("closed");
 	}
 
 	private boolean IsExceedMaxExceptionCount()

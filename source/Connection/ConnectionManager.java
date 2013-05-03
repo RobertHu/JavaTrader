@@ -82,6 +82,7 @@ public class ConnectionManager
 			{
 				this.aliveKeeper.stop();
 			}
+			this.logger.info("begin close tcp connection");
 			this.sslConnection.getSocket().close();
 			this.logger.debug("Close tcp connection");
 		}

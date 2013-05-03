@@ -7,11 +7,14 @@ import framework.data.DataRow;
 import framework.xml.XmlNode;
 import tradingConsole.settings.SettingsManager;
 import framework.xml.XmlAttributeCollection;
+import framework.StringHelper;
+import framework.DBNull;
 
 public class TradePolicyDetail
 {
 	private Guid _tradePolicyId;
 	private Guid _instrumentId;
+	private Guid _volumeNecessaryId;
 	private BigDecimal _contractSize;
 	private boolean _isTradeActive;
 	private BigDecimal _commissionCloseD;
@@ -190,6 +193,11 @@ public class TradePolicyDetail
 		return this._instrumentId;
 	}
 
+	public Guid get_VolumeNecessaryId()
+	{
+		return this._volumeNecessaryId;
+	}
+
 	public BigDecimal get_CommissionCloseD()
 	{
 		return this._commissionCloseD;
@@ -266,6 +274,7 @@ public class TradePolicyDetail
 	private void setValue(DataRow dataRow)
 	{
 		this._contractSize = AppToolkit.convertDBValueToBigDecimal(dataRow.get_Item("ContractSize"), 0.0);
+		this._volumeNecessaryId = dataRow.get_Item("VolumeNecessaryId").equals(DBNull.value) ? null : (Guid) (dataRow.get_Item("VolumeNecessaryId"));
 		this._isTradeActive = (Boolean) dataRow.get_Item("IsTradeActive");
 		this._commissionCloseD = AppToolkit.convertDBValueToBigDecimal(dataRow.get_Item("CommissionCloseD"),0.0);
 		this._commissionCloseO = AppToolkit.convertDBValueToBigDecimal(dataRow.get_Item("CommissionCloseO"),0.0);
@@ -322,6 +331,10 @@ public class TradePolicyDetail
 			if (nodeName.equals("InstrumentID"))
 			{
 				this._instrumentId = new Guid(nodeValue);
+			}
+			if (nodeName.equals("VolumeNecessaryId"))
+			{
+				this._volumeNecessaryId = StringHelper.isNullOrEmpty(nodeValue) ? null : new Guid(nodeValue);
 			}
 			else if (nodeName.equals("ContractSize"))
 			{

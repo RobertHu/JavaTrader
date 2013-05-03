@@ -24,6 +24,7 @@ import framework.diagnostics.TraceType;
 import tradingConsole.common.TransactionError;
 import tradingConsole.service.PlaceResult;
 import framework.xml.XmlDocument;
+import java.util.HashMap;
 
 public class ModifyOrderForm extends JDialog
 {
@@ -300,9 +301,10 @@ public class ModifyOrderForm extends JDialog
 
 		Instrument instrument = this.order.get_Transaction().get_Instrument();
 		boolean isBuy = this.order.get_IsBuy();
-		boolean isOpen = this.order.get_IsOpen();
+		Account account = this.order.get_Account();
+		BigDecimal lot = this.order.get_LotBalance();
 		Price marketPrice = instrument.get_LastQuotation().getBuySell(isBuy);
-		SetPriceError setPriceError = Order.checkLMTOrderSetPrice(true, instrument, isBuy, tradeOption, setPrice, marketPrice, isOpen);
+		SetPriceError setPriceError = Order.checkLMTOrderSetPrice(account, true, instrument, isBuy, tradeOption, setPrice, marketPrice, lot, this.order, this.getPlaceRelation(), false);
 
 		double dblMarketPrice = Price.toDouble(marketPrice);
 		if (Math.abs(Price.toDouble(setPrice) - dblMarketPrice) > dblMarketPrice * 0.2)
@@ -316,7 +318,9 @@ public class ModifyOrderForm extends JDialog
 	private void alert(String priceName, SetPriceError setPriceError)
 	{
 		String errorInfo = "";
-		boolean isOpen = this.order.get_IsOpen();
+		boolean isBuy = this.order.get_IsBuy();
+		Account account = this.order.get_Account();
+		BigDecimal lot = this.order.get_LotBalance();
 		if (setPriceError == SetPriceError.SetPriceTooCloseMarket)
 		{
 			Instrument instrument = this.order.get_Transaction().get_Instrument();
@@ -324,7 +328,7 @@ public class ModifyOrderForm extends JDialog
 
 			if (settingsManager.get_SystemParameter().get_DisplayLmtStopPoints())
 			{
-				errorInfo = "[" + priceName + "] " + Language.OrderLMTPageorderValidAlert2 + " " + instrument.get_AcceptLmtVariation(isOpen) + " " +
+				errorInfo = "[" + priceName + "] " + Language.OrderLMTPageorderValidAlert2 + " " + instrument.get_AcceptLmtVariation(account, isBuy, lot, this.order, getPlaceRelation(), false) + " " +
 					Language.OrderLMTPageorderValidAlert22;
 			}
 			else
@@ -361,8 +365,10 @@ public class ModifyOrderForm extends JDialog
 			return;
 		}
 
-		boolean isOpen = this.order.get_IsOpen();
-		int acceptLmtVariation = instrument.get_AcceptLmtVariation(isOpen);
+		Account account = this.order.get_Account();
+		BigDecimal lot = this.order.get_LotBalance();
+
+		int acceptLmtVariation = instrument.get_AcceptLmtVariation(account, isBuy, lot, this.order, getPlaceRelation(), false);
 		//Fill Limit Price
 		Price price = (instrument.get_IsNormal() == isBuy) ? Price.subStract(ask, acceptLmtVariation) : Price.add(bid, acceptLmtVariation);
 		if (this.isBetweenBidToAsk(price))
@@ -385,8 +391,10 @@ public class ModifyOrderForm extends JDialog
 			return;
 		}
 
-		boolean isOpen = this.order.get_IsOpen();
-		int acceptLmtVariation = instrument.get_AcceptLmtVariation(isOpen);
+		Account account = this.order.get_Account();
+		BigDecimal lot = this.order.get_LotBalance();
+
+		int acceptLmtVariation = instrument.get_AcceptLmtVariation(account, isBuy, lot, this.order, getPlaceRelation(), false);
 		//Fill Stop Price
 		Price price2 = (instrument.get_IsNormal() == isBuy) ? Price.add(ask, acceptLmtVariation) : Price.subStract(bid, acceptLmtVariation);
 		if (this.isBetweenBidToAsk(price2))
@@ -396,6 +404,12 @@ public class ModifyOrderForm extends JDialog
 		}
 		this.stopPirceTextField.setText(Price.toString(price2));
 	}
+
+	private HashMap<Guid, RelationOrder> getPlaceRelation()
+	{
+		return this.order.get_RelationOrders();
+	}
+
 
 	private boolean isBetweenBidToAsk(Price setPrice)
 	{

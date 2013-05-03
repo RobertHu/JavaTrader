@@ -350,7 +350,7 @@ public class Transaction implements ISchedulerCallback
 				|| result.get_TransactionError().equals(TransactionError.Action_ShouldAutoFill)))
 			{
 				TradingConsole.traceSource.trace(TraceType.Information, "confirm.makeOrderConfirm.place: updateTranCode_Begin");
-				this._owner.updateTranCode(result.get_TranCode());
+				this._owner.handlePlaceResult(result.get_TranCode());
 				TradingConsole.traceSource.trace(TraceType.Information, "confirm.makeOrderConfirm.place: updateTranCode_End");
 
 				/*TradingConsole.traceSource.trace(TraceType.Information, "confirm.makeOrderConfirm.place: saveLog(Placed)_Begin");
@@ -417,6 +417,11 @@ public class Transaction implements ISchedulerCallback
 			AwtSafelyAssignProcessor assignProcessor = new AwtSafelyAssignProcessor(this._owner, asyncResult);
 			SwingUtilities.invokeLater(assignProcessor);
 		}
+	}
+
+	private void setSubType(TransactionSubType subType)
+	{
+		this._subType = subType;
 	}
 
 	private void setPhase(Phase phase)
@@ -635,7 +640,7 @@ public class Transaction implements ISchedulerCallback
 	}
 
 	//for changing Limit/Stop order to OCO order only
-	public Transaction(TradingConsole tradingConsole, SettingsManager settingsManager, Order originalOrder)
+	public Transaction(TradingConsole tradingConsole, SettingsManager settingsManager, Order originalOrder, boolean changeToOCO)
 	{
 		this(tradingConsole, settingsManager);
 
@@ -646,8 +651,8 @@ public class Transaction implements ISchedulerCallback
 		this._instrument = originalOrder.get_Transaction().get_Instrument();
 		this._assigningOrder = originalOrder;
 		this._assigningOrderId = originalOrder.get_Id();
-		this._orderType = OrderType.OneCancelOther;
-		this._type = TransactionType.OneCancelOther;
+		this._orderType = changeToOCO ? OrderType.OneCancelOther : originalOrder.get_Transaction().get_OrderType();
+		this._type = changeToOCO ? TransactionType.OneCancelOther : originalOrder.get_Transaction().get_Type();
 	}
 
 	public Transaction(TradingConsole tradingConsole, SettingsManager settingsManager, DataRow dataRow)
@@ -1191,6 +1196,12 @@ public class Transaction implements ISchedulerCallback
 					Phase phase = Enum.valueOf(Phase.class, Integer.parseInt(nodeValue));
 					transaction.setPhase(phase);
 				}
+				if(transactionCollection.get_ItemOf("SubType") != null)
+				{
+					String nodeValue = transactionCollection.get_ItemOf("SubType").get_Value();
+					TransactionSubType subType = Enum.valueOf(TransactionSubType.class, Integer.parseInt(nodeValue));
+					transaction.setSubType(subType);
+				}
 				else if(transaction.get_Type() == TransactionType.Mapping && !transaction._instrument.isFromBursa())
 				{
 					transaction.setPhase(Phase.Placed);
@@ -1277,6 +1288,18 @@ public class Transaction implements ISchedulerCallback
 				}
 
 				XmlNodeList relationOrderNodeList = orderNode.get_ChildNodes();
+
+				///fix bug of Xml///////////
+				if(relationOrderNodeList.get_Count() == 0 && !StringHelper.isNullOrEmpty(orderNode.get_OuterXml())
+				   && orderNode.get_OuterXml().indexOf("OrderRelation") > 0)
+				{
+					XmlDocument document = new XmlDocument();
+					document.loadXml(orderNode.get_OuterXml());
+					orderNode = document.get_DocumentElement();
+					relationOrderNodeList = orderNode.get_ChildNodes();
+				}
+				///fix bug of Xml//////////
+
 				for (int j = 0; j < relationOrderNodeList.get_Count(); j++)
 				{
 					XmlNode relationOrderNode = relationOrderNodeList.item(j);
@@ -1299,6 +1322,8 @@ public class Transaction implements ISchedulerCallback
 						}
 					}
 				}
+				order.set_PeerOrderIDs(order.getPeerOrders()[0]);
+				order.set_PeerOrderCodes(order.getPeerOrders()[1]);
 				//Refresh Order UI
 				order.add(isFromExecute2, false);
 			}
@@ -1893,7 +1918,7 @@ public class Transaction implements ISchedulerCallback
 		}
 	}
 
-	private void updateTranCode(String tranCode)
+	private void handlePlaceResult(String tranCode)
 	{
 		this._code = tranCode;
 
@@ -1912,7 +1937,8 @@ public class Transaction implements ISchedulerCallback
 
 		if (this._orderType == OrderType.Limit && this._assigningOrder != null) //must be changing Limit/Stop order to OCO order
 		{
-			this._tradingConsole.removeOrder(this._assigningOrder);
+			Order.removeFromWorkingOrderList(this._assigningOrder);
+			//this._tradingConsole.removeOrder(this._assigningOrder);
 		}
 	}
 
@@ -1954,6 +1980,11 @@ public class Transaction implements ISchedulerCallback
 		{
 			TradingConsole.traceSource.trace(TraceType.Information, "to remove " + order.toString());
 			this._tradingConsole.removeOrder(order);
+		}
+
+		if (this._orderType == OrderType.Limit && this._assigningOrder != null) //must be changing Limit/Stop order to OCO order
+		{
+			this._assigningOrder.addWorkingOrder(OperateWhichOrderUI.WorkingOrderList);
 		}
 	}
 

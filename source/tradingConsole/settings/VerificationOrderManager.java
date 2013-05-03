@@ -16,6 +16,7 @@ import tradingConsole.enumDefine.*;
 import tradingConsole.service.*;
 import tradingConsole.ui.*;
 import tradingConsole.ui.language.*;
+import Packet.SignalObject;
 
 public class VerificationOrderManager
 {
@@ -1496,7 +1497,7 @@ public class VerificationOrderManager
 		return false;
 	}
 
-	static class MultipleCloseCallback implements IAsyncCallback
+	public static class MultipleCloseCallback implements IAsyncCallback
 	{
 		private VerificationOrderManager _owner;
 
@@ -1505,28 +1506,38 @@ public class VerificationOrderManager
 			this._owner = owner;
 		}
 
+	     public void asyncCallback(SignalObject signal){
+			 TradingConsole.traceSource.trace(TraceType.Information, "end MultipleClose");
+			AwtSafelyPlaceProcessor placeProcessor = new AwtSafelyPlaceProcessor(this._owner, signal);
+			SwingUtilities.invokeLater(placeProcessor);
+
+		 }
+
+
 		public void asyncCallback(IAsyncResult asyncResult)
 		{
-			TradingConsole.traceSource.trace(TraceType.Information, "end MultipleClose");
-			AwtSafelyPlaceProcessor placeProcessor = new AwtSafelyPlaceProcessor(this._owner, asyncResult);
-			SwingUtilities.invokeLater(placeProcessor);
+
 		}
 	}
 
-	static class AwtSafelyPlaceProcessor implements Runnable
+	public static class AwtSafelyPlaceProcessor implements Runnable
 	{
 		private VerificationOrderManager _owner;
-		private IAsyncResult _asyncResult;
+		private SignalObject signal;
 
-		public AwtSafelyPlaceProcessor(VerificationOrderManager owner, IAsyncResult asyncResult)
+		public AwtSafelyPlaceProcessor(VerificationOrderManager owner, SignalObject signal)
 		{
 			this._owner = owner;
-			this._asyncResult = asyncResult;
+			this.signal = signal;
 		}
 
 		public void run()
 		{
-			MultipleCloseResult result = this._owner._tradingConsole.get_TradingConsoleServer().endMultipleClose(this._asyncResult);
+			if(this.signal.getIsError()){
+				TradingConsole.traceSource.trace(TraceType.Error, "MultipleClose failed");
+				return;
+			}
+			MultipleCloseResult result =new MultipleCloseResult(this.signal.getResult());
 
 			if(result.get_TransactionError() == TransactionError.OK)
 			{

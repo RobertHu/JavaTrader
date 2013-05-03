@@ -66,6 +66,7 @@ public class TransactionError extends Enum<TransactionError>
 	public static final TransactionError PriceIsDisabled = new TransactionError("PriceIsDisabled", 108);
 	public static final TransactionError PriceChangedSincePlace = new TransactionError("PriceChangedSincePlace", 110);
 	public static final TransactionError ExceedMaxOpenLot = new TransactionError("ExceedMaxOpenLot", 111);
+	public static final TransactionError ReplacedWithMaxLot = new TransactionError("ReplacedWithMaxLot", 112);
 
 	//define, tradingconsole only
 	public static final TransactionError RiskMonitorDelete = new TransactionError("RiskMonitorDelete", 20000);
@@ -265,6 +266,10 @@ public class TransactionError extends Enum<TransactionError>
 		else if (transactionError.equals(TransactionError.ExceedMaxOpenLot))
 		{
 			message = Language.ExceedMaxOpenLot;
+		}
+		else if (transactionError.equals(TransactionError.ReplacedWithMaxLot))
+		{
+			message = Language.ReplacedWithMaxLot;
 		}
 		else if (transactionError.equals(TransactionError.FillOnMarketCloseNotAllowed))
 		{

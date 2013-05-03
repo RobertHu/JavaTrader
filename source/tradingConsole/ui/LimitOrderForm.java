@@ -387,7 +387,7 @@ public class LimitOrderForm extends JPanel implements IPriceSpinnerSite
 
 	private void setPrice_FocusLost(boolean isPrompt, boolean isLimitPrice)
 	{
-		boolean isOpen = this.getIsOpen();
+		boolean isBuy = this.getIsBuy();
 		Object o = this.getOrderTypeValue();
 		if (o.getClass() == MakeLimitStopOrder.class) //SetOneCancelOtherOrder
 		{
@@ -402,7 +402,7 @@ public class LimitOrderForm extends JPanel implements IPriceSpinnerSite
 						AlertDialogForm.showDialog(this.getFrame(), null, true,
 							"[" + Language.OrderLMTlblSetPriceA3 + "]" + Language.OrderLMTPageorderValidAlert8);
 					}
-					this.fillDefaultSetPrice(false, isOpen);
+					this.fillDefaultSetPrice(false);
 					return;
 				}
 			}
@@ -418,7 +418,7 @@ public class LimitOrderForm extends JPanel implements IPriceSpinnerSite
 						AlertDialogForm.showDialog(this.getFrame(), null, true,
 							"[" + Language.OrderLMTlblSetPriceA2 + "]" + Language.OrderLMTPageorderValidAlert8);
 					}
-					this.fillDefaultStopSetPrice(false, isOpen);
+					this.fillDefaultStopSetPrice(false);
 					return;
 				}
 			}
@@ -426,19 +426,41 @@ public class LimitOrderForm extends JPanel implements IPriceSpinnerSite
 			SetPriceError[] setPriceErrors = this.changeTradeOptionValue(false);
 			if (isLimitPrice && setPriceErrors[0] != SetPriceError.Ok)
 			{
-				this.handleSetPrieceError(setPriceErrors[0], isPrompt, Language.OrderLMTlblSetPriceA3, isOpen);
-				this.fillDefaultSetPrice(false, isOpen);
+				this.handleSetPrieceError(setPriceErrors[0], isPrompt, Language.OrderLMTlblSetPriceA3, isBuy);
+				this.fillDefaultSetPrice(false);
 			}
 			else if (!isLimitPrice && setPriceErrors[1] != SetPriceError.Ok)
 			{
-				this.handleSetPrieceError(setPriceErrors[1], isPrompt, Language.OrderLMTlblSetPriceA2, isOpen);
-				this.fillDefaultStopSetPrice(false, isOpen);
+				this.handleSetPrieceError(setPriceErrors[1], isPrompt, Language.OrderLMTlblSetPriceA2, isBuy);
+				this.fillDefaultStopSetPrice(false);
 			}
 		}
 	}
 
-	private void handleSetPrieceError(SetPriceError setPriceError, boolean isPrompt, String priceName, boolean isOpen)
+	private BigDecimal getLotForGetAcceptVariation()
 	{
+		BigDecimal lot = AppToolkit.convertStringToBigDecimal(this.totalLotTextField.getText());
+		if(this.limitCheckBox.isSelected() && this.stopCheckBox.isSelected()
+		   && !this.ocoCheckBox.isSelected() && this.getIsOpen())
+		{
+			lot = lot.add(lot);
+		}
+		return lot;
+	}
+
+	private boolean hasAnotherPlacingTran()
+	{
+		return !this.ocoCheckBox.isSelected() && this.limitCheckBox.isSelected() && this.stopCheckBox.isSelected();
+	}
+
+	private HashMap<Guid, RelationOrder> getPlaceRelation()
+	{
+		return this._makeOrderAccount == null ? null : this._makeOrderAccount.getPlaceRelation();
+	}
+
+	private void handleSetPrieceError(SetPriceError setPriceError, boolean isPrompt, String priceName, boolean isBuy)
+	{
+		Account account = this._makeOrderAccount == null ? null : this._makeOrderAccount.get_Account();
 		if (setPriceError == SetPriceError.SetPriceTooCloseMarket)
 		{
 			if (isPrompt)
@@ -447,7 +469,7 @@ public class LimitOrderForm extends JPanel implements IPriceSpinnerSite
 				{
 					AlertDialogForm.showDialog(this.getFrame(), null, true,
 											   "[" + priceName + "] " + Language.OrderLMTPageorderValidAlert2 + " " +
-											   this._instrument.get_AcceptLmtVariation(isOpen) +
+											   this._instrument.get_AcceptLmtVariation(account, isBuy, getLotForGetAcceptVariation(), null, getPlaceRelation(), hasAnotherPlacingTran()) +
 											   " " +
 											   Language.OrderLMTPageorderValidAlert22);
 				}
@@ -502,11 +524,11 @@ public class LimitOrderForm extends JPanel implements IPriceSpinnerSite
 			boolean isOpen = this.getIsOpen();
 			if (this.limitCheckBox.isSelected())
 			{
-				this.fillDefaultSetPrice(false, isOpen);
+				this.fillDefaultSetPrice(false);
 			}
 			if (this.stopCheckBox.isSelected())
 			{
-				this.fillDefaultStopSetPrice(false, isOpen);
+				this.fillDefaultStopSetPrice(false);
 			}
 			/*Price marketPrice = this.getMarketPrice();
 			 this.changeTradeOptionValue(false, marketPrice);*/
@@ -740,6 +762,8 @@ public class LimitOrderForm extends JPanel implements IPriceSpinnerSite
 
 	private SetPriceError changeTradeOptionValue2(boolean isSubmit, Price marketPrice, PriceSpinner setpriceControl, PVStaticText2 tradeOptionControl)
 	{
+		Account account = this._makeOrderAccount == null ? null : this._makeOrderAccount.get_Account();
+
 		SetPriceError setPriceError = SetPriceError.Ok;
 		TradeOption currentTradeOption = TradeOption.None;
 		boolean isBuy = this.getIsBuy();
@@ -756,7 +780,7 @@ public class LimitOrderForm extends JPanel implements IPriceSpinnerSite
 		//if (isSubmit)
 		{
 			TradeOption previousTradeOption = (TradeOption)tradeOptionControl.getValue();
-			setPriceError = Order.checkLMTOrderSetPrice(true, this._instrument, isBuy, previousTradeOption, setPrice, marketPrice, this.getIsOpen());
+			setPriceError = Order.checkLMTOrderSetPrice(account, true, this._instrument, isBuy, previousTradeOption, setPrice, marketPrice, getLotForGetAcceptVariation(), null, this.getPlaceRelation(), hasAnotherPlacingTran());
 
 			double dblMarketPrice = Price.toDouble(marketPrice);
 			if (Math.abs(Price.toDouble(setPrice) - dblMarketPrice) > dblMarketPrice * 0.2)
@@ -784,8 +808,10 @@ public class LimitOrderForm extends JPanel implements IPriceSpinnerSite
 		   return setPriceError;*/
 	}
 
-	private void fillDefaultSetPrice(boolean showAlterDialog, boolean isOpen)
+	private void fillDefaultSetPrice(boolean showAlterDialog)
 	{
+		Account account = this._makeOrderAccount == null ? null : this._makeOrderAccount.get_Account();
+
 		boolean isBuy = this.getIsBuy();
 		Price bid = this._instrument.get_LastQuotation().get_Bid();
 		Price ask = this._instrument.get_LastQuotation().get_Ask();
@@ -797,7 +823,7 @@ public class LimitOrderForm extends JPanel implements IPriceSpinnerSite
 			}
 			return;
 		}
-		int acceptLmtVariation = this._instrument.get_AcceptLmtVariation(isOpen);
+		int acceptLmtVariation = this._instrument.get_AcceptLmtVariation(account, isBuy, getLotForGetAcceptVariation(), null, getPlaceRelation(), hasAnotherPlacingTran());
 		//Fill Limit Price
 		Price price = (this._instrument.get_IsNormal() == isBuy) ? Price.subStract(ask, acceptLmtVariation) : Price.add(bid, acceptLmtVariation);
 		if (this.isBetweenBidToAsk(price))
@@ -820,8 +846,10 @@ public class LimitOrderForm extends JPanel implements IPriceSpinnerSite
 		this.tradeOption1StaticText.setForeground(TradeOption.getColor(TradeOption.Better));
 	}
 
-	private void fillDefaultStopSetPrice(boolean showAlterDialog, boolean isOpen)
+	private void fillDefaultStopSetPrice(boolean showAlterDialog)
 	{
+		Account account = this._makeOrderAccount == null ? null : this._makeOrderAccount.get_Account();
+
 		boolean isBuy = this.getIsBuy();
 		Price bid = this._instrument.get_LastQuotation().get_Bid();
 		Price ask = this._instrument.get_LastQuotation().get_Ask();
@@ -833,7 +861,7 @@ public class LimitOrderForm extends JPanel implements IPriceSpinnerSite
 			}
 			return;
 		}
-		int acceptLmtVariation = this._instrument.get_AcceptLmtVariation(isOpen);
+		int acceptLmtVariation = this._instrument.get_AcceptLmtVariation(account, isBuy, getLotForGetAcceptVariation(), null, getPlaceRelation(), hasAnotherPlacingTran());
 		//Fill Stop Price
 		Price price2 = (this._instrument.get_IsNormal() == isBuy) ? Price.add(ask, acceptLmtVariation) : Price.subStract(bid, acceptLmtVariation);
 		if (this.isBetweenBidToAsk(price2))
@@ -1629,11 +1657,11 @@ public class LimitOrderForm extends JPanel implements IPriceSpinnerSite
 		{
 			if (this.limitCheckBox.isSelected())
 			{
-				this.fillDefaultSetPrice(false, isOpen);
+				this.fillDefaultSetPrice(false);
 			}
 			if (this.stopCheckBox.isSelected())
 			{
-				this.fillDefaultStopSetPrice(false, isOpen);
+				this.fillDefaultStopSetPrice(false);
 			}
 		}
 	}
@@ -2032,7 +2060,7 @@ public class LimitOrderForm extends JPanel implements IPriceSpinnerSite
 						AlertDialogForm.showDialog(this.getFrame(), null, true,
 							"[" + Language.OrderLMTlblSetPriceA3 + "]" + Language.OrderLMTPageorderValidAlert1);
 					}
-					this.fillDefaultSetPrice(false, isOpen);
+					this.fillDefaultSetPrice(false);
 					return isValidOrder;
 				}
 				this.priceEdit.setText(Price.toString(setPrice));
@@ -2043,7 +2071,7 @@ public class LimitOrderForm extends JPanel implements IPriceSpinnerSite
 						AlertDialogForm.showDialog(this.getFrame(), null, true,
 							"[" + Language.OrderLMTlblSetPriceA3 + "]" + Language.OrderLMTPageorderValidAlert8);
 					}
-					this.fillDefaultSetPrice(false, isOpen);
+					this.fillDefaultSetPrice(false);
 					return isValidOrder;
 				}
 			}
@@ -2058,7 +2086,7 @@ public class LimitOrderForm extends JPanel implements IPriceSpinnerSite
 						AlertDialogForm.showDialog(this.getFrame(), null, true,
 							"[" + Language.OrderLMTlblSetPriceA2 + "]" + Language.OrderLMTPageorderValidAlert1);
 					}
-					this.fillDefaultStopSetPrice(false, isOpen);
+					this.fillDefaultStopSetPrice(false);
 					return isValidOrder;
 				}
 				this.stopPriceEdit.setText(Price.toString(setPrice2));
@@ -2069,7 +2097,7 @@ public class LimitOrderForm extends JPanel implements IPriceSpinnerSite
 						AlertDialogForm.showDialog(this.getFrame(), null, true,
 							"[" + Language.OrderLMTlblSetPriceA2 + "]" + Language.OrderLMTPageorderValidAlert8);
 					}
-					this.fillDefaultStopSetPrice(false, isOpen);
+					this.fillDefaultStopSetPrice(false);
 					return isValidOrder;
 				}
 			}
@@ -2077,14 +2105,14 @@ public class LimitOrderForm extends JPanel implements IPriceSpinnerSite
 			SetPriceError[] setPriceErrors = this.changeTradeOptionValue(true);
 			if (setPriceErrors[0] != SetPriceError.Ok)
 			{
-				this.handleSetPrieceError(setPriceErrors[0], isPrompt, Language.OrderLMTlblSetPriceA3, isOpen);
-				this.fillDefaultSetPrice(false, isOpen);
+				this.handleSetPrieceError(setPriceErrors[0], isPrompt, Language.OrderLMTlblSetPriceA3, isBuy);
+				this.fillDefaultSetPrice(false);
 			}
 
 			if (setPriceErrors[1] != SetPriceError.Ok)
 			{
-				this.handleSetPrieceError(setPriceErrors[1], isPrompt, Language.OrderLMTlblSetPriceA2, isOpen);
-				this.fillDefaultStopSetPrice(false, isOpen);
+				this.handleSetPrieceError(setPriceErrors[1], isPrompt, Language.OrderLMTlblSetPriceA2, isBuy);
+				this.fillDefaultStopSetPrice(false);
 			}
 
 			if (setPriceErrors[0] != SetPriceError.Ok || setPriceErrors[1] != SetPriceError.Ok)
@@ -2294,8 +2322,8 @@ public class LimitOrderForm extends JPanel implements IPriceSpinnerSite
 		this.updateIfDoneCheckBoxStatus();
 
 		boolean isOpen = this.getIsOpen();
-		this.fillDefaultSetPrice(false, isOpen);
-		this.fillDefaultStopSetPrice(false, isOpen);
+		this.fillDefaultSetPrice(false);
+		this.fillDefaultStopSetPrice(false);
 	}
 
 	private void closeAll()
@@ -2776,12 +2804,17 @@ public class LimitOrderForm extends JPanel implements IPriceSpinnerSite
 				if (limitCheckBox.isSelected())
 				{
 					boolean isOpen = getIsOpen();
-					fillDefaultSetPrice(false, isOpen);
+					fillDefaultSetPrice(false);
 				}
 
 				updatePriceEditStatus();
 				updateSubmitButtonStatus();
 				updateOcoCheckBoxStatus();
+				if(ocoCheckBox.isSelected())
+				{
+					fillDefaultSetPrice(false);
+					fillDefaultStopSetPrice(false);
+				}
 				updateIfDoneCheckBoxStatus();
 				updateIfDoneStatus();
 			}
@@ -2802,12 +2835,17 @@ public class LimitOrderForm extends JPanel implements IPriceSpinnerSite
 				if (stopCheckBox.isSelected())
 				{
 					boolean isOpen = getIsOpen();
-					fillDefaultStopSetPrice(false, isOpen);
+					fillDefaultStopSetPrice(false);
 				}
 
 				updatePriceEditStatus();
 				updateSubmitButtonStatus();
 				updateOcoCheckBoxStatus();
+				if(ocoCheckBox.isSelected())
+				{
+					fillDefaultSetPrice(false);
+					fillDefaultStopSetPrice(false);
+				}
 				updateIfDoneCheckBoxStatus();
 				updateIfDoneStatus();
 			}
@@ -2874,11 +2912,11 @@ public class LimitOrderForm extends JPanel implements IPriceSpinnerSite
 
 		/*this.add(plStaticText, new GridBagConstraints2(0, 0, 8, 1, 0.0, 0.0,
 		 GridBagConstraints.CENTER, GridBagConstraints.NONE, new Insets(8, 5, 5, 5), 0, 0));*/
-		this.add(totalLotStaticText, new GridBagConstraints(0, 8, 5, 1, 0.0, 0.0
+		this.add(totalLotStaticText, new GridBagConstraints(0, 5, 5, 1, 0.0, 0.0
 			, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(1, 5, 1, 5), 0, 0));
 		this.add(closeLotStaticText, new GridBagConstraints(0, 9, 5, 1, 0.0, 0.0
 			, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(1, 5, 1, 5), 0, 0));
-		this.add(setPriceStaticText, new GridBagConstraints(0, 5, 5, 1, 0.0, 0.0
+		this.add(setPriceStaticText, new GridBagConstraints(0, 6, 5, 1, 0.0, 0.0
 			, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(1, 5, 1, 10), 0, 0));
 		this.add(isBuyStaticText, new GridBagConstraints(0, 4, 5, 1, 0.0, 0.0
 			, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(1, 5, 1, 5), 0, 0));
@@ -2996,9 +3034,9 @@ public class LimitOrderForm extends JPanel implements IPriceSpinnerSite
 		this.add(exitButton, new GridBagConstraints(11, 12, 1, 1, 0.0, 0.0
 			, GridBagConstraints.EAST, GridBagConstraints.NONE, new Insets(5, 1, 10, 5), 0, 0));
 
-		this.add(stopCheckBox, new GridBagConstraints(5, 6, 1, 1, 0.0, 0.0
+		this.add(stopCheckBox, new GridBagConstraints(5, 7, 1, 1, 0.0, 0.0
 			, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(1, -4, 1, 0), 0, 0));
-		this.add(stopPriceEdit, new GridBagConstraints(6, 6, 2, 1, 1.0, 0.0
+		this.add(stopPriceEdit, new GridBagConstraints(6, 7, 2, 1, 1.0, 0.0
 			, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, new Insets(1, 0, 1, 2), 30, 0));
 
 		stopPriceEdit.getDocument().addDocumentListener(new DocumentListener()
@@ -3019,10 +3057,10 @@ public class LimitOrderForm extends JPanel implements IPriceSpinnerSite
 			}
 		});
 
-		this.add(ocoCheckBox, new GridBagConstraints(5, 7, 2, 1, 0.0, 0.0
+		this.add(ocoCheckBox, new GridBagConstraints(5, 8, 2, 1, 0.0, 0.0
 			, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, new Insets(1, -4, 1, 0), 0, 0));
 
-		this.add(ifDoneCheckBox, new GridBagConstraints(7, 7, 1, 1, 0.0, 0.0
+		this.add(ifDoneCheckBox, new GridBagConstraints(7, 8, 1, 1, 0.0, 0.0
 			, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, new Insets(1, -4, 1, 0), 0, 0));
 
 		this.add(orderTypeChoice, new GridBagConstraints(5, 2, 3, 1, 0.0, 0.0
@@ -3036,7 +3074,7 @@ public class LimitOrderForm extends JPanel implements IPriceSpinnerSite
 			, GridBagConstraints.NORTHWEST, GridBagConstraints.NONE, new Insets(1, 0, 3, 0), 0, 5));
 		this.add(expireTimeChoice, new GridBagConstraints(5, 10, 3, 1, 0.0, 0.0
 			, GridBagConstraints.NORTHWEST, GridBagConstraints.HORIZONTAL, new Insets(1, 0, 1, 0), 0, 5));
-		this.add(totalLotTextField, new GridBagConstraints(5, 8, 3, 1, 0.0, 0.0
+		this.add(totalLotTextField, new GridBagConstraints(5, 5, 3, 1, 0.0, 0.0
 			, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, new Insets(1, 0, 1, 0), 0, 0));
 
 		this.add(closeLotTextField, new GridBagConstraints(5, 9, 3, 1, 0.0, 0.0
@@ -3059,10 +3097,10 @@ public class LimitOrderForm extends JPanel implements IPriceSpinnerSite
 			}
 		});
 
-		this.add(limitCheckBox, new GridBagConstraints(5, 5, 1, 1, 0.0, 0.0
+		this.add(limitCheckBox, new GridBagConstraints(5, 6, 1, 1, 0.0, 0.0
 			, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(1, -4, 1, 0), 0, 0));
 
-		this.add(priceEdit, new GridBagConstraints(6, 5, 2, 1, 1.0, 0.0
+		this.add(priceEdit, new GridBagConstraints(6, 6, 2, 1, 1.0, 0.0
 			, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, new Insets(1, 0, 1, 2), 30, 0));
 		priceEdit.getDocument().addDocumentListener(new DocumentListener()
 		{
@@ -3083,7 +3121,7 @@ public class LimitOrderForm extends JPanel implements IPriceSpinnerSite
 		});
 		/*this.add(tradeOption1StaticText, new GridBagConstraints(7, 5, 1, 1, 0.0, 0.0
 		 , GridBagConstraints.EAST, GridBagConstraints.NONE, new Insets(1, 0, 1, 0), 0, 0));*/
-		this.add(stopSetPriceStaticText, new GridBagConstraints(0, 6, 5, 1, 0.0, 0.0
+		this.add(stopSetPriceStaticText, new GridBagConstraints(0, 7, 5, 1, 0.0, 0.0
 			, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, new Insets(1, 5, 1, 10), 0, 0));
 
 		this.tradeOption1StaticText.setVisible(false);
@@ -3254,8 +3292,13 @@ public class LimitOrderForm extends JPanel implements IPriceSpinnerSite
 
 	private void updateIfDoneTitle()
 	{
-		this.ifLimitDonePanelTitledBorder.setTitle(Language.IfDonePrompt + "(" + this.priceEdit.getText() + ")");
-		this.ifStopDonePanelTitledBorder.setTitle(Language.IfDonePrompt + "(" + this.stopPriceEdit.getText() + ")");
+		String limitPrice = this.priceEdit.getText() == null ? "-" : this.priceEdit.getText();
+		this.ifLimitDonePanelTitledBorder.setTitle(Language.IfDonePrompt + "(" + limitPrice + ")");
+		String stopPrice = this.stopPriceEdit.getText() == null ? "-" : this.stopPriceEdit.getText();
+		this.ifStopDonePanelTitledBorder.setTitle(Language.IfDonePrompt + "(" + stopPrice + ")");
+
+		this.ifLimitDonePanel.updateUI();
+		this.ifStopDonePanel.updateUI();
 	}
 
 	public void initializeOutstanding()

@@ -98,6 +98,7 @@ public class AsyncManager implements Runnable
 					this.doWork(result);
 				}
 			}
+			this.logger.info("closed");
 		}
 		catch (Exception e)
 		{

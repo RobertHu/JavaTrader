@@ -142,31 +142,42 @@ public class TradingInstructionForm extends JDialog implements IPriceSpinnerSite
 		TransactionType transactionType = this._order.get_Transaction().get_Type();
 		Phase phase = this._order.get_Phase();
 		this.ocoButton.setVisible(false);
-		if((phase == Phase.Placed || phase == Phase.Placing)
-		   && !this._tradingConsole.get_SettingsManager().get_Customer().get_DisallowTrade()
-		   && transactionType != TransactionType.OneCancelOther
-		   && orderType == OrderType.Limit && !this._order.get_IsOpen()
-		   && this._order.get_Account().getIsAllowTrade()
-			&& MakeOrder.isAllowOrderType(this._order.get_Transaction().get_Instrument(), OrderType.Limit)
-			&& MakeOrder.isAllowOrderType(this._order.get_Transaction().get_Instrument(), OrderType.OneCancelOther))
-		{
-			TradeOption tradeOption = this._order.get_TradeOption();
-			if (tradeOption == TradeOption.Stop)
-			{
-				this.ocoButton.setVisible(true);
-				this.ocoButton.setText(Language.PlaceLimitOrder);
-			}
-			else if (tradeOption == TradeOption.Better)
-			{
-				this.ocoButton.setVisible(true);
-				this.ocoButton.setText(Language.PlaceStopOrder);
-			}
-		}
 
-		if(this.ocoButton.isVisible())
+		Guid tradePolicyId = this._order.get_Account().get_TradePolicyId();
+		Guid instrumentId = this._instrument.get_Id();
+		TradePolicyDetail tradePolicyDetail
+			= this._tradingConsole.get_SettingsManager().getTradePolicyDetail(tradePolicyId, instrumentId);
+		boolean canChangeToOCO = this._order.get_IsOpen() ? tradePolicyDetail.get_AllowNewOCO() : MakeOrder.isAllowOrderType(this._instrument, OrderType.OneCancelOther);
+		boolean canChangeToIfDone = this._order.get_IsOpen() && tradePolicyDetail.get_AllowIfDone();
+		if((!canChangeToOCO && transactionType == TransactionType.OneCancelOther)
+		   || (!tradePolicyDetail.get_AllowIfDone() && this._order.get_Transaction().get_SubType() == TransactionSubType.IfDone))
 		{
-			OCOButtonActionListener actionListener = new OCOButtonActionListener(this);
-			this.ocoButton.addActionListener(actionListener);
+			this.ocoButton.setVisible(false);
+		}
+		else
+		{
+			boolean allowLimit = MakeOrder.isAllowOrderType(this._order.get_Transaction().get_Instrument(), OrderType.Limit);
+
+			Instrument instrument = this._order.get_Transaction().get_Instrument();
+			Price bid = instrument.get_LastQuotation().get_Bid();
+			Price ask = instrument.get_LastQuotation().get_Ask();
+			boolean isPriceAvaiable = bid != null && ask != null;
+
+			if (isPriceAvaiable && (phase == Phase.Placed)
+				&& !this._tradingConsole.get_SettingsManager().get_Customer().get_DisallowTrade()
+				&& orderType == OrderType.Limit && (canChangeToOCO || canChangeToIfDone || allowLimit)
+				&& this._order.get_Account().getIsAllowTrade() && allowLimit
+				&& tradePolicyDetail.get_ChangePlacedOrderAllowed())
+			{
+				this.ocoButton.setVisible(true);
+				this.ocoButton.setText(Language.ModifyCaption);
+			}
+
+			if (this.ocoButton.isVisible())
+			{
+				OCOButtonActionListener actionListener = new OCOButtonActionListener(this);
+				this.ocoButton.addActionListener(actionListener);
+			}
 		}
 	}
 
@@ -227,7 +238,8 @@ public class TradingInstructionForm extends JDialog implements IPriceSpinnerSite
 		data[row][1] = this._order.get_LotString();
 		row++;
 
-		if(this._order.get_Transaction().get_Type() == TransactionType.OneCancelOther)
+		if(this._order.get_Transaction().get_Type() == TransactionType.OneCancelOther
+			&& this._order.get_Transaction().get_Orders().size() == 2)
 		{
 			Order[] orders = new Order[2];
 			this._order.get_Transaction().get_Orders().values().toArray(orders);
@@ -253,6 +265,10 @@ public class TradingInstructionForm extends JDialog implements IPriceSpinnerSite
 			}
 			row++;
 		}
+
+		data[row][0] = Language.executePriceCaption;
+		data[row][1] = this._order.get_ExecutePriceString();
+		row++;
 
 		data[row][0] = Language.UnconfirmedInstructionlblOrderTypeA;
 		data[row][1] = this._order.get_Transaction().get_Type() == TransactionType.OneCancelOther ? Language.OCOPrompt : this._order.get_OrderTypeString();
@@ -342,14 +358,14 @@ public class TradingInstructionForm extends JDialog implements IPriceSpinnerSite
 		data[row][1] = AppToolkit.format(storage, decimals);
 		row++;
 
-		String assignOrderCode = (this._order.get_Transaction().get_AssigningOrder() == null) ? "" :
+		/*String assignOrderCode = (this._order.get_Transaction().get_AssigningOrder() == null) ? "" :
 			this._order.get_Transaction().get_AssigningOrder().get_Code();
 		if (!StringHelper.isNullOrEmpty(assignOrderCode))
 		{
 			data[row][0] = Language.AssignOrderCode;
 			data[row][1] = assignOrderCode;
 			row++;
-		}
+		}*/
 
 		data[row][0] = Language.UnconfirmedInstructionlblPeerOrderCodesA;
 		data[row][1] = this._order.getRelationString();
@@ -547,7 +563,7 @@ public class TradingInstructionForm extends JDialog implements IPriceSpinnerSite
 	{
 		this.addWindowListener(new TradingInstructionUi_this_windowAdapter(this));
 
-		this.setSize(345, this._order.get_Transaction().get_Type() == TransactionType.OneCancelOther ? 500 : 480);
+		this.setSize(300, this._order.get_Transaction().get_Type() == TransactionType.OneCancelOther ? 420 : 400);
 		this.setResizable(true);
 		this.setLayout(gridBagLayout1);
 		this.setTitle("Trading Instruction");
@@ -575,21 +591,21 @@ public class TradingInstructionForm extends JDialog implements IPriceSpinnerSite
 			, GridBagConstraints.NORTHWEST, GridBagConstraints.NONE, new Insets(5, 1, 10, 1), 0, 0));
 		this.getContentPane().add(modifyButton, new GridBagConstraints(2, 4, 1, 1, 0.0, 0.0
 			, GridBagConstraints.NORTHWEST, GridBagConstraints.NONE, new Insets(5, 1, 10, 1), 0, 0));
-		this.getContentPane().add(submitButton, new GridBagConstraints(2, 4, 1, 1, 0.0, 0.0
-			, GridBagConstraints.NORTHWEST, GridBagConstraints.NONE, new Insets(5, 1, 10, 1), 0, 0));
-		this.getContentPane().add(ocoButton, new GridBagConstraints(3, 4, 1, 1, 0.0, 0.0
+		/*this.getContentPane().add(submitButton, new GridBagConstraints(2, 4, 1, 1, 0.0, 0.0
+			, GridBagConstraints.NORTHWEST, GridBagConstraints.NONE, new Insets(5, 1, 10, 1), 0, 0));*/
+		this.getContentPane().add(ocoButton, new GridBagConstraints(2, 4, 1, 1, 0.0, 0.0
 			, GridBagConstraints.NORTHWEST, GridBagConstraints.NONE, new Insets(5, 1, 10, 3), 0, 0));
-		this.getContentPane().add(exitButton, new GridBagConstraints(4, 4, 1, 1, 0.0, 0.0
+		this.getContentPane().add(exitButton, new GridBagConstraints(3, 4, 1, 1, 0.0, 0.0
 			, GridBagConstraints.NORTHEAST, GridBagConstraints.NONE, new Insets(5, 1, 10, 3), 0, 0));
 
 		JScrollPane scrollPane = new JScrollPane(tradingInstructionTable);
-		this.getContentPane().add(orderCodeStaticText, new GridBagConstraints(0, 0, 5, 1, 1.0, 0.0
+		this.getContentPane().add(orderCodeStaticText, new GridBagConstraints(0, 0, 4, 1, 1.0, 0.0
 			, GridBagConstraints.CENTER, GridBagConstraints.HORIZONTAL, new Insets(15, 1, 0, 1), 0, 0));
 		this.getContentPane().add(remarksStaticText, new GridBagConstraints(0, 2, 3, 1, 1.0, 0.0
 			, GridBagConstraints.SOUTHWEST, GridBagConstraints.HORIZONTAL, new Insets(1, 5, 2, 3), 0, 0));
 		this.getContentPane().add(remarksEdit, new GridBagConstraints(0, 3, 5, 1, 1.0, 0.15
 			, GridBagConstraints.SOUTHWEST, GridBagConstraints.BOTH, new Insets(1, 5, 2, 5), 0, 0));
-		this.getContentPane().add(scrollPane, new GridBagConstraints(0, 1, 5, 1, 1.0, 0.85
+		this.getContentPane().add(scrollPane, new GridBagConstraints(0, 1, 4, 1, 1.0, 0.85
 			, GridBagConstraints.NORTH, GridBagConstraints.BOTH, new Insets(5, 5, 2, 5), 0, 0));
 
 		this._modifySetPricePanel = new JPanel();
@@ -605,7 +621,8 @@ public class TradingInstructionForm extends JDialog implements IPriceSpinnerSite
 			, GridBagConstraints.WEST, GridBagConstraints.BOTH, new Insets(5, 5, 2, 5), 60, 0));
 		this._modifySetPricePanel.add(this.priceRangeStaticText, new GridBagConstraints(2, 1, 1, 1, 0, 0
 			, GridBagConstraints.WEST, GridBagConstraints.BOTH, new Insets(5, 5, 2, 5), 30, 0));
-		if(this._order.get_Transaction().get_Type() == TransactionType.OneCancelOther)
+		if(this._order.get_Transaction().get_Type() == TransactionType.OneCancelOther
+			&& this._order.get_Transaction().get_Orders().size() == 2)
 		{
 			Order[] orders = new Order[2];
 			this._order.get_Transaction().get_Orders().values().toArray(orders);
@@ -639,8 +656,8 @@ public class TradingInstructionForm extends JDialog implements IPriceSpinnerSite
 		this.newPriceEdit2.setFont(font);
 		this.priceRangeStaticText2.setFont(font);
 
-		this.getContentPane().add(this._modifySetPricePanel, new GridBagConstraints(0, 2, 5, 2, 1.0, 0.15
-			, GridBagConstraints.WEST, GridBagConstraints.BOTH, new Insets(1, 0, 2, 5), 0, 0));
+		/*this.getContentPane().add(this._modifySetPricePanel, new GridBagConstraints(0, 2, 5, 2, 1.0, 0.15
+			, GridBagConstraints.WEST, GridBagConstraints.BOTH, new Insets(1, 0, 2, 5), 0, 0));*/
 
 		this.newPriceEdit.setEnabled(this.modifyOrderSetPriceCheckBox.isSelected());
 		this.newPriceEdit2.setEnabled(this.modifyOrderSetPriceCheckBox.isSelected());
@@ -787,7 +804,7 @@ public class TradingInstructionForm extends JDialog implements IPriceSpinnerSite
 	private Price getNewPrice(boolean isBuy, boolean isLimit, Price bid, Price ask, boolean isOpen)
 	{
 		Price price = null;
-		int acceptLmtVariation = this._instrument.get_AcceptLmtVariation(isOpen);
+		int acceptLmtVariation = this._instrument.get_AcceptLmtVariation(this._order.get_Account(), isBuy, this._order.get_LotBalance(), this._order, this._order.get_RelationOrders(), false);
 
 		 if (isLimit)
 		 {
@@ -1050,9 +1067,9 @@ public class TradingInstructionForm extends JDialog implements IPriceSpinnerSite
 		{
 			if (this._settingsManager.get_SystemParameter().get_DisplayLmtStopPoints())
 			{
-				boolean isOpen = this._order.get_IsOpen();
+				boolean isBuy = this._order.get_IsBuy();
 				AlertDialogForm.showDialog(this, null, true,
-										   "[" + priceName + "] " + Language.OrderLMTPageorderValidAlert2 + " " + this._instrument.get_AcceptLmtVariation(isOpen) +
+										   "[" + priceName + "] " + Language.OrderLMTPageorderValidAlert2 + " " + this._instrument.get_AcceptLmtVariation(this._order.get_Account(), isBuy, this._order.get_LotBalance(), this._order, this._order.get_RelationOrders(), false) +
 										   " " +
 										   Language.OrderLMTPageorderValidAlert22);
 			}
@@ -1078,9 +1095,10 @@ public class TradingInstructionForm extends JDialog implements IPriceSpinnerSite
 
 		SetPriceError setPriceError = SetPriceError.Ok;
 		boolean isBuy = this._order.get_IsBuy();
-		boolean isOpen = this._order.get_IsOpen();
+		Account account = this._order.get_Account();
+		BigDecimal lot = this._order.get_LotBalance();
 
-		setPriceError = Order.checkLMTOrderSetPrice(true, this._instrument, isBuy, previousTradeOption, setPrice, marketPrice, isOpen);
+		setPriceError = Order.checkLMTOrderSetPrice(account, true, this._instrument, isBuy, previousTradeOption, setPrice, marketPrice, lot, this._order, this._order.get_RelationOrders(), false);
 		double dblMarketPrice = Price.toDouble(marketPrice);
 		if (Math.abs(Price.toDouble(setPrice) - dblMarketPrice) > dblMarketPrice * 0.2)
 		{

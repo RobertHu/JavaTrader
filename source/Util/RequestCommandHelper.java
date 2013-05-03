@@ -119,7 +119,7 @@ public class RequestCommandHelper
 	}
 
 	private static Element getDataByNormal(Element response){
-		Element data = response.getFirstChildElement(StringConstants.ResultNodeName);
+		Element data = response.getFirstChildElement(StringConstants.SingleContentNodeName);
 		return data;
 	}
 

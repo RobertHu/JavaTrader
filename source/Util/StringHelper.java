@@ -17,4 +17,16 @@ public class StringHelper
 		return sb.toString().substring(0, sb.length() - 1);
 	}
 
+	public static<T> String join2(T[][] source, String parentSeparator, String childSeparator){
+		if(source==null || source.length == 0) {
+			return "";
+		}
+		StringBuilder sb = new StringBuilder();
+		for(T[] item : source){
+			sb.append(join(item,childSeparator));
+			sb.append(parentSeparator);
+		}
+		return sb.toString().substring(0,sb.length()-1);
+	}
+
 }

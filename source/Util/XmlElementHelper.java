@@ -70,6 +70,7 @@ public class XmlElementHelper
 	private static XmlNode convertToXmlNodeForDataset(Element element)
 	{
 		String xml = StringEscapeUtils.unescapeXml(element.getValue());
+		//logger.debug(xml);
 		return ConvertToXmlNodeCommon(xml);
 	}
 

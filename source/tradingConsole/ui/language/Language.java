@@ -25,6 +25,7 @@ public class Language
 	public static String tradingFactButtonText = "Trading fact";
 	public static String complainButtonText = "Error Submission";
 	public static String tradingFactButtonCaption = "Trading fact";
+	public static String executePriceCaption = "Exec Price";
 
 	public static String complainSuccessfully="Complaint is sent successfully";
 
@@ -476,6 +477,7 @@ public class Language
 	public static String DatabaseDataIntegralityViolated = "The data of the datebase is not integral.";
 	public static String TransactionExpired = "Order has expired.";
 	public static String ExceedMaxOpenLot = "The placed order exceeds permitted trading quantity for open position.";
+	public static String ReplacedWithMaxLot = "Order replaced for exceed max lot";
 	public static String FillOnMarketCloseNotAllowed = "The order didn't allowed to deal on market closed time.";
 	public static String FailedToCancel = "Fail to cancel the selected order, please try again!";
 	public static String InstrumentSelectlblSelectInstrument = "Please select items to display:";

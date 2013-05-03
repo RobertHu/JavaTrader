@@ -29,6 +29,9 @@ import tradingConsole.ui.fontHelper.*;
 import tradingConsole.ui.grid.*;
 import tradingConsole.ui.grid.TableColumnChooser;
 import tradingConsole.ui.language.*;
+import javax.swing.event.TableModelEvent;
+import javax.swing.event.TableModelListener;
+import tradingConsole.common.Combinator;
 import org.apache.log4j.Logger;
 
 public class Instrument implements Scheduler.ISchedulerCallback
@@ -330,8 +333,258 @@ public class Instrument implements Scheduler.ISchedulerCallback
 		return this._isSinglePrice;
 	}
 
-	public int get_AcceptLmtVariation(boolean isOpen)
+	private Object[] caculateLotSummaryForGetAcceptLmtVariation(Account account, boolean isBuy, Order amendedOrder,
+		boolean hasAnotherPlacingTran, BigDecimal anotherPlacingOrderLot, HashMap<Guid, RelationOrder> anotherPlacingOrderRelation)
 	{
+		BigDecimal buyLot = BigDecimal.ZERO, sellLot = BigDecimal.ZERO, ocoLot = BigDecimal.ZERO;
+		ArrayList<String> ocoCloseTrans = null;
+		HashMap<Order, ArrayList<BigDecimal>> closeOrders = null;
+
+		if(hasAnotherPlacingTran)
+		{
+			if(anotherPlacingOrderRelation != null && anotherPlacingOrderRelation.size() > 0)
+			{
+				for (Iterator<RelationOrder> relationOrderIterator = anotherPlacingOrderRelation.values().iterator(); relationOrderIterator.hasNext(); )
+				{
+					RelationOrder relationOrder = relationOrderIterator.next();
+					ArrayList<BigDecimal> closeLots = null;
+					if(closeOrders == null) closeOrders = new HashMap<Order, ArrayList<BigDecimal>>();
+					if (!closeOrders.containsKey(relationOrder.get_OpenOrder()))
+					{
+						closeLots = new ArrayList<BigDecimal>();
+						closeOrders.put(relationOrder.get_OpenOrder(), closeLots);
+					}
+					else
+					{
+						closeLots = closeOrders.get(relationOrder.get_OpenOrder());
+					}
+					closeLots.add(relationOrder.get_CloseLot());
+				}
+			}
+			/*else
+			{
+				if(isBuy)
+					buyLot = buyLot.add(anotherPlacingOrderLot);
+				else
+					sellLot = sellLot.add(anotherPlacingOrderLot);
+			}*/
+		}
+
+		for (Iterator<Transaction> iterator = this._transactions.values().iterator(); iterator.hasNext(); )
+		{
+			Transaction transaction = iterator.next();
+			if(amendedOrder != null && transaction.get_Id().equals(amendedOrder.get_Transaction().get_Id())) continue;
+
+			if (transaction.get_Account().get_Id().compareTo(account.get_Id()) == 0)
+			{
+				HashMap<Guid, Order> orders = transaction.get_Orders();
+				for (Iterator<Order> iterator2 = orders.values().iterator(); iterator2.hasNext(); )
+				{
+					Order order = iterator2.next();
+					BigDecimal lot = order.get_IsOpen() ? order.get_LotBalance() : (order.get_Phase() == Phase.Placed ? order.get_Lot() : BigDecimal.ZERO);//lotBalance of close order is ZERO
+					if (order.get_Phase() == Phase.Executed)
+					{
+						if(order.get_IsBuy())
+							buyLot = buyLot.add(lot);
+						else
+							sellLot = sellLot.add(lot);
+					}
+					else if(order.get_Phase() == Phase.Placed && order.get_IsBuy() == isBuy)
+					{
+						if(!order.get_IsOpen())
+						{
+							for (Iterator<RelationOrder> iterator3 = order.get_RelationOrders().values().iterator(); iterator3.hasNext(); )
+							{
+								RelationOrder relationOrder = iterator3.next();
+
+								if (transaction.get_Type() == TransactionType.OneCancelOther)
+								{
+									String key = StringHelper.format("{0}-{1}", new Guid[]{transaction.get_Id(), relationOrder.get_OpenOrderId()});
+									if (ocoCloseTrans != null && ocoCloseTrans.contains(key))
+									{
+										continue;
+									}
+									else
+									{
+										if (ocoCloseTrans == null) ocoCloseTrans = new ArrayList<String>();
+										ocoCloseTrans.add(key);
+									}
+								}
+
+								ArrayList<BigDecimal> closeLots = null;
+								if (closeOrders == null) closeOrders = new HashMap<Order, ArrayList<BigDecimal>> ();
+								if (!closeOrders.containsKey(relationOrder.get_OpenOrder()))
+								{
+									closeLots = new ArrayList<BigDecimal> ();
+									closeOrders.put(relationOrder.get_OpenOrder(), closeLots);
+								}
+								else
+								{
+									closeLots = closeOrders.get(relationOrder.get_OpenOrder());
+								}
+								closeLots.add(relationOrder.get_CloseLot());
+							}
+						}
+						else
+						{
+							if (transaction.get_Type() == TransactionType.OneCancelOther)
+							{
+								ocoLot = ocoLot.add(lot);
+							}
+							else
+							{
+								if (isBuy)
+									buyLot = buyLot.add(lot);
+								else
+									sellLot = sellLot.add(lot);
+							}
+						}
+					}
+				}
+			}
+		}
+
+		if(ocoLot.compareTo(BigDecimal.ZERO) > 0)
+		{
+			ocoLot = ocoLot.divide(new BigDecimal(2));
+			if (isBuy)
+				buyLot = buyLot.add(ocoLot);
+			else
+				sellLot = sellLot.add(ocoLot);
+		}
+
+		HashMap<Guid, BigDecimal> remainCloseLot = null;
+		if(closeOrders != null)
+		{
+			remainCloseLot = new HashMap<Guid, BigDecimal>();
+
+			BigDecimal totalCloseLot = BigDecimal.ZERO;
+			for (Iterator<Order> iterator4 = closeOrders.keySet().iterator(); iterator4.hasNext(); )
+			{
+				Order openOrder = iterator4.next();
+				ArrayList<BigDecimal> closeLots = closeOrders.get(openOrder);
+				BigDecimal closeLot = GetMaxValidCloseLot(closeLots, openOrder.get_LotBalance());
+				totalCloseLot = totalCloseLot.add(closeLot);
+				remainCloseLot.put(openOrder.get_Id(), openOrder.get_LotBalance().subtract(closeLot));
+			}
+			if (isBuy)
+				buyLot = buyLot.add(totalCloseLot);
+			else
+				sellLot = sellLot.add(totalCloseLot);
+		}
+
+		return new Object[]{buyLot, sellLot, remainCloseLot};
+	}
+
+	private BigDecimal GetMaxValidCloseLot(ArrayList<BigDecimal> closeLots, BigDecimal lotBalance)
+	{
+		if(closeLots == null || closeLots.size() == 0) return BigDecimal.ZERO;
+		if(closeLots.size() == 1)
+		{
+			return closeLots.get(0).min(lotBalance);
+		}
+
+		if(closeLots.size() == 2)
+		{
+			BigDecimal totalCloseLot = closeLots.get(0).add(closeLots.get(1));
+			if(totalCloseLot.compareTo(lotBalance) <= 0)
+			{
+				return totalCloseLot;
+			}
+			else
+			{
+				BigDecimal maxCloseLot = closeLots.get(0).max(closeLots.get(1));
+				return maxCloseLot.min(lotBalance);
+			}
+		}
+		else
+		{
+			for(BigDecimal item : closeLots)
+			{
+				if(item.compareTo(lotBalance) >= 0) return lotBalance;
+			}
+
+			BigDecimal[] closeLotArray = new BigDecimal[closeLots.size()];
+			closeLotArray = closeLots.toArray(closeLotArray);
+			BigDecimal sumCloseLot = this.sum(closeLotArray);
+			if(sumCloseLot.compareTo(lotBalance) < 0) return sumCloseLot;
+
+			BigDecimal maxValidCloseLot = BigDecimal.ZERO;
+			for (int combinationLen= 2; combinationLen <= closeLots.size() - 1; combinationLen++)
+			{
+				for (Iterator<BigDecimal[]> iterator = new Combinator<BigDecimal>(closeLotArray, combinationLen).iterator(); iterator.hasNext(); )
+				{
+					BigDecimal[] combination = iterator.next();
+					BigDecimal subtotalCloseLot = this.sum(combination);
+					if(subtotalCloseLot.compareTo(lotBalance) <= 0)
+					{
+						maxValidCloseLot = maxValidCloseLot.max(subtotalCloseLot);
+						if(maxValidCloseLot.compareTo(lotBalance) == 0) return lotBalance;
+					}
+				}
+			}
+
+			return maxValidCloseLot;
+		}
+	}
+
+	private BigDecimal sum(BigDecimal[] values)
+	{
+		BigDecimal sum = BigDecimal.ZERO;
+		for(BigDecimal item : values)
+		{
+			sum = sum.add(item);
+		}
+		return sum;
+	}
+
+	public int get_AcceptLmtVariation(Account account, boolean isBuy, BigDecimal placeLot, Order amendedOrder,
+									  HashMap<Guid, RelationOrder> placeRelations, boolean hasAnotherPlacingTran)
+	{
+		boolean isOpen = false;
+		if(account == null || placeLot.compareTo(BigDecimal.ZERO) <= 0)
+		{
+			isOpen = true;
+		}
+		else
+		{
+			Object[] lotSummary = this.caculateLotSummaryForGetAcceptLmtVariation(account, isBuy, amendedOrder, hasAnotherPlacingTran, placeLot, placeRelations);
+			BigDecimal buyLot = (BigDecimal)lotSummary[0];
+			BigDecimal sellLot = (BigDecimal)lotSummary[1];
+			HashMap<Guid, BigDecimal> remainCloseLot = (HashMap<Guid, BigDecimal>)lotSummary[2];
+
+			BigDecimal avaiableCloseLot = BigDecimal.ZERO;
+			boolean isPlaceOpenOrder = remainCloseLot == null || remainCloseLot.size() == 0;
+			if(placeRelations != null && remainCloseLot != null)
+			{
+				for(Guid openOrderId : placeRelations.keySet())
+				{
+					BigDecimal closeLot = placeRelations.get(openOrderId).get_CloseLot();
+					if(remainCloseLot.containsKey(openOrderId))
+					{
+						closeLot = closeLot.min(remainCloseLot.get(openOrderId));
+					}
+					avaiableCloseLot = avaiableCloseLot.add(closeLot);
+				}
+				placeLot = placeLot.min(avaiableCloseLot);
+			}
+
+			BigDecimal netLot = buyLot.subtract(sellLot);
+			int netLotDirection = netLot.compareTo(BigDecimal.ZERO);
+			if (netLotDirection == 0)
+			{
+				isOpen = isPlaceOpenOrder ? true : placeLot.compareTo(BigDecimal.ZERO) > 0;
+			}
+			else if (netLotDirection > 0)
+			{
+				isOpen = isBuy ? true : placeLot.compareTo(netLot) > 0;
+			}
+			else
+			{
+				isOpen = !isBuy ? true : placeLot.compareTo(netLot.abs()) > 0;
+			}
+		}
+
 		DealingPolicyDetail dealingPolicyDetail = this.getDealingPolicyDetail();
 		if(isOpen)
 		{
@@ -463,17 +716,10 @@ public class Instrument implements Scheduler.ISchedulerCallback
 			{
 				return false;
 			}
-			else if (this._allowAddNewPosition.value() == AllowedOrderSides.AllowAll.value())
+			else
 			{
-				return true;
+				return true;//Let Transaction server to check allow side
 			}
-			else if ( (isBuy && this._allowAddNewPosition.value() == AllowedOrderSides.AllowBuy.value())
-					 || (!isBuy && this._allowAddNewPosition.value() == AllowedOrderSides.AllowSell.value()))
-			{
-				return true;
-			}
-
-			return false;
 		}
 	}
 
@@ -2170,12 +2416,32 @@ public class Instrument implements Scheduler.ISchedulerCallback
 			{
 				if(shouldUseDayNecessary)
 				{
-					netNecessary = account.get_RateMarginD().doubleValue() * tradePolicyDetail.get_MarginD().doubleValue() * Math.abs(necssaryCalculateTemporary.BuyMarginSum - necssaryCalculateTemporary.SellMarginSum);
+					if(tradePolicyDetail.get_VolumeNecessaryId() != null && this._marginFormula == 0)
+					{
+						VolumeNecessary volumeNecessary = this._settingsManager.getVolumeNecessary(tradePolicyDetail.get_VolumeNecessaryId());
+						if(volumeNecessary == null) this._tradingConsole.get_MainForm().refreshSystem();
+						netNecessary = volumeNecessary.calculateMargin(account.get_RateMarginD().doubleValue(), tradePolicyDetail.get_MarginD().doubleValue(), Math.abs(necssaryCalculateTemporary.BuyMarginSum - necssaryCalculateTemporary.SellMarginSum), true);
+					}
+					else
+					{
+						netNecessary = account.get_RateMarginD().doubleValue() * tradePolicyDetail.get_MarginD().doubleValue() *
+							Math.abs(necssaryCalculateTemporary.BuyMarginSum - necssaryCalculateTemporary.SellMarginSum);
+					}
 					hedgeNecessary = account.get_RateMarginLockD().doubleValue() * tradePolicyDetail.get_MarginLockedD().doubleValue() * Math.min(necssaryCalculateTemporary.BuyMarginSum, necssaryCalculateTemporary.SellMarginSum);
 				}
 				else
 				{
-					netNecessary = account.get_RateMarginO().doubleValue() * tradePolicyDetail.get_MarginO().doubleValue() * Math.abs(necssaryCalculateTemporary.BuyMarginSum - necssaryCalculateTemporary.SellMarginSum);
+					if(tradePolicyDetail.get_VolumeNecessaryId() != null && this._marginFormula == 0)
+					{
+						VolumeNecessary volumeNecessary = this._settingsManager.getVolumeNecessary(tradePolicyDetail.get_VolumeNecessaryId());
+						if(volumeNecessary == null) this._tradingConsole.get_MainForm().refreshSystem();
+						netNecessary = volumeNecessary.calculateMargin(account.get_RateMarginO().doubleValue(), tradePolicyDetail.get_MarginO().doubleValue(), Math.abs(necssaryCalculateTemporary.BuyMarginSum - necssaryCalculateTemporary.SellMarginSum), false);
+					}
+					else
+					{
+						netNecessary = account.get_RateMarginO().doubleValue() * tradePolicyDetail.get_MarginO().doubleValue() *
+							Math.abs(necssaryCalculateTemporary.BuyMarginSum - necssaryCalculateTemporary.SellMarginSum);
+					}
 					hedgeNecessary = account.get_RateMarginLockO().doubleValue() * tradePolicyDetail.get_MarginLockedO().doubleValue() * Math.min(necssaryCalculateTemporary.BuyMarginSum, necssaryCalculateTemporary.SellMarginSum);
 				}
 			}

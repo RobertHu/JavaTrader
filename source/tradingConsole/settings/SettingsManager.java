@@ -43,6 +43,7 @@ public class SettingsManager
 	private HashMap<Guid, Message> _messages;
 	private HashMap<Guid, News> _newses;
 	private HashMap<Guid, OpenContractForm> _openContractForms = new HashMap<Guid, OpenContractForm>();
+	private HashMap<Guid, VolumeNecessary> _volumeNecessaries;
 
 	private boolean _isGotMessage = false;
 	private boolean _isGotNews = false;
@@ -181,6 +182,7 @@ public class SettingsManager
 		this._tradePolicies = new HashMap<Guid, TradePolicy> ();
 		this._tradePolicyDetails = new HashMap<CompositeKey2<Guid, Guid>, TradePolicyDetail> ();
 		this._dealingPolicyDetails = new HashMap<CompositeKey2<Guid,Guid>,DealingPolicyDetail>();
+		this._volumeNecessaries = new HashMap<Guid,VolumeNecessary>();
 		this._quotePolicyDetails = new HashMap<CompositeKey2<Guid,Guid>,QuotePolicyDetail>();
 		this._uiSettings = new HashMap<String, UISetting> ();
 		this._makeOrderWindows = new HashMap<Guid, MakeOrderWindow> ();
@@ -206,6 +208,7 @@ public class SettingsManager
 		this._accountCurrencies.clear();
 		this._instruments.clear();
 		this._tradePolicies.clear();
+		this._volumeNecessaries.clear();
 		this._tradePolicyDetails.clear();
 		this._uiSettings.clear();
 		this._makeOrderWindows.clear();
@@ -1007,6 +1010,32 @@ public class SettingsManager
 			}
 		}
 
+		dataTable = tables.get_Item("VolumeNecessary");
+		if(dataTable != null)
+		{
+			dataRowCollection = dataTable.get_Rows();
+			for (int rowIndex = 0; rowIndex < dataRowCollection.get_Count(); rowIndex++)
+			{
+				dataRow = dataRowCollection.get_Item(rowIndex);
+				VolumeNecessary volumeNecessary = new VolumeNecessary(dataRow);
+				this._volumeNecessaries.put(volumeNecessary.get_Id(), volumeNecessary);
+			}
+		}
+
+		dataTable = tables.get_Item("VolumeNecessaryDetail");
+		if(dataTable != null)
+		{
+			dataRowCollection = dataTable.get_Rows();
+			for (int rowIndex = 0; rowIndex < dataRowCollection.get_Count(); rowIndex++)
+			{
+				dataRow = dataRowCollection.get_Item(rowIndex);
+				VolumeNecessaryDetail volumeNecessaryDetail = new VolumeNecessaryDetail(dataRow);
+				VolumeNecessary volumeNecessary
+					= this._volumeNecessaries.get(volumeNecessaryDetail.get_VolumeNecessaryId());
+				volumeNecessary.add(volumeNecessaryDetail);
+			}
+		}
+
 		dataTable = tables.get_Item("DealingPolicyDetail");
 		if (dataTable != null)
 		{
@@ -1552,6 +1581,16 @@ public class SettingsManager
 	public void getClearDealingPolicyDetails()
 	{
 		this._dealingPolicyDetails.clear();
+	}
+
+	public VolumeNecessary getVolumeNecessary(Guid id)
+	{
+		return this._volumeNecessaries.get(id);
+	}
+
+	public void addVolumeNecessary(VolumeNecessary volumeNecessary)
+	{
+		this._volumeNecessaries.put(volumeNecessary.get_Id(), volumeNecessary);
 	}
 
 	//Remarked by Michael on 2008-04-09

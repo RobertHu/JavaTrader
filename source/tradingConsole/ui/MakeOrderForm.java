@@ -787,14 +787,18 @@ public class MakeOrderForm extends FrameBase2
 
 	private void handleSetPrieceError(SetPriceError setPriceError, boolean isPrompt, String priceName)
 	{
+		BigDecimal lot = AppToolkit.convertStringToBigDecimal(this.totalLotTextField.getText());
+		Account account = this._makeOrderAccount == null ? null : this._makeOrderAccount.get_Account();
+
 		if (setPriceError == SetPriceError.SetPriceTooCloseMarket)
 		{
 			if (isPrompt)
 			{
 				if (this._settingsManager.get_SystemParameter().get_DisplayLmtStopPoints())
 				{
+					boolean isBuy = (Boolean)this.isBuyChoice.getSelectedValue();
 					AlertDialogForm.showDialog(this, null, true,
-											   "[" + priceName + "] " + Language.OrderLMTPageorderValidAlert2 + " " + this._instrument.get_AcceptLmtVariation(getIsOpen()) +
+											   "[" + priceName + "] " + Language.OrderLMTPageorderValidAlert2 + " " + this._instrument.get_AcceptLmtVariation(account, isBuy, lot, null, getPlaceRelation(), false) +
 											   " " +
 											   Language.OrderLMTPageorderValidAlert22);
 				}
@@ -818,6 +822,11 @@ public class MakeOrderForm extends FrameBase2
 				AlertDialogForm.showDialog(this, null, true, "[" + priceName + "] " + Language.InvalidSetPrice);
 			}
 		}
+	}
+
+	private HashMap<Guid, RelationOrder> getPlaceRelation()
+	{
+		return this._makeOrderAccount == null ? null : this._makeOrderAccount.getPlaceRelation();
 	}
 
 	private boolean isUnselectIsBuy()
@@ -1125,7 +1134,9 @@ public class MakeOrderForm extends FrameBase2
 		}
 
 		TradeOption previousTradeOption = (TradeOption)tradeOptionControl.getValue();
-		setPriceError = Order.checkLMTOrderSetPrice(true, this._instrument, isBuy, previousTradeOption, setPrice, marketPrice, getIsOpen());
+		BigDecimal lot = AppToolkit.convertStringToBigDecimal(this.totalLotTextField.getText());
+		Account account = this._makeOrderAccount == null ? null : this._makeOrderAccount.get_Account();
+		setPriceError = Order.checkLMTOrderSetPrice(account,true, this._instrument, isBuy, previousTradeOption, setPrice, marketPrice, lot, null, this.getPlaceRelation(), false);
 		if (setPriceError != SetPriceError.Ok)
 		{
 			return setPriceError;
@@ -1159,8 +1170,10 @@ public class MakeOrderForm extends FrameBase2
 			AlertDialogForm.showDialog(this, null, true, Language.OrderSingleDQPageorderValidAlert0);
 			return;
 		}
-		int acceptLmtVariation = this._instrument.get_AcceptLmtVariation(this.getIsOpen());
-		//Fill Limit Price
+		BigDecimal lot = AppToolkit.convertStringToBigDecimal(this.totalLotTextField.getText());
+		Account account = this._makeOrderAccount == null ? null : this._makeOrderAccount.get_Account();
+		int acceptLmtVariation = this._instrument.get_AcceptLmtVariation(account, isBuy, lot, null, getPlaceRelation(), false);
+		//Fill Limit Pric(
 		Price price = (this._instrument.get_IsNormal() == isBuy) ? Price.subStract(ask, acceptLmtVariation) : Price.add(bid, acceptLmtVariation);
 		if (this.isBetweenBidToAsk(price))
 		{
@@ -1180,6 +1193,8 @@ public class MakeOrderForm extends FrameBase2
 			return;
 		}
 		boolean isBuy = this.getIsBuy();
+		BigDecimal lot = AppToolkit.convertStringToBigDecimal(this.totalLotTextField.getText());
+		Account account = this._makeOrderAccount == null ? null : this._makeOrderAccount.get_Account();
 		Price bid = this._instrument.get_LastQuotation().get_Bid();
 		Price ask = this._instrument.get_LastQuotation().get_Ask();
 		if (bid == null || ask == null)
@@ -1187,7 +1202,7 @@ public class MakeOrderForm extends FrameBase2
 			AlertDialogForm.showDialog(this, null, true, Language.OrderSingleDQPageorderValidAlert0);
 			return;
 		}
-		int acceptLmtVariation = this._instrument.get_AcceptLmtVariation(getIsOpen());
+		int acceptLmtVariation = this._instrument.get_AcceptLmtVariation(account, isBuy, lot, null, getPlaceRelation(), false);
 		//Fill Stop Price
 		Price price2 = (this._instrument.get_IsNormal() == isBuy) ? Price.add(ask, acceptLmtVariation) : Price.subStract(bid, acceptLmtVariation);
 		if (this.isBetweenBidToAsk(price2))

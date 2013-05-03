@@ -51,6 +51,7 @@ public class MsgParser implements Runnable {
 				}
 				readContentHelper(buff, 0, leftLength, packetLength);
 			}
+			this.logger.info("closed");
 
 		} catch (Exception e) {
 			e.printStackTrace();

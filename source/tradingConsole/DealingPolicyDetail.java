@@ -88,17 +88,10 @@ public class DealingPolicyDetail
 		{
 			return false;
 		}
-		else if(this._allowAddNewPosition.value() == AllowedOrderSides.AllowAll.value())
+		else
 		{
-			return true;
+			return true;//Let Transaction server to check allow side
 		}
-		else if((isBuy && this._allowAddNewPosition.value() == AllowedOrderSides.AllowBuy.value())
-				|| (!isBuy && this._allowAddNewPosition.value() == AllowedOrderSides.AllowSell.value()))
-		{
-			return true;
-		}
-
-		return false;
 	}
 
 	public void replace(DataRow dataRow)

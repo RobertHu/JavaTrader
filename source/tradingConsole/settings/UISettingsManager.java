@@ -304,10 +304,11 @@ public class UISettingsManager
 			"<Col ColKey=\"IsOpenString\" ColWidth=\"50\" Sequence=\"6\"/>" +
 			"<Col ColKey=\"IsBuyString\" ColWidth=\"50\" Sequence=\"7\"/>" +
 			"<Col ColKey=\"SetPriceString\" ColWidth=\"80\" Sequence=\"8\"/>" +
-			"<Col ColKey=\"OrderTypeString\" ColWidth=\"60\" Sequence=\"9\"/>" +
-			"<Col ColKey=\"TradePLString\" ColWidth=\"80\" Sequence=\"10\"/>" +
-			"<Col ColKey=\"CommissionSumString\" ColWidth=\"80\" Sequence=\"11\"/>" +
-			"<Col ColKey=\"LevySumString\" ColWidth=\"80\" Sequence=\"12\"/>" +
+			"<Col ColKey=\"ExecutePriceString\" ColWidth=\"80\" Sequence=\"9\"/>" +
+			"<Col ColKey=\"OrderTypeString\" ColWidth=\"60\" Sequence=\"10\"/>" +
+			"<Col ColKey=\"TradePLString\" ColWidth=\"80\" Sequence=\"11\"/>" +
+			"<Col ColKey=\"CommissionSumString\" ColWidth=\"80\" Sequence=\"12\"/>" +
+			"<Col ColKey=\"LevySumString\" ColWidth=\"80\" Sequence=\"13\"/>" +
 			"</Cols>" +
 			"</Grid>";
 	}

@@ -34,7 +34,7 @@ public class SlidingWindow implements ISchedulerCallback, Runnable, WaitCallback
 	private WaitHandle _commandArrivedNotifier = new WaitHandle();
 
 	private boolean _started = false;
-	private int _nextSequence;
+	private int _nextSequence=1;
 	private int _readPendingCount = 0;
 	private int _readProxyPendingCount = 0;
 	private SortedList<SequenceCommand> _sequenceObjects = new SortedList<SequenceCommand>(new SequenceObjectComparaotr());
@@ -227,7 +227,7 @@ public class SlidingWindow implements ISchedulerCallback, Runnable, WaitCallback
 					String info = "Fire communicationBroken event for null command read" + (readingProxy? "(from proxy)" : "");
 					this._traceSource.trace(TraceType.Error, info);
 					this.logger.debug(info);
-					this.communicationBroken();
+					//this.communicationBroken();
 				}
 				//this._continuousReadNullCommandCount++;
 			}

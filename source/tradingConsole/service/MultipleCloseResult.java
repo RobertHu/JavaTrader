@@ -2,6 +2,8 @@ package tradingConsole.service;
 
 import tradingConsole.common.TransactionError;
 import framework.xml.XmlNode;
+import nu.xom.Element;
+import Util.XmlElementHelper;
 
 public class MultipleCloseResult
 {
@@ -22,6 +24,13 @@ public class MultipleCloseResult
 	public XmlNode get_XmlAccount()
 	{
 		return this._xmlAccount;
+	}
+
+	public MultipleCloseResult(Element data){
+		this._xmlTran = XmlElementHelper.ConvertToXmlNode(data.getFirstChildElement("xmlTran"));
+		this._xmlAccount=XmlElementHelper.ConvertToXmlNode(data.getFirstChildElement("xmlAccount"));
+		String tranError = data.getFirstChildElement("transactionError").getValue();
+		this._transactionError=TransactionError.valueOf(TransactionError.class,tranError);
 	}
 
 	public MultipleCloseResult(Object[] result)

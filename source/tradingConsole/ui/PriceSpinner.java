@@ -9,6 +9,7 @@ import javax.swing.text.Document;
 import java.awt.Color;
 import java.awt.event.ActionListener;
 import java.awt.Dimension;
+import framework.StringHelper;
 
 interface IPriceSpinnerSite
 {
@@ -19,6 +20,7 @@ public class PriceSpinner extends JSpinner
 {
 	private JFormattedTextField _innerEditor;
 	private SpinnerPriceModel _spinnerPriceModel;
+	private String _originValue = null;
 
 	public PriceSpinner(IPriceSpinnerSite priceSpinnerSite)
 	{
@@ -68,7 +70,53 @@ public class PriceSpinner extends JSpinner
 
 	public void setText(String value)
 	{
+		this.setText(value, false);
+	}
+
+	public void setText(String value, boolean asOrigin)
+	{
 		this._spinnerPriceModel.setValue(value);
+		if(asOrigin) this._originValue = value;
+	}
+
+	public boolean hasValue()
+	{
+		return !StringHelper.isNullOrEmpty(this.getText());
+	}
+
+	public void resetValue()
+	{
+		this._spinnerPriceModel.setValue(this._originValue);
+	}
+
+
+	public void enableEdit()
+	{
+		this.setEditable(true);
+		this.setEnabled(true);
+	}
+
+	public void disableEdit()
+	{
+		this.setEditable(false);
+		this.setEnabled(false);
+	}
+
+	public boolean isValueDifferentFromOrigin()
+	{
+		String value = this.getText();
+		if(StringHelper.isNullOrEmpty(value) && StringHelper.isNullOrEmpty(this._originValue))
+		{
+			return false;
+		}
+		else if(StringHelper.isNullOrEmpty(value) || StringHelper.isNullOrEmpty(this._originValue))
+		{
+			return true;
+		}
+		else
+		{
+			return !value.equalsIgnoreCase(this._originValue);
+		}
 	}
 
 	public void select(int index, int length)
@@ -116,8 +164,9 @@ public class PriceSpinner extends JSpinner
 
 		public void setValue(Object value)
 		{
+			boolean hasChange = this._value != value;
 			this._value = (String)value;
-			fireStateChanged();
+			if(hasChange) fireStateChanged();
 		}
 
 		public Object getNextValue()

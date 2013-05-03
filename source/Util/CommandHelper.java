@@ -302,7 +302,7 @@ public final class CommandHelper
 	}
 
 	public static ComunicationObject buildGetAccountsForSettingCommand(){
-		return buildNoArgumentsCommandCommon("GetAccsountsForSetting");
+		return buildNoArgumentsCommandCommon("GetAccountsForSetting");
 	}
 
 
@@ -318,6 +318,88 @@ public final class CommandHelper
 	public static ComunicationObject buildLogoutCommand(){
 		return buildNoArgumentsCommandCommon("Logout");
 	}
+
+	public static ComunicationObject buildRecoverPasswordDatasCommand(String[][] recoverPasswordDatas){
+		RequestWithRootAndArgumentNode target = newRootElementWithArgument();
+		String arg = StringHelper.join2(recoverPasswordDatas,StringConstants.ArrayItem2DSeprator,StringConstants.ArrayItemSeparator);
+		buildRequestArgumentsHelper(target.args,arg);
+		ComunicationObject request = RequestCommandHelper.newCommandWithSession("RecoverPasswordDatas",target.root);
+		return request;
+	}
+
+
+	public static ComunicationObject buildChangeMarginPinCommand(Guid accountId, String oldMarginPin, String newMarginPin){
+		RequestWithRootAndArgumentNode target = newRootElementWithArgument();
+		buildRequestArgumentsHelper(target.args,accountId.toString(),oldMarginPin,newMarginPin);
+		ComunicationObject request = RequestCommandHelper.newCommandWithSession("ChangeMarginPin",target.root);
+		return request;
+	}
+
+
+	public static ComunicationObject buildModifyTelephoneIdentificationCodeCommand(Guid accountId, String oldCode, String newCode){
+		RequestWithRootAndArgumentNode target = newRootElementWithArgument();
+		buildRequestArgumentsHelper(target.args,accountId.toString(),oldCode,newCode);
+		ComunicationObject request = RequestCommandHelper.newCommandWithSession("ModifyTelephoneIdentificationCode",target.root);
+		return request;
+
+	}
+
+	public static ComunicationObject buildGetAccountBanksApprovedCommand(Guid accountId,String language){
+		RequestWithRootAndArgumentNode target = newRootElementWithArgument();
+		buildRequestArgumentsHelper(target.args,accountId.toString(),language);
+		ComunicationObject request = RequestCommandHelper.newCommandWithSession("GetAccountBanksApproved",target.root);
+		return request;
+	}
+
+
+	public static ComunicationObject  buildApplyCommand(Guid id, String accountBankApprovedId, String accountId, String countryId, String bankId, String bankName,
+						   String accountBankNo, String accountBankType, //#00;银行卡|#01;存折
+						   String accountOpener, String accountBankProp, Guid accountBankBCId, String accountBankBCName,
+						   String idType, //#0;身份证|#1;户口簿|#2;护照|#3;军官证|#4;士兵证|#5;港澳居民来往内地通行证|#6;台湾同胞来往内地通行证|#7;临时身份证|#8;外国人居留证|#9;警官证|#x;其他证件
+						   String idNo, String bankProvinceId, String bankCityId, String bankAddress, String swiftCode, Integer applicationType){
+		RequestWithRootAndArgumentNode target = newRootElementWithArgument();
+		buildRequestArgumentsHelper(target.args,id.toString(),accountBankApprovedId, accountId, countryId, bankId, bankName,
+						   accountBankNo, accountBankType, //#00;银行卡|#01;存折
+						   accountOpener, accountBankProp, accountBankBCId.toString(), accountBankBCName,
+						   idType, //#0;身份证|#1;户口簿|#2;护照|#3;军官证|#4;士兵证|#5;港澳居民来往内地通行证|#6;台湾同胞来往内地通行证|#7;临时身份证|#8;外国人居留证|#9;警官证|#x;其他证件
+						   idNo, bankProvinceId, bankCityId, bankAddress, swiftCode,applicationType.toString());
+		ComunicationObject request = RequestCommandHelper.newCommandWithSession("Apply",target.root);
+		return request;
+	}
+
+
+	public static ComunicationObject buildQueryOrderCommand(Guid customerId, String accountId, String instrumentId, Integer lastDays){
+		RequestWithRootAndArgumentNode target = newRootElementWithArgument();
+		buildRequestArgumentsHelper(target.args,customerId.toString(),accountId,instrumentId,lastDays.toString());
+		ComunicationObject request = RequestCommandHelper.newCommandWithSession("QueryOrder",target.root);
+		return request;
+
+	}
+
+	public static ComunicationObject buildDeleteMessageCommand(Guid id){
+		RequestWithRootAndArgumentNode target = newRootElementWithArgument();
+		buildRequestArgumentsHelper(target.args,id.toString());
+		ComunicationObject request = RequestCommandHelper.newCommandWithSession("DeleteMessage",target.root);
+		return request;
+
+	}
+
+	public static ComunicationObject buildMultipleCloseCommand(Guid[] orderIds){
+		RequestWithRootAndArgumentNode target = newRootElementWithArgument();
+		buildRequestArgumentsHelper(target.args,StringHelper.join(orderIds,StringConstants.ArrayItemSeparator));
+		ComunicationObject request = RequestCommandHelper.newCommandWithSession("MultipleClose",target.root);
+		return request;
+
+	}
+
+
+	public static ComunicationObject buildVerifyMarginPinCommand(Guid accountId, String marginPin){
+		RequestWithRootAndArgumentNode target = newRootElementWithArgument();
+		buildRequestArgumentsHelper(target.args,accountId.toString(),marginPin);
+		ComunicationObject request = RequestCommandHelper.newCommandWithSession("VerifyMarginPin",target.root);
+		return request;
+	}
+
 
 
 

@@ -283,6 +283,24 @@ public class MakeOrderAccount
 		this._DQMaxMove = value;
 	}
 
+	public HashMap<Guid, RelationOrder> getPlaceRelation()
+	{
+		HashMap<Guid, RelationOrder> placeRelation = null;
+
+		HashMap<Guid, RelationOrder> outstandingOrders = this.getOutstandingOrders();
+		for (RelationOrder relationOrder : outstandingOrders.values())
+		{
+			if (relationOrder.get_IsSelected() && relationOrder.get_CloseLot().compareTo(BigDecimal.ZERO) > 0)
+			{
+				if (placeRelation == null)
+					placeRelation = new HashMap<Guid, RelationOrder> ();
+				placeRelation.put(relationOrder.get_OpenOrderId(),relationOrder);
+			}
+		}
+
+		return placeRelation;
+	}
+
 	public tradingConsole.ui.grid.BindingSource get_BindingSourceForOutstanding()
 	{
 		return this._bindingSourceForOutstanding;

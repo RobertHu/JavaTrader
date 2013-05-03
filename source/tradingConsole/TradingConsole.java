@@ -2419,6 +2419,8 @@ public class TradingConsole extends Applet implements Scheduler.ISchedulerCallba
 		this._transactions.remove(transactionId);
 	}
 
+
+
 	public void removeOrder(Order order)
 	{
 		Transaction transaction = this.getTransaction(order.get_Transaction().get_Id());

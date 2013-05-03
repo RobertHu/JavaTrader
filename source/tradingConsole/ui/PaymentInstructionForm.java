@@ -63,7 +63,7 @@ import com.jidesoft.swing.JideSwingUtilities;
 import tradingConsole.Country;
 import javax.swing.border.LineBorder;
 
-public class PaymentInstructionForm extends JDialog implements VerifyMarginPin.IMarginPinVerifyCallback
+public class PaymentInstructionForm extends JDialog implements VerifyMarginPin.IMarginPinVerifyCallback,InitializeBankAccount
 {
 	private TradingConsole _owner;
 	private SettingsManager _settingsManager;
@@ -150,7 +150,7 @@ public class PaymentInstructionForm extends JDialog implements VerifyMarginPin.I
 		this.getBankAccounts();
 	}
 
-	private void showWarning(String info)
+	public void showWarning(String info)
 	{
 		AlertDialogForm.showDialog(this, Language.BankAccount, true, info);
 	}
@@ -159,32 +159,10 @@ public class PaymentInstructionForm extends JDialog implements VerifyMarginPin.I
 	{
 		if(!this._owner.get_TradingConsoleServer().isReady()) return;
 
-		this._owner.get_TradingConsoleServer().beginGetAccountBanksApproved(this._account.get_Id(), new IAsyncCallback()
-		{
-			public void asyncCallback(IAsyncResult asyncResult)
-			{
-				DataSet bankAccountsDataSet = _owner.get_TradingConsoleServer().endGetAccountBanksApproved(asyncResult);
-				if (bankAccountsDataSet == null)
-				{
-					SwingUtilities.invokeLater(new Runnable()
-					{
-						public void run()
-						{
-							String info = StringHelper.format(Language.CannotGetBankAccounts, new Object[]
-								{_account.get_Code()});
-							showWarning(info);
-						}
-					});
-				}
-				else
-				{
-					initialize(bankAccountsDataSet);
-				}
-			}
-		}, null);
+		this._owner.get_TradingConsoleServer().beginGetAccountBanksApproved(this._account.get_Id(),new BankAccountCallback(this._account.get_Code(),this), null);
 	}
 
-	private void initialize(DataSet dataSet)
+	public void initialize(DataSet dataSet)
 	{
 		this._owner.get_BankAccountHelper().initializeReferenceData(dataSet);
 
