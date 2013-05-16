@@ -307,7 +307,9 @@ public final class CommandHelper
 
 
 	public static ComunicationObject buildKeepAliveCommand(){
-		return buildNoArgumentsCommandCommon("KeepAlive");
+		UUID invokeId = UUID.randomUUID();
+		ComunicationObject target = new ComunicationObject(LoginInfoManager.Default.getSession(), invokeId.toString(), null);
+		return target;
 	}
 
 	public static ComunicationObject buildRecoverCommand(){
@@ -397,6 +399,20 @@ public final class CommandHelper
 		RequestWithRootAndArgumentNode target = newRootElementWithArgument();
 		buildRequestArgumentsHelper(target.args,accountId.toString(),marginPin);
 		ComunicationObject request = RequestCommandHelper.newCommandWithSession("VerifyMarginPin",target.root);
+		return request;
+	}
+
+	public static ComunicationObject buildCancelLMTOrderCommand( Guid transactionId){
+		RequestWithRootAndArgumentNode target = newRootElementWithArgument();
+		buildRequestArgumentsHelper(target.args,transactionId.toString());
+		ComunicationObject request = RequestCommandHelper.newCommandWithSession("CancelLMTOrder",target.root);
+		return request;
+	}
+
+	public static ComunicationObject buildAccountSummaryForJava2Command(String tradeDay, String IDs, String reportxml){
+		RequestWithRootAndArgumentNode target = newRootElementWithArgument();
+		buildRequestArgumentsHelper(target.args,tradeDay,IDs,reportxml);
+		ComunicationObject request = RequestCommandHelper.newCommandWithSession("AccountSummaryForJava2",target.root);
 		return request;
 	}
 

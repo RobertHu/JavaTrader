@@ -10,6 +10,8 @@ public class ComunicationObject
 	private Element content;
 	private byte[] price;
 	private String rawContent;
+	private boolean isKeepAlive;
+	private boolean isKeepAliveSuccess;
 
 	public ComunicationObject(String session, byte[] price)
 	{
@@ -19,6 +21,12 @@ public class ComunicationObject
 	public ComunicationObject(String session, Element content)
 	{
 		this(false, session, "", content, null);
+	}
+
+	public ComunicationObject(String invokeID,boolean isKeepAliveSuccess){
+		this.invokeID = invokeID;
+		this.isKeepAlive= true;
+		this.isKeepAliveSuccess = isKeepAliveSuccess;
 	}
 
 	public ComunicationObject(String session, String invokeID, Element content)
@@ -34,6 +42,22 @@ public class ComunicationObject
 		this.invokeID = invokeID;
 		this.content = content;
 		this.price = price;
+	}
+
+	public boolean getIsKeepAlive(){
+		return this.isKeepAlive;
+	}
+
+	public void setIsKeepAlive(boolean value){
+		this.isKeepAlive=value;
+	}
+
+	public boolean getIsKeepAliveSuccess(){
+		return this.isKeepAliveSuccess;
+	}
+
+	public void setIsKeepAliveSuccess(boolean value){
+		this.isKeepAliveSuccess = value;
 	}
 
 	public void setRawContent(String rawContent)

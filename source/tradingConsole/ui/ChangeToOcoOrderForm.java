@@ -1201,7 +1201,7 @@ public class ChangeToOcoOrderForm  extends JDialog implements IPriceSpinnerSite
 		}
 
 		boolean limitPriceChanged = this._limitPriceField.isValueDifferentFromOrigin();
-		boolean stopPriceChanged = this._limitPriceField.isValueDifferentFromOrigin();
+		boolean stopPriceChanged = this._stopPriceField.isValueDifferentFromOrigin();
 		Price newLimitPrice = Price.parse(this._limitPriceField.getText(), instrument.get_NumeratorUnit(), instrument.get_Denominator());
 		Price newStopPrice = Price.parse(this._stopPriceField.getText(), instrument.get_NumeratorUnit(), instrument.get_Denominator());
 		if (newLimitPrice == null && newStopPrice == null)

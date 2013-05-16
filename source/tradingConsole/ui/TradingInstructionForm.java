@@ -25,6 +25,8 @@ import javax.swing.event.ChangeEvent;
 import java.util.Locale;
 import tradingConsole.service.PlaceResult;
 import java.util.HashMap;
+import Packet.SignalObject;
+import Util.RequestCommandHelper;
 
 public class TradingInstructionForm extends JDialog implements IPriceSpinnerSite
 {
@@ -439,18 +441,23 @@ public class TradingInstructionForm extends JDialog implements IPriceSpinnerSite
 	private static class AwtSaflyCancelProcessor implements Runnable
 	{
 		private TradingInstructionForm _owner;
-		private IAsyncResult _asyncResult;
+		private SignalObject signal;
 
-		public AwtSaflyCancelProcessor(TradingInstructionForm owner, IAsyncResult asyncResult)
+		public AwtSaflyCancelProcessor(TradingInstructionForm owner, SignalObject signal)
 		{
 			this._owner = owner;
-			this._asyncResult = asyncResult;
+			this.signal= signal;
 		}
 
 		public void run()
 		{
-			TransactionError transactionError = this._owner._tradingConsole.get_TradingConsoleServer().endCancelLMTOrder(this._asyncResult);
-			String logAction = this._asyncResult.get_AsyncState().toString();
+			if(this.signal.getIsError()){
+				return;
+			}
+
+			String error= RequestCommandHelper.getStringFromResponse(this.signal.getResult());
+			TransactionError transactionError=TransactionError.valueOf(TransactionError.class,error);
+			String logAction ="";
 			if (transactionError == TransactionError.OK || transactionError == TransactionError.Action_NeedDealerConfirmCanceling)
 			{
 				logAction += "," + Language.WebServiceCancelLMTOrderMessage1;
@@ -475,7 +482,7 @@ public class TradingInstructionForm extends JDialog implements IPriceSpinnerSite
 		}
 	}
 
-	private static class CancelCallback implements IAsyncCallback
+	public static class CancelCallback implements IAsyncCallback
 	{
 		private TradingInstructionForm _owner;
 
@@ -483,11 +490,14 @@ public class TradingInstructionForm extends JDialog implements IPriceSpinnerSite
 		{
 			this._owner = owner;
 		}
+		public void asyncCallback(SignalObject signal){
+			AwtSaflyCancelProcessor cancelProcessor = new AwtSaflyCancelProcessor(this._owner, signal);
+			SwingUtilities.invokeLater(cancelProcessor);
+		}
 
 		public void asyncCallback(IAsyncResult iAsyncResult)
 		{
-			AwtSaflyCancelProcessor cancelProcessor = new AwtSaflyCancelProcessor(this._owner, iAsyncResult);
-			SwingUtilities.invokeLater(cancelProcessor);
+
 		}
 	}
 

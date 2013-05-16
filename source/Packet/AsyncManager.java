@@ -207,7 +207,12 @@ public class AsyncManager implements Runnable
 			return;
 		}
 		this.logger.debug("is a method call");
-		signal.setResult(target.getContent());
+		if(target.getIsKeepAlive()){
+			signal.setKeepAliveSucess(target.getIsKeepAliveSuccess());
+		}
+		else{
+			signal.setResult(target.getContent());
+		}
 		synchronized (signal)
 		{
 			signal.notify();

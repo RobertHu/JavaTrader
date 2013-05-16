@@ -7,6 +7,18 @@ public class SignalObject
 {
 	private String _invokeID;
 	private Element _result;
+	private boolean isKeepAliveSucess;
+
+	public synchronized boolean isKeepAliveSucess()
+	{
+		return isKeepAliveSucess;
+	}
+
+	public synchronized void setKeepAliveSucess(boolean isKeepAliveSucess)
+	{
+		this.isKeepAliveSucess = isKeepAliveSucess;
+	}
+
 	public synchronized String getInvokeID()
 	{
 		return _invokeID;
@@ -22,9 +34,15 @@ public class SignalObject
 		return _result;
 	}
 
-	public synchronized boolean getIsError(){
-		Element error = this._result.getFirstChildElement("error");
-		return error != null ? true : false;
+	public synchronized boolean getIsError()
+	{
+		if(this._result!=null){
+			Element error = this._result.getFirstChildElement("error");
+			return error != null ? true : false;
+		}
+		else{
+			return false;
+		}
 	}
 
 	public synchronized void setResult(Element _result)

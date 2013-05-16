@@ -26,7 +26,9 @@ public class AliveKeeper implements Runnable {
 	}
 
 	public ComunicationObject buildRequest(){
-	     return CommandHelper.buildKeepAliveCommand();
+	     ComunicationObject target = CommandHelper.buildKeepAliveCommand();
+		 target.setIsKeepAlive(true);
+		 return target;
 	}
 
 	public void stop(){
@@ -118,8 +120,7 @@ public class AliveKeeper implements Runnable {
 			}
 		}
 		else{
-			String content = RequestCommandHelper.getStringFromResponse(signalObject.getResult());
-			if (!content.equals(expectedResult)){
+			if (!signalObject.isKeepAliveSucess()){
 				isLost = true;
 			}
 		}

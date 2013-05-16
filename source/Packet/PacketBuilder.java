@@ -11,12 +11,21 @@ public class PacketBuilder
 {
 	public static byte[] Build(ComunicationObject target)
 	{
-		if(!StringHelper.IsNullOrEmpty(target.getInvokeID())){
+		if(!StringHelper.IsNullOrEmpty(target.getInvokeID())
+			&&
+		    (!target.getIsKeepAlive())
+			){
 			appendInvokeIDToContent(target.getContent(), target.getInvokeID());
 		}
-		byte isPriceByte = target.getIsPrice() ? (byte)1 : (byte)0;
+		byte isPriceByte = target.getIsKeepAlive() ? (byte) PacketContants.KEEP_ALIVE_VALUE : (byte) 0;
 		byte[] sessionBytes = getSessionBytes(target.getSession());
-		byte[] contentBytes = getContentBytes(target.getContent().toXML());
+		byte[] contentBytes;
+		if(target.getIsKeepAlive()){
+			contentBytes = getKeepAliveContentBytes(target.getInvokeID());
+		}
+		else{
+			contentBytes= getContentBytes(target.getContent().toXML());
+		}
 		byte[] contentLengthBytes = IntegerHelper
 			.toCustomerBytes(contentBytes.length);
 		byte sessionLengthByte = (byte)sessionBytes.length;
@@ -36,6 +45,12 @@ public class PacketBuilder
 			Element invokeIdNode = XmlElementHelper.create(PacketContants.CommandInvokeIdName, invokeID);
 			content.appendChild(invokeIdNode);
 	}
+
+	private static byte[] getKeepAliveContentBytes(String content) {
+		byte[] bytes = PacketContants.SessionEncoding.encode(CharBuffer.wrap(content.toCharArray())).array();
+		return bytes;
+	}
+
 
 	private static byte[] getSessionBytes(String session)
 	{

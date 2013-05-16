@@ -41,14 +41,24 @@ public class RequestCommandHelper
 		return target;
 	}
 
+	public static SignalObject request(ComunicationObject command) throws IOException, InterruptedException, WaitTimeoutException{
+		return request(command,true);
+	}
 
-	public static SignalObject request(ComunicationObject command) throws IOException, InterruptedException, WaitTimeoutException
+
+	public static SignalObject request(ComunicationObject command,boolean waitForResult) throws IOException, InterruptedException, WaitTimeoutException
 	{
-		SignalObject signal = SignalHelper.add(command.getInvokeID());
+		SignalObject signal = null;
+		if(waitForResult){
+			signal = SignalHelper.add(command.getInvokeID());
+		}
 		sendCommand(command);
-		WaitTimeoutHelper.wait(signal);
+		if(waitForResult){
+			WaitTimeoutHelper.wait(signal);
+		}
 		return signal;
 	}
+
 
 	private static void sendCommand(ComunicationObject command) throws IOException
 	{

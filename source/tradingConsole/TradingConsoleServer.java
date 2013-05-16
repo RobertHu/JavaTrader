@@ -37,6 +37,7 @@ import java.util.concurrent.Executors;
 import tradingConsole.ui.BankAccountForm;
 import tradingConsole.ui.BankAccountCallback;
 import tradingConsole.settings.VerificationOrderManager.MultipleCloseCallback;
+import tradingConsole.ui.TradingInstructionForm.CancelCallback;
 
 public class TradingConsoleServer implements ITimeSyncService, Scheduler.ISchedulerCallback, TimeAdjustedEventHandler, SlidingWindow.ICommandStream, SlidingWindow.ICommandProcessor
 {
@@ -557,17 +558,16 @@ public class TradingConsoleServer implements ITimeSyncService, Scheduler.ISchedu
 	}
 
 	//test
-	public XmlNode logout()
+	public void logout()
 	{
 		try{
 			ComunicationObject command = CommandHelper.buildLogoutCommand();
-			SignalObject signal = RequestCommandHelper.request(command);
+			RequestCommandHelper.request(command,false);
 		}
 		catch (Throwable throwable)
 		{
 			this.throwableProcess("Logout", throwable);
 		}
-		return null;
 
 	}
 
@@ -700,9 +700,23 @@ public class TradingConsoleServer implements ITimeSyncService, Scheduler.ISchedu
 		}
 	}
 
-	public IAsyncResult beginCancelLMTOrder(Guid transactionId, IAsyncCallback callback, Object asyncState)
+	public void beginCancelLMTOrder(final Guid transactionId,final CancelCallback callback, Object asyncState)
 	{
-		throw new UnsupportedOperationException();
+		ExecutorService executorService = Executors.newCachedThreadPool();
+		executorService.execute(new Runnable(){
+			public void run()
+			{
+				try{
+					ComunicationObject command = CommandHelper.buildCancelLMTOrderCommand(transactionId);
+					SignalObject signal = RequestCommandHelper.request(command);
+					callback.asyncCallback(signal);
+				}
+				catch(Exception ex){
+					ex.printStackTrace();
+				}
+			}
+		});
+
 	}
 
 	public TransactionError endCancelLMTOrder(IAsyncResult asyncResult)
@@ -1262,7 +1276,20 @@ public class TradingConsoleServer implements ITimeSyncService, Scheduler.ISchedu
 
 	public Guid accountSummaryForJava2(String tradeDay, String IDs, String reportxml)
 	{
-		throw new UnsupportedOperationException();
+		Guid result = Guid.empty;
+		try{
+			ComunicationObject command = CommandHelper.buildAccountSummaryForJava2Command(tradeDay, IDs, reportxml);
+			SignalObject signal = RequestCommandHelper.request(command);
+			if(!signal.getIsError()){
+				result = RequestCommandHelper.getGuidFromResponse(signal.getResult());
+			}
+
+		}
+		catch(Throwable throwable){
+			this.throwableProcess("accountSummaryForJava2", throwable);
+		}
+		return result;
+
 	}
 
 	public Guid ledgerForJava2(String dateFrom, String dateTo, String IDs, String reportxml)
@@ -1656,6 +1683,9 @@ public class TradingConsoleServer implements ITimeSyncService, Scheduler.ISchedu
 		{
 			ComunicationObject command = CommandHelper.buildGetInterestRate(orderIds);
 			SignalObject signal = RequestCommandHelper.request(command);
+			if(signal.getIsError()){
+				return result;
+			}
 			result = RequestCommandHelper.getDataFromResponse(signal.getResult());
 			//result = (DataSet)this._service.getInterestRate(orderIds);
 		}

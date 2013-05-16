@@ -89,6 +89,7 @@ public class XmlElementHelper
 		}
 		catch (Exception ex)
 		{
+			ex.printStackTrace();
 			logger.error(ex.getStackTrace());
 		}
 		return ds;

@@ -37,22 +37,33 @@ public class PacketParser
 		}
 		else
 		{
-			//contentBytes = ZlibHelper.Decompress(contentBytes);
+			boolean isKeepAlive=false;
+			if((packet[0]& PacketContants.KEEP_ALIVE_VALUE) == PacketContants.KEEP_ALIVE_VALUE){
+				isKeepAlive=true;
+			}
+
 			int sessionIndex = PacketContants.HeadTotalLength;
 			byte[] sessionBytes = new byte[sessionLength];
 			System.arraycopy(packet, sessionIndex, sessionBytes, 0,
 							 sessionLength);
 			String session = new String(sessionBytes,
 										PacketContants.SessionEncoding);
+			String content;
+			if(isKeepAlive){
+				content = new String(contentBytes,PacketContants.InvokeIDEncoding);
+				boolean keepAliveResult = (packet[0] & PacketContants.KEEP_ALIVE_SUCCESS_MASKE) == PacketContants.KEEP_ALIVE_SUCCESS_MASKE;
+				result = new ComunicationObject(content,keepAliveResult);
+			}
+			else{
 
-
-			String content = new String(contentBytes,
-										PacketContants.ContentEncoding);
-			Element xmlContent = XmlElementHelper.parse(content);
-			Element invokeIdElement = xmlContent.getFirstChildElement(PacketContants.CommandInvokeIdName);
-			String invokeId = invokeIdElement==null?"":invokeIdElement.getValue();
-			result = new ComunicationObject(session, invokeId.trim(), xmlContent);
-			result.setRawContent(content);
+				content = new String(contentBytes,
+											PacketContants.ContentEncoding);
+				Element xmlContent = XmlElementHelper.parse(content);
+				Element invokeIdElement = xmlContent.getFirstChildElement(PacketContants.CommandInvokeIdName);
+				String invokeId = invokeIdElement == null ? "" : invokeIdElement.getValue();
+				result = new ComunicationObject(session, invokeId.trim(), xmlContent);
+				result.setRawContent(content);
+			}
 		}
 		return result;
 	}
