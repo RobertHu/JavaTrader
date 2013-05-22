@@ -139,12 +139,24 @@ public class AsyncManager implements Runnable
 				command = this.buildQuotationCommand(content);
 			}
 			else{
-				command = XmlElementHelper.ConvertToXmlNode(target.getRawContent());
+				XmlNode cmd = XmlElementHelper.ConvertToXmlNode(target.getRawContent());
+				XmlElement commandElement = (XmlElement)cmd;
+				String sequence = commandElement.getAttribute(PacketContants.COMMAND_SEQUENCE);
+				commandElement.removeAttribute(PacketContants.COMMAND_SEQUENCE);
+				XmlDocument doc = new XmlDocument();
+				XmlElement root = doc.createElement("Commands");
+				root.appendChild(commandElement);
+				root.setAttribute("FirstSequence",sequence);
+				root.setAttribute("LastSequence",sequence);
+				command = root;
+				this.logger.debug(command.get_OuterXml());
+
 			}
 			if (command == null)
 			{
 				return;
 			}
+
 			SequenceCommand sequenceCommand = BusinessCommandHelper.convertRawCommandToSequenceCommand(command, false);
 			this.slidingWindow.addCommand(sequenceCommand, false);
 		}
@@ -155,46 +167,60 @@ public class AsyncManager implements Runnable
 	}
 
 	private XmlNode buildQuotationCommand(String content){
-		String  startAndEndSeparator = "/";
-		String quotationSeparator = ";";
-		String fieldSeparator = ":";
-		char rowSeparator ='\n';
-		char colSeparator = '\t';
-		String rowSeparatorString = new String(new char[]{rowSeparator});
-		String colSeparatorString = new String(new char[]{colSeparator});
-		int startIndex = content.indexOf(startAndEndSeparator);
-		int endIndex = content.lastIndexOf(startAndEndSeparator);
-		String commandSequence=content.substring(0, startIndex);
-		String quotationContent = content.substring(startIndex + 1 , endIndex);
-		String[] quotations =quotationContent.split(quotationSeparator);
-		XmlDocument xmlDocument = new XmlDocument();
-		XmlElement commandsElement = xmlDocument.createElement("Commands");
-		StringBuilder sBuilder = new StringBuilder();
-		for (String quotation : quotations) {
-			if(StringHelper.IsNullOrEmpty(quotation)){
-				continue;
+		try{
+			String startAndEndSeparator = "/";
+			String quotationSeparator = ";";
+			String fieldSeparator = ":";
+			char rowSeparator = '\n';
+			char colSeparator = '\t';
+			String rowSeparatorString = new String(new char[]
+				{rowSeparator});
+			String colSeparatorString = new String(new char[]
+				{colSeparator});
+			int startIndex = content.indexOf(startAndEndSeparator);
+			int endIndex = content.lastIndexOf(startAndEndSeparator);
+			String commandSequence = content.substring(0, startIndex);
+			String quotationContent = content.substring(startIndex + 1, endIndex);
+			String[] quotations = quotationContent.split(quotationSeparator);
+			XmlDocument xmlDocument = new XmlDocument();
+			XmlElement commandsElement = xmlDocument.createElement("Commands");
+			StringBuilder sBuilder = new StringBuilder();
+			for (String quotation : quotations)
+			{
+				if (StringHelper.IsNullOrEmpty(quotation))
+				{
+					continue;
+				}
+				String[] quotationCols = quotation.split(fieldSeparator);
+				String volumn = "";
+				if (quotationCols.length == 9)
+				{
+					volumn = StringHelper.IsNullOrEmpty(quotationCols[7]) ? "" : colSeparator + quotationCols[7] + colSeparator + quotationCols[8];
+				}
+				DateTime currentDateTime = base.addSeconds(Double.parseDouble(quotationCols[6]));
+				Integer instrumentMapId = Integer.parseInt(quotationCols[0]);
+				Guid instrumentMapGuid = GuidMapping.Default.get(instrumentMapId);
+				String quotationString = instrumentMapGuid.toString() + colSeparator +
+					currentDateTime.toString("yyyy-MM-dd HH:mm:ss") + colSeparator + quotationCols[1] + colSeparator + quotationCols[2] + colSeparator +
+					quotationCols[3] + colSeparator + quotationCols[4] + volumn;
+				sBuilder.append(quotationString + rowSeparatorString);
 			}
-			String[] quotationCols = quotation.split(fieldSeparator);
-			String volumn ="";
-			if(quotationCols.length==9){
-				volumn= StringHelper.IsNullOrEmpty(quotationCols[7])?"":colSeparator+quotationCols[7]+colSeparator+quotationCols[8];
+			if (sBuilder.length() > 0)
+			{
+				sBuilder.setLength(sBuilder.length() - rowSeparatorString.length());
 			}
-			DateTime currentDateTime=base.addSeconds(Double.parseDouble(quotationCols[6]));
-			Integer instrumentMapId= Integer.parseInt(quotationCols[0]);
-			Guid instrumentMapGuid = GuidMapping.Default.get(instrumentMapId);
-			String quotationString =instrumentMapGuid.toString() + colSeparator+
-					currentDateTime.toString("yyyy-MM-dd HH:mm:ss")+colSeparator+quotationCols[1]+colSeparator+quotationCols[2]+colSeparator+quotationCols[3]+colSeparator+quotationCols[4]+volumn;
-			sBuilder.append(quotationString+rowSeparatorString);
+			XmlElement quotationElement2 = new XmlDocument().createElement("Quotation");
+			quotationElement2.setAttribute("Overrided", sBuilder.toString());
+			commandsElement.appendChild(quotationElement2);
+			commandsElement.setAttribute("FirstSequence", commandSequence);
+			commandsElement.setAttribute("LastSequence", commandSequence);
+			return commandsElement;
 		}
-		if(sBuilder.length()>0){
-			sBuilder.setLength(sBuilder.length() - rowSeparatorString.length());
+		catch(Exception ex)
+		{
+			this.logger.error(ex.getStackTrace());
+			return null;
 		}
-		XmlElement quotationElement2 = new XmlDocument().createElement("Quotation");
-		quotationElement2.setAttribute("Overrided", sBuilder.toString());
-		commandsElement.appendChild(quotationElement2);
-		commandsElement.setAttribute("FirstSequence", commandSequence);
-		commandsElement.setAttribute("LastSequence", commandSequence);
-		return commandsElement;
 	}
 
 

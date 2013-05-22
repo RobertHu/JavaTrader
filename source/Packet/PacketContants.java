@@ -28,5 +28,7 @@ public class PacketContants
 	public static final byte PRICE_MASK = 0X01;
 	public static final byte KEEP_ALIVE_SUCCESS_MASKE = 0X04;
 
+	public static final String COMMAND_SEQUENCE = "C_S";
+
 
 }
