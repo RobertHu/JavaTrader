@@ -134,6 +134,9 @@ public class AsyncManager implements Runnable
 		try
 		{
 			XmlNode command =null;
+			if(this.slidingWindow==null){
+				return;
+			}
 			if(target.getIsPrice()){
 				String content = Quotation4BitEncoder.decode(target.getPrice());
 				command = this.buildQuotationCommand(content);
@@ -143,12 +146,8 @@ public class AsyncManager implements Runnable
 				XmlElement commandElement = (XmlElement)cmd;
 				String sequence = commandElement.getAttribute(PacketContants.COMMAND_SEQUENCE);
 				commandElement.removeAttribute(PacketContants.COMMAND_SEQUENCE);
-				XmlDocument doc = new XmlDocument();
-				XmlElement root = doc.createElement("Commands");
-				root.appendChild(commandElement);
-				root.setAttribute("FirstSequence",sequence);
-				root.setAttribute("LastSequence",sequence);
-				command = root;
+				String xml=String.format("<Commands FirstSequence=\"%s\" LastSequence=\"%s\">%s</Commands>",sequence,sequence,commandElement.get_OuterXml());
+				command = XmlElementHelper.ConvertToXmlNode(xml);
 				this.logger.debug(command.get_OuterXml());
 
 			}
@@ -200,6 +199,10 @@ public class AsyncManager implements Runnable
 				DateTime currentDateTime = base.addSeconds(Double.parseDouble(quotationCols[6]));
 				Integer instrumentMapId = Integer.parseInt(quotationCols[0]);
 				Guid instrumentMapGuid = GuidMapping.Default.get(instrumentMapId);
+				if(instrumentMapGuid == null)
+				{
+					System.out.print("mapguid is null");
+				}
 				String quotationString = instrumentMapGuid.toString() + colSeparator +
 					currentDateTime.toString("yyyy-MM-dd HH:mm:ss") + colSeparator + quotationCols[1] + colSeparator + quotationCols[2] + colSeparator +
 					quotationCols[3] + colSeparator + quotationCols[4] + volumn;
@@ -218,7 +221,7 @@ public class AsyncManager implements Runnable
 		}
 		catch(Exception ex)
 		{
-			this.logger.error(ex.getStackTrace());
+			this.logger.error(ex.getStackTrace()+content);
 			return null;
 		}
 	}

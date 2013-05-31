@@ -416,6 +416,21 @@ public final class CommandHelper
 		return request;
 	}
 
+	public static ComunicationObject buildUpdateQuotePolicyDetail(Guid instrumentID, Guid quotePolicyID){
+		RequestWithRootAndArgumentNode target = newRootElementWithArgument();
+		buildRequestArgumentsHelper(target.args,instrumentID.toString(),quotePolicyID.toString());
+		ComunicationObject request = RequestCommandHelper.newCommandWithSession("UpdateQuotePolicyDetail",target.root);
+		return request;
+	}
+
+	public static ComunicationObject buildGetQuotePolicyDetailsAndRefreshInstrumentsState(Guid customerID){
+		RequestWithRootAndArgumentNode target = newRootElementWithArgument();
+		buildRequestArgumentsHelper(target.args,customerID.toString());
+		ComunicationObject request = RequestCommandHelper.newCommandWithSession("GetQuotePolicyDetailsAndRefreshInstrumentsState",target.root);
+		return request;
+
+	}
+
 
 
 

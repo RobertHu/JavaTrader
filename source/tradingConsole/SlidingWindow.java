@@ -239,6 +239,7 @@ public class SlidingWindow implements ISchedulerCallback, Runnable, WaitCallback
 				int beginSequence = XmlConvert.toInt32(firstSequenceAttribute.get_Value());
 				int endSequence = XmlConvert.toInt32(lastSequenceAttribute.get_Value());
 				SequenceCommand sequenceCommand = new SequenceCommand(beginSequence, endSequence, command, readLostCommand);
+				this.logger.debug("readed lost command  "+command.get_OuterXml());
 				this.addCommand(sequenceCommand, readingProxy);
 			}
 		}

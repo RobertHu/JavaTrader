@@ -1344,6 +1344,9 @@ public class SettingsManager
 		for (Iterator<TradePolicyDetail> iterator2 = this._tradePolicyDetails.values().iterator(); iterator2.hasNext(); )
 		{
 			TradePolicyDetail tradePolicyDetail = iterator2.next();
+			if(tradePolicyDetail==null || tradePolicyDetail.get_InterestRateId() == null){
+				continue;
+			}
 			if (tradePolicyDetail.get_InterestRateId().equals(interestRateId))
 			{
 				tradePolicyDetail.set_InterestRateBuy(interestRateBuy);

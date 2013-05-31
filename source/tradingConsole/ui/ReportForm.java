@@ -849,6 +849,7 @@ public class ReportForm extends JDialog implements IAsyncCommandListener, Action
 		private String _methodName;
 		private boolean _failed;
 		private String _exception;
+		private boolean _isExecute = false;
 
 		AwtSafePdfViewer(ReportForm reportForm, Guid asyncResultId, String methodName, boolean failed, String exception)
 		{
@@ -857,6 +858,7 @@ public class ReportForm extends JDialog implements IAsyncCommandListener, Action
 			this._methodName = methodName;
 			this._failed = failed;
 			this._exception = exception;
+
 		}
 
 		public void run()
@@ -871,6 +873,9 @@ public class ReportForm extends JDialog implements IAsyncCommandListener, Action
 				byte[] reportContent = this._reportForm._tradingConsole.get_TradingConsoleServer().getReportContent(this._asyncResultId);
 				if (reportContent == null)
 				{
+					if(this._isExecute){
+						return;
+					}
 					this._reportForm._tradingConsole.messageNotify(Language.FailedToLoadReport, false);
 				}
 				else if (this._reportForm._asyncResultId.equals(this._asyncResultId))
@@ -878,6 +883,7 @@ public class ReportForm extends JDialog implements IAsyncCommandListener, Action
 					this._reportForm.showPDF(reportContent);
 				}
 			}
+			this._isExecute=true;
 			this._reportForm._timer.stop();
 			this._reportForm._progressBar.setVisible(false);
 			this._reportForm._progressBar.setValue(0);

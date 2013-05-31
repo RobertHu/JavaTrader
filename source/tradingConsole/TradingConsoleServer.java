@@ -630,7 +630,20 @@ public class TradingConsoleServer implements ITimeSyncService, Scheduler.ISchedu
 
 	public DataSet getQuotePolicyDetailsAndRefreshInstrumentsState(Guid customerID)
 	{
-		throw new UnsupportedOperationException();
+		DataSet result = null;
+		try{
+			ComunicationObject command = CommandHelper.buildGetQuotePolicyDetailsAndRefreshInstrumentsState(customerID);
+			SignalObject signal=RequestCommandHelper.request(command);
+			if(signal.getIsError()){
+				return result;
+			}
+			result = RequestCommandHelper.getDataFromResponse(signal.getResult());
+		}
+		catch (Throwable throwable)
+		{
+			this.throwableProcess("getQuotePolicyDetailsAndRefreshInstrumentsState", throwable);
+		}
+		return result;
 	}
 
 	public void emailExecuteOrders(Object[] emailExecuteOrders)
@@ -1205,7 +1218,21 @@ public class TradingConsoleServer implements ITimeSyncService, Scheduler.ISchedu
 
 	public void updateQuotePolicyDetail(Guid instrumentID, Guid quotePolicyID)
 	{
-		throw new UnsupportedOperationException();
+		try{
+			ComunicationObject command = CommandHelper.buildUpdateQuotePolicyDetail(instrumentID,  quotePolicyID);
+			SignalObject signal = RequestCommandHelper.request(command);
+			if(signal.getIsError()){
+				this.logger.debug("updateQuotePolicyDetail failed");
+			}
+			else{
+				this.logger.debug("updateQuotePolicyDetail success");
+			}
+		}
+		catch (Throwable throwable)
+		{
+			this.throwableProcess("updateQuotePolicyDetail", throwable);
+		}
+
 	}
 
 	public UpdatePasswordResult updatePassword2(String loginId, String oldPassword, String newPassword, String[][] recoverPasswordDatas)
