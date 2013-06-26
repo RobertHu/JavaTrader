@@ -53,6 +53,9 @@ import Connection.SSLConnection;
 import Util.RequestCommandHelper;
 import Connection.ConnectionManager.TcpInializeTimeoutException;
 import nu.xom.Element;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Semaphore;
 
 public class TradingConsole extends Applet implements Scheduler.ISchedulerCallback, IInstrumentStateListener,ConnectionObserver //, IAutoUpdatable
 {
@@ -896,24 +899,35 @@ public class TradingConsole extends Applet implements Scheduler.ISchedulerCallba
 
 			if (!needActiveAccount)
 			{
-				this.enterMainForm();
+				enterMainForm();
 			}
 			else
 			{
 				ActivateAccountForm activateAccountForm = new ActivateAccountForm(this._mainForm, this);
 				activateAccountForm.show();
 			}
+			ExecutorService executorService = Executors.newCachedThreadPool();
+			executorService.execute(new Runnable(){
+				public void run()
+				{
+					SwingUtilities.invokeLater(new Runnable()
+					{
+						public void run()
+						{
+							_chartManager.refreshInstrument();
+							_chartManager.refreshProperties();
+							TradingConsole.traceSource.trace(TraceType.Information, "Begin chartManager.clearStorage");
+							_chartManager.clearStorage();
+							for (Instrument instrument : _settingsManager.getInstruments().values())
+							{
+								instrument.saveRealTimeChartData();
+							}
+							TradingConsole.traceSource.trace(TraceType.Information, "End chartManager.clearStorage");
+						}
+					});
+				}
+			});
 
-			this._chartManager.refreshInstrument();
-			this._chartManager.refreshProperties();
-			TradingConsole.traceSource.trace(TraceType.Information, "Begin chartManager.clearStorage");
-			this._chartManager.clearStorage();
-			for (Instrument instrument : this._settingsManager.getInstruments().values())
-			{
-				instrument.saveRealTimeChartData();
-			}
-
-			TradingConsole.traceSource.trace(TraceType.Information, "End chartManager.clearStorage");
 		}
 		catch (Throwable throwable)
 		{
@@ -950,7 +964,7 @@ public class TradingConsole extends Applet implements Scheduler.ISchedulerCallba
 
 	public void enterMainForm()
 	{
-		try
+	try
 		{
 			ColumnUIInfoManager.load(AppToolkit.getColumnVisibilityPersistentFileName());
 		}
@@ -969,15 +983,53 @@ public class TradingConsole extends Applet implements Scheduler.ISchedulerCallba
 
 		//this.unbind();
 		this.initializeForm();
-		this.initData();
-		try
+		ExecutorService executorService = Executors.newCachedThreadPool();
+
+		final Semaphore semaphore = new Semaphore(1, true);
+
+		executorService.execute(new Runnable()
 		{
-			PalceLotNnemonic.load();
-		}
-		catch (Exception ex)
+			public void run()
+			{
+				try
+				{
+					semaphore.acquire();
+					initData();
+					PalceLotNnemonic.load();
+					semaphore.release();
+				}
+				catch (Exception ex)
+				{
+					TradingConsole.traceSource.trace(TraceType.Error, "[TradingConsole.enterMainForm] " + FrameworkException.getStackTrace(ex));
+				}
+			}
+	});
+
+		executorService.execute(new Runnable()
 		{
-			TradingConsole.traceSource.trace(TraceType.Error, "[TradingConsole.enterMainForm] " + FrameworkException.getStackTrace(ex));
-		}
+			public void run()
+			{
+				try{
+					semaphore.acquire();
+				}
+				catch(Exception ex){}
+				SwingUtilities.invokeLater(new Runnable()
+				{
+					public void run()
+					{
+						enterMainFormHelper();
+						try{
+							semaphore.release();
+						}
+						catch(Exception ex){}
+					}
+				});
+			}
+	});
+
+	}
+
+	private void enterMainFormHelper(){
 		if (this.get_TradingAccountManager().needActiveAccount())
 		{
 			this.disconnect(false);
@@ -1021,6 +1073,7 @@ public class TradingConsole extends Applet implements Scheduler.ISchedulerCallba
 			messageContentForm.setAlwaysOnTop(true);
 			messageContentForm.show();
 		}
+
 	}
 
 
@@ -1503,7 +1556,15 @@ public class TradingConsole extends Applet implements Scheduler.ISchedulerCallba
 		TradingConsole.traceSource.trace(TraceType.Information, "TradingConsole.setConfiguration()");
 		this.proxySet();
 		Login.initialize();
-		LoginForm loginForm = new LoginForm(this, isRecover);
+		ServiceManager editingServiceManager= ServiceManager.Create();
+		Settings.setHostName(editingServiceManager.getSelectedHost());
+		Settings.setPort(editingServiceManager.getMapPort());
+		Settings.setIsDestinationChanged(false);
+		try{
+			this.connectHelper();
+		}
+		catch(Exception ex){}
+		LoginForm loginForm = new LoginForm(this, isRecover,editingServiceManager);
 		loginForm.toFront();
 		loginForm.show();
 

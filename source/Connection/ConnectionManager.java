@@ -83,11 +83,13 @@ public class ConnectionManager
 				this.aliveKeeper.stop();
 			}
 			this.logger.info("begin close tcp connection");
-			this.sslConnection.getSocket().close();
+			if(this.sslConnection!=null && this.sslConnection.getSocket()!=null){
+				this.sslConnection.getSocket().close();
+			}
 			this.logger.debug("Close tcp connection");
 		}
 		catch(Exception e){
-			this.logger.error(e.getStackTrace());
+			this.logger.error("close tcp failed",e);
 		}
 	}
 
@@ -98,11 +100,14 @@ public class ConnectionManager
 		{
 			this.tradingConsole.get_LoginInformation().set_LoginStatus(LoginStatus.Connecting);
 			this.tradingConsole.setConnectStatus();
+			this.closeTcpConnect();
 			this.sslConnection = new SSLConnection(Settings.getHostName(), Settings.getPort());
 			RequestCommandHelper.setOutputStream(this.sslConnection.getSocket().getOutputStream());
 			this.asyncManager = new AsyncManager();
 			this.msgParser = new MsgParser(this.sslConnection.getSocket().getInputStream(), this.asyncManager);
 			this.aliveKeeper = new AliveKeeper(this.tradingConsole.get_LoginInformation());
+			this.tradingConsole.get_LoginInformation().set_LoginStatus(LoginStatus.Connected);
+			this.tradingConsole.setConnectStatus();
 			return true;
 		}
 		catch (Exception ex)

@@ -29,7 +29,7 @@ public class LoginForm extends JFrame
 {
 	public static int maxTryCount = 3;
 	private TradingConsole _owner;
-	private ServiceManager _editingServiceManager = ServiceManager.Create();
+	private ServiceManager _editingServiceManager;
 	private boolean isRecover;
 	private Logger logger = Logger.getLogger(LoginForm.class);
 
@@ -71,9 +71,10 @@ public class LoginForm extends JFrame
 		super.show();
 	}
 
-	public LoginForm(TradingConsole owner,boolean isRecover)
+	public LoginForm(TradingConsole owner,boolean isRecover,ServiceManager editingServiceManager)
 	{
 		this( (JFrame) (owner.get_MainForm()));
+		this._editingServiceManager = editingServiceManager;
 		this._owner = owner;
 		this.isRecover = isRecover;
 		Settings.setWaitTimeout(this._editingServiceManager.getWaitTimeout());
@@ -415,7 +416,10 @@ public class LoginForm extends JFrame
 
 		try
 		{
-			this.connect();
+			if(Settings.isDestinationChanged() || !this._owner.get_LoginInformation().get_LoginStatus().equals(LoginStatus.Connected)){
+				this.logger.debug("connecting");
+				this.connect();
+			}
 			int usingBackupSettingsIndex = 0;
 			while (true)
 			{

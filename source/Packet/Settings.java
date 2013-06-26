@@ -12,7 +12,16 @@ public class Settings
 	private static int  waitTimeout=20000;
 	private static String hostName;
 	private static int port;
+	private static boolean isIpOrPortChanged=false;
 	public static final String ConfigFileName = "config.xml";
+
+	public static boolean isDestinationChanged(){
+		return isIpOrPortChanged;
+	}
+
+	public static void setIsDestinationChanged(boolean value){
+		isIpOrPortChanged = value;
+	}
 
 	public static String getHostName(){
 		return hostName;
@@ -22,10 +31,16 @@ public class Settings
 	}
 
 	public static void setHostName(String hostName){
-		Settings.hostName = hostName;
+		if(hostName!=null && !hostName.equals(Settings.hostName)){
+			Settings.hostName = hostName;
+			isIpOrPortChanged=true;
+		}
 	}
 	public static void setPort(int port){
-		Settings.port = port;
+		if(port!=Settings.port){
+			Settings.port = port;
+			isIpOrPortChanged=true;
+		}
 	}
 
 	public static int getWaitTimeout(){
