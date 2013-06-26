@@ -14,6 +14,8 @@ import framework.xml.XmlDocument;
 import framework.xml.XmlElement;
 import framework.DateTime;
 import framework.Guid;
+import nu.xom.Element;
+import nu.xom.Attribute;
 
 public class AsyncManager implements Runnable
 {
@@ -102,7 +104,7 @@ public class AsyncManager implements Runnable
 		}
 		catch (Exception e)
 		{
-			this.logger.error(e);
+			this.logger.error("async manager main body get error",e);
 		}
 
 	}
@@ -124,7 +126,7 @@ public class AsyncManager implements Runnable
 		}
 		catch (Exception ex)
 		{
-			this.logger.error(ex.getStackTrace());
+			this.logger.error("the process logic error",ex);
 		}
 	}
 
@@ -134,34 +136,48 @@ public class AsyncManager implements Runnable
 		try
 		{
 			XmlNode command =null;
+			Element command2 = null;
 			if(this.slidingWindow==null){
 				return;
 			}
 			if(target.getIsPrice()){
 				String content = Quotation4BitEncoder.decode(target.getPrice());
 				command = this.buildQuotationCommand(content);
+				if(command==null){
+					return;
+				}
 			}
 			else{
-				XmlNode cmd = XmlElementHelper.ConvertToXmlNode(target.getRawContent());
-				XmlElement commandElement = (XmlElement)cmd;
-				String sequence = commandElement.getAttribute(PacketContants.COMMAND_SEQUENCE);
-				commandElement.removeAttribute(PacketContants.COMMAND_SEQUENCE);
-				String xml=String.format("<Commands FirstSequence=\"%s\" LastSequence=\"%s\">%s</Commands>",sequence,sequence,commandElement.get_OuterXml());
-				command = XmlElementHelper.ConvertToXmlNode(xml);
-				this.logger.debug(command.get_OuterXml());
+				if(target.getContent().getLocalName().equals("News")){
+					Element content = target.getContent();
+					Attribute sequenceA = content.getAttribute(PacketContants.COMMAND_SEQUENCE);
+					content.removeAttribute(sequenceA);
+					String sequence = sequenceA.getValue();
+					String xml = String.format("<Commands FirstSequence=\"%s\" LastSequence=\"%s\">%s</Commands>", sequence, sequence,
+											   content.toXML());
+					command2 = XmlElementHelper.parse(xml);
+				}
+				else{
+					XmlNode cmd = XmlElementHelper.ConvertToXmlNode(target.getRawContent());
+					XmlElement commandElement = (XmlElement)cmd;
+					String sequence = commandElement.getAttribute(PacketContants.COMMAND_SEQUENCE);
+					commandElement.removeAttribute(PacketContants.COMMAND_SEQUENCE);
+					String xml = String.format("<Commands FirstSequence=\"%s\" LastSequence=\"%s\">%s</Commands>", sequence, sequence,
+											   commandElement.get_OuterXml());
+					command = XmlElementHelper.ConvertToXmlNode(xml);
+				}
 
 			}
-			if (command == null)
+			if (command == null && command2==null)
 			{
 				return;
 			}
-
-			SequenceCommand sequenceCommand = BusinessCommandHelper.convertRawCommandToSequenceCommand(command, false);
+			SequenceCommand sequenceCommand = BusinessCommandHelper.convertRawCommandToSequenceCommand(command, false,command2);
 			this.slidingWindow.addCommand(sequenceCommand, false);
 		}
 		catch (Exception ex)
 		{
-			this.logger.error(ex.getStackTrace());
+			this.logger.error("process command error",ex);
 		}
 	}
 
@@ -172,6 +188,7 @@ public class AsyncManager implements Runnable
 			String fieldSeparator = ":";
 			char rowSeparator = '\n';
 			char colSeparator = '\t';
+			String commandSeqenceSeparater = "-";
 			String rowSeparatorString = new String(new char[]
 				{rowSeparator});
 			String colSeparatorString = new String(new char[]
@@ -179,6 +196,7 @@ public class AsyncManager implements Runnable
 			int startIndex = content.indexOf(startAndEndSeparator);
 			int endIndex = content.lastIndexOf(startAndEndSeparator);
 			String commandSequence = content.substring(0, startIndex);
+			String[] commandSeqs =commandSequence.split(commandSeqenceSeparater);
 			String quotationContent = content.substring(startIndex + 1, endIndex);
 			String[] quotations = quotationContent.split(quotationSeparator);
 			XmlDocument xmlDocument = new XmlDocument();
@@ -201,7 +219,8 @@ public class AsyncManager implements Runnable
 				Guid instrumentMapGuid = GuidMapping.Default.get(instrumentMapId);
 				if(instrumentMapGuid == null)
 				{
-					System.out.print("mapguid is null");
+					this.logger.error("get instrumentmapGuid error "+instrumentMapId.toString());
+					return null;
 				}
 				String quotationString = instrumentMapGuid.toString() + colSeparator +
 					currentDateTime.toString("yyyy-MM-dd HH:mm:ss") + colSeparator + quotationCols[1] + colSeparator + quotationCols[2] + colSeparator +
@@ -215,13 +234,13 @@ public class AsyncManager implements Runnable
 			XmlElement quotationElement2 = new XmlDocument().createElement("Quotation");
 			quotationElement2.setAttribute("Overrided", sBuilder.toString());
 			commandsElement.appendChild(quotationElement2);
-			commandsElement.setAttribute("FirstSequence", commandSequence);
-			commandsElement.setAttribute("LastSequence", commandSequence);
+			commandsElement.setAttribute("FirstSequence", commandSeqs[0]);
+			commandsElement.setAttribute("LastSequence", commandSeqs[1]);
 			return commandsElement;
 		}
 		catch(Exception ex)
 		{
-			this.logger.error(ex.getStackTrace()+content);
+			this.logger.error("process quotation error  "+content,ex);
 			return null;
 		}
 	}
@@ -233,11 +252,14 @@ public class AsyncManager implements Runnable
 		SignalObject signal = SignalContainer.Default.get(invokeId);
 		if (signal == null)
 		{
+			this.logger.error("can't find the signal by the invoke id "+invokeId);
 			return;
 		}
-		this.logger.debug("is a method call");
 		if(target.getIsKeepAlive()){
 			signal.setKeepAliveSucess(target.getIsKeepAliveSuccess());
+		}
+		else if(target.isInitData()){
+			signal.setRowContent(target.getRawContent());
 		}
 		else{
 			signal.setResult(target.getContent());

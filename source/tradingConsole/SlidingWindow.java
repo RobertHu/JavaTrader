@@ -14,6 +14,7 @@ import framework.threading.Scheduler.*;
 import framework.util.*;
 import framework.xml.*;
 import org.apache.log4j.Logger;
+import nu.xom.Element;
 public class SlidingWindow implements ISchedulerCallback, Runnable, WaitCallback
 {
 	private static final String _readCommandSchedulerQueueName = "SlidingWindow_ReadCommand_SchedulerQueue";
@@ -635,7 +636,14 @@ public class SlidingWindow implements ISchedulerCallback, Runnable, WaitCallback
 
 		public void run()
 		{
-			this._commandProcessor.process(this._sequenceCommand.get_Command());
+			if(this._sequenceCommand.get_Command()!=null)
+			{
+				this._commandProcessor.process(this._sequenceCommand.get_Command());
+			}
+			else
+			{
+				this._commandProcessor.process(this._sequenceCommand.getCommand2());
+			}
 		}
 	}
 
@@ -665,6 +673,7 @@ public class SlidingWindow implements ISchedulerCallback, Runnable, WaitCallback
 	public static interface ICommandProcessor
 	{
 		void process(XmlNode commands);
+		void process(Element commands);
 		void process(Throwable throwable);
 		void communicationBroken();
 	}
@@ -759,6 +768,7 @@ public class SlidingWindow implements ISchedulerCallback, Runnable, WaitCallback
 		private int _endSequence;
 		private XmlNode _command;
 		private boolean _isLostCommand;
+		private Element _command2;
 
 		public SequenceCommand(int beginSequence, int endSequence, XmlNode object, boolean isLostCommand)
 		{
@@ -767,6 +777,15 @@ public class SlidingWindow implements ISchedulerCallback, Runnable, WaitCallback
 			this._command = object;
 			this._isLostCommand = isLostCommand;
 		}
+
+	    public Element getCommand2(){
+			return _command2;
+		}
+
+	    public void setCommand2(Element command){
+			this._command2 = command;
+		}
+
 
 		int get_BeginSequence()
 		{
@@ -790,8 +809,9 @@ public class SlidingWindow implements ISchedulerCallback, Runnable, WaitCallback
 
 		public String toString()
 		{
+			String xml = this._command!=null?this._command.get_OuterXml():this._command2.toXML();
 			return StringHelper.format("Begin sequence = {0}; End sequence = {1};{2}{3}",
-								 new Object[]{this._beginSequence, this._endSequence, Environment.newLine,  this._command.get_OuterXml()});
+								 new Object[]{this._beginSequence, this._endSequence, Environment.newLine,  xml});
 		}
 	}
 

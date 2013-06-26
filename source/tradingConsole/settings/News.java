@@ -123,6 +123,16 @@ public class News
 		this._publishTime = (DateTime) dataRow.get_Item("PublishTime");
 	}
 
+	public void setValue(Guid id,String title, String contents, DateTime publishTime, String author)
+	{
+		this._id= id;
+		this._title=title;
+		this._content=contents;
+		this._publishTime=publishTime;
+		this._author = author;
+	}
+
+
 	public void setValue(XmlAttributeCollection accountCollection)
 	{
 		for (int i = 0; i < accountCollection.get_Count(); i++)

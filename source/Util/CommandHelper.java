@@ -431,6 +431,14 @@ public final class CommandHelper
 
 	}
 
+	public static ComunicationObject buildGetNewsContents(Guid newsID){
+		RequestWithRootAndArgumentNode target = newRootElementWithArgument();
+		buildRequestArgumentsHelper(target.args,newsID.toString());
+		ComunicationObject request = RequestCommandHelper.newCommandWithSession("GetNewsContents",target.root);
+		return request;
+
+	}
+
 
 
 

@@ -107,7 +107,7 @@ public class ConnectionManager
 		}
 		catch (Exception ex)
 		{
-			this.logger.error(ex.getStackTrace());
+			this.logger.error("initialize tcp error",ex);
 			return false;
 		}
 

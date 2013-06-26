@@ -8,6 +8,16 @@ public class SignalObject
 	private String _invokeID;
 	private Element _result;
 	private boolean isKeepAliveSucess;
+	private String rowContent;
+	public synchronized  String getRowContent()
+	{
+		return this.rowContent;
+	}
+
+	public synchronized void setRowContent(String content)
+	{
+		this.rowContent=content;
+	}
 
 	public synchronized boolean isKeepAliveSucess()
 	{

@@ -12,6 +12,9 @@ public class ComunicationObject
 	private String rawContent;
 	private boolean isKeepAlive;
 	private boolean isKeepAliveSuccess;
+	private boolean isInitData;
+
+	private ComunicationObject(){}
 
 	public ComunicationObject(String session, byte[] price)
 	{
@@ -42,6 +45,15 @@ public class ComunicationObject
 		this.invokeID = invokeID;
 		this.content = content;
 		this.price = price;
+	}
+
+	public static ComunicationObject CreateForInitData(String invokeId, String content)
+	{
+		ComunicationObject target = new ComunicationObject();
+		target.rawContent=content;
+		target.invokeID=invokeId;
+		target.isInitData=true;
+		return target;
 	}
 
 	public boolean getIsKeepAlive(){
@@ -94,6 +106,10 @@ public class ComunicationObject
 	public byte[] getPrice()
 	{
 		return this.price;
+	}
+
+	public boolean isInitData(){
+		return this.isInitData;
 	}
 
 }

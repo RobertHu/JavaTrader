@@ -174,7 +174,6 @@ public class TradingConsoleServer implements ITimeSyncService, Scheduler.ISchedu
 		{
 			this.stopSlidingWindow();
 			this._slidingWindow.start(this._lastEndSequence);
-			this.logger.debug("sliding window start");
 			TradingConsole.traceSource.trace(TraceType.Information, "GetCommandsScheduler.scheduler.add_Begin");
 			DateTime beginTime = TradingConsoleServer.appTime();
 			TradingConsole.traceSource.trace(TraceType.Information, "GetCommandsScheduler.scheduler.add_End");
@@ -208,6 +207,18 @@ public class TradingConsoleServer implements ITimeSyncService, Scheduler.ISchedu
 		}
 		this._tradingConsole.processCommands(commands);
 	}
+
+	public void process(Element commands)
+	{
+		String commandNodeString = ( (commands == null) ? "NULL" : commands.toXML());
+		TradingConsole.getCommandTraceSource.trace(TraceType.Information, "CustomerId is " + this.get_CustomerIdString() + ": " + commandNodeString);
+		if (commands == null)
+		{
+			return;
+		}
+		this._tradingConsole.processCommands(commands);
+	}
+
 
 	public void process(Throwable throwable)
 	{
@@ -514,6 +525,10 @@ public class TradingConsoleServer implements ITimeSyncService, Scheduler.ISchedu
 		{
 			ComunicationObject command = CommandHelper.buildAsyncGetTickByTickHistoryDatas2(instrumentId,from,to);
 			SignalObject signal = RequestCommandHelper.request(command);
+			if(signal.getIsError())
+			{
+				return result;
+			}
 			result = RequestCommandHelper.getDataFromResponse(signal.getResult());
 		}
 		catch (Throwable throwable)
@@ -602,7 +617,7 @@ public class TradingConsoleServer implements ITimeSyncService, Scheduler.ISchedu
 				this.logger.info("get init data error");
 				return result;
 			}
-			Element content = signal.getResult();
+			String content = signal.getRowContent();
 			result = new GetInitDataResult(content);
 			this._lastEndSequence = result.get_CommandSequence();
 			if(this._slidingWindow != null) this._slidingWindow.reset(this._lastEndSequence);
@@ -750,11 +765,9 @@ public class TradingConsoleServer implements ITimeSyncService, Scheduler.ISchedu
 			ComunicationObject command = BuildGetTimeInfoCommand();
 			SignalObject signal=RequestCommandHelper.request(command);
 			Element result=signal.getResult();
-			logger.debug(result.toXML());
 			Element timeInfoElement=result.getFirstChildElement(StringConstants.SingleContentNodeName);
 			timeInfo=new TimeInfo();
 			timeInfo.readXml(XmlNodeHelper.Parse(timeInfoElement.getValue()));
-			logger.debug(String.format("%s %s", timeInfo.get_AdjustedTime().toString(),timeInfo.get_DateTime().toString()));
 		}
 		catch (Throwable throwable)
 		{
@@ -1612,7 +1625,23 @@ public class TradingConsoleServer implements ITimeSyncService, Scheduler.ISchedu
 
 	public DataSet getNewsContents(Guid newsID)
 	{
-		throw new UnsupportedOperationException();
+		DataSet result = null;
+		try{
+			ComunicationObject command = CommandHelper.buildGetNewsContents(newsID);
+			SignalObject signal = RequestCommandHelper.request(command);
+			if (signal.getIsError())
+			{
+				return result;
+			}
+			result = RequestCommandHelper.getDataFromResponse(signal.getResult());
+
+		}
+		catch (Throwable throwable)
+		{
+			this.throwableProcess("getNewsContents", throwable);
+		}
+		return result;
+
 	}
 
 	public BigDecimal refreshAgentAccountOrder(String orderID)

@@ -25,11 +25,16 @@ public class GetInitDataResult
 		this._dataSet=(DataSet)(results[0]);
 	}
 
-	public GetInitDataResult(Element result)
+	public GetInitDataResult(String result)
 	{
-		Element commandSeqElement = result.getFirstChildElement("commandSequence");
-		Element dataElement = result.getFirstChildElement("data");
-		this._commandSequence=Integer.parseInt(commandSeqElement.getValue());
-		this._dataSet=XmlElementHelper.convertToDataset(dataElement);
+		this._dataSet=XmlElementHelper.convertToDataset(result);
+		if(this._dataSet!=null){
+			DataTableCollection tables = this._dataSet.get_Tables();
+			DataTable commadSequenceTable = tables.get_Item("CommandSequence");
+			DataRowCollection commandSequenceCollection = commadSequenceTable.get_Rows();
+			DataRow dRow = commandSequenceCollection.get_Item(0);
+			int commandSequence = (Integer)dRow.get_Item("CommandSequenceCol");
+			this._commandSequence = commandSequence;
+		}
 	}
 }

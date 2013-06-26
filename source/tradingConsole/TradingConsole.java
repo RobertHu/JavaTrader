@@ -52,6 +52,7 @@ import java.util.concurrent.TimeUnit;
 import Connection.SSLConnection;
 import Util.RequestCommandHelper;
 import Connection.ConnectionManager.TcpInializeTimeoutException;
+import nu.xom.Element;
 
 public class TradingConsole extends Applet implements Scheduler.ISchedulerCallback, IInstrumentStateListener,ConnectionObserver //, IAutoUpdatable
 {
@@ -977,8 +978,6 @@ public class TradingConsole extends Applet implements Scheduler.ISchedulerCallba
 		{
 			TradingConsole.traceSource.trace(TraceType.Error, "[TradingConsole.enterMainForm] " + FrameworkException.getStackTrace(ex));
 		}
-
-	    this.logger.info("begin inspect is need active account");
 		if (this.get_TradingAccountManager().needActiveAccount())
 		{
 			this.disconnect(false);
@@ -1022,7 +1021,6 @@ public class TradingConsole extends Applet implements Scheduler.ISchedulerCallba
 			messageContentForm.setAlwaysOnTop(true);
 			messageContentForm.show();
 		}
-		this.logger.debug("main frame load completely");
 	}
 
 
@@ -1037,7 +1035,6 @@ public class TradingConsole extends Applet implements Scheduler.ISchedulerCallba
 		}
 
 		GetInitDataResult getInitDataResult = this._tradingConsoleServer.getInitData(this._commandSequence);
-		this.logger.info("get init data");
 		try
 		{
 			DataSet ds = getInitDataResult.get_DataSet();
@@ -2574,6 +2571,21 @@ public class TradingConsole extends Applet implements Scheduler.ISchedulerCallba
 			TradingConsole.traceSource.trace(TraceType.Error, exception);
 		}
 	}
+
+	public void processCommands(Element commandNode)
+	{
+		try
+		{
+			this._commandsManager.processCommands(commandNode);
+		}
+		catch (Throwable exception)
+		{
+			exception.printStackTrace();
+			TradingConsole.traceSource.trace(TraceType.Error, exception);
+		}
+
+	}
+
 
 	public void setInterestRateOrderId(Transaction transaction)
 	{

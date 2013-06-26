@@ -19,6 +19,7 @@ import tradingConsole.ui.*;
 import tradingConsole.ui.columnKey.*;
 import tradingConsole.ui.language.*;
 import org.apache.log4j.Logger;
+import nu.xom.*;
 public class CommandsManager
 {
 	private Logger logger = Logger.getLogger(CommandsManager.class);
@@ -1296,6 +1297,45 @@ public class CommandsManager
 			TradingConsole.traceSource.trace(TraceType.Error, exception);
 		}
 	}
+
+	public void processCommands(Element commandNode)
+	{
+		this._tradingConsole.suspendRefreshSummary();
+		Elements parentNodes =commandNode.getChildElements();
+		for(int i = 0; i < parentNodes.size(); i++ )
+		{
+			Element node = parentNodes.get(i);
+			String localName = node.getLocalName();
+			if(localName.equalsIgnoreCase("News"))
+			{
+				Elements childNodes = node.getChildElements();
+				if(childNodes==null || childNodes.size() == 0)
+				{
+					continue;
+				}
+				for(int j=0; j<childNodes.size();j++)
+				{
+					Element newsNode = childNodes.get(j);
+					Guid id = new Guid(newsNode.getAttributeValue("Id"));
+					News news = this._settingsManager.getNews(id);
+					if (news == null)
+					{
+						news = new News();
+					}
+					String title = newsNode.getAttributeValue("Title");
+					String contents = newsNode.getAttributeValue("Contents");
+					DateTime publishTime = AppToolkit.getDateTime(newsNode.getAttributeValue("PublishTime"));
+					String author =  newsNode.getAttributeValue("Author");
+					news.setValue(id,title,contents,publishTime,author);
+					this._settingsManager.setNews(news);
+					this._tradingConsole.addNews(news);
+					NewsContentForm.updateButtonStatusForAll();
+				}
+			}
+		}
+	}
+
+
 
 	public void processCommands(XmlNode commandNode)
 	{

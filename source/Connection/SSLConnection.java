@@ -33,30 +33,19 @@ public class SSLConnection
 
 	private void init() throws IOException, NoSuchAlgorithmException, KeyManagementException
 	{
-
 		SSLContext sslContext = SSLContext.getInstance("SSL");
-
-		sslContext.init(null, new TrustManager[]
-						{new X509TrustManager()
+		sslContext.init(null, new TrustManager[]{new X509TrustManager()
 		{
-
 			public X509Certificate[] getAcceptedIssuers()
 			{
-
 				return null;
 			}
-
-			public void checkClientTrusted(X509Certificate[] chain,
-										   String authType) throws CertificateException
+			public void checkClientTrusted(X509Certificate[] chain,String authType) throws CertificateException
 			{
-
-
 			}
 
-			public void checkServerTrusted(X509Certificate[] chain,
-										   String authType) throws CertificateException
+			public void checkServerTrusted(X509Certificate[] chain,	String authType) throws CertificateException
 			{
-
 			}
 		}
 		}, null);
@@ -65,15 +54,8 @@ public class SSLConnection
 			sslSocket = (SSLSocket)sslContext.getSocketFactory().createSocket(this._ip,this._port);
 		}
 		catch(Exception ex){
-			ex.printStackTrace();
+			this.logger.error("create ssl socket failed",ex);
 		}
-		this.logger.debug(String.format("ip:%s , port:%d", this._ip, this._port));
-		if (this.sslSocket != null)
-		{
-
-			this.logger.debug("get sslsocket successful");
-		}
-
 	}
 
 }

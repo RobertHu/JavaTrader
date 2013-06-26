@@ -11,13 +11,20 @@ import framework.xml.*;
 import  framework.data.DataSet;
 import org.apache.log4j.Logger;
 import org.apache.commons.lang3.StringEscapeUtils;
+import java.nio.CharBuffer;
+import Packet.PacketContants;
+import java.io.ByteArrayInputStream;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.DocumentBuilder;
+import java.io.ByteArrayOutputStream;
+import com.ms.xml.util.XMLOutputStream;
 public class XmlElementHelper
 {
 	private static Logger logger= Logger.getLogger(XmlElementHelper.class);
 	private static final String defaultElementName = "argElment";
 	public static Element parse(String node) throws ValidityException, ParsingException, IOException
 	{
-		Document doc = new Builder().build(node, "");
+		Document doc = new Builder(false).build(node, null);
 		Element ele = doc.getRootElement();
 		return ele;
 	}
@@ -58,41 +65,48 @@ public class XmlElementHelper
 			XmlDocument doc = new XmlDocument();
 			doc.loadXml(xml);
 			return doc.get_DocumentElement();
+
 		}
 		catch (Exception ex)
 		{
-			logger.error(ex.getStackTrace());
+			logger.error("convert xml to xmlnode error  "+xml,ex);
 			return null;
 		}
 
 	}
 
-	private static XmlNode convertToXmlNodeForDataset(Element element)
+
+
+
+	private static XmlNode convertToXmlNodeForDataset(String content)
 	{
-		String xml = StringEscapeUtils.unescapeXml(element.getValue());
-		//logger.debug(xml);
+		String xml = StringEscapeUtils.unescapeXml(content);
 		return ConvertToXmlNodeCommon(xml);
 	}
 
-
-
-	public static DataSet convertToDataset(Element element)
+	public static DataSet convertToDataset(String content)
 	{
 		DataSet ds = new DataSet();
 		try
 		{
-			if(StringHelper.IsNullOrEmpty(element.getValue())){
+			if (StringHelper.IsNullOrEmpty(content))
+			{
 				return null;
 			}
-			XmlNode xml = convertToXmlNodeForDataset(element);
+			XmlNode xml = convertToXmlNodeForDataset(content);
 			ds.readXml(xml);
 		}
 		catch (Exception ex)
 		{
-			ex.printStackTrace();
-			logger.error(ex.getStackTrace());
+			logger.error("convert to dataset", ex);
 		}
 		return ds;
+	}
+
+
+	public static DataSet convertToDataset(Element element)
+	{
+		return convertToDataset(element.getValue());
 	}
 
 
