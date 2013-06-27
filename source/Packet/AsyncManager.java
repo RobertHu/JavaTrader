@@ -16,6 +16,8 @@ import framework.DateTime;
 import framework.Guid;
 import nu.xom.Element;
 import nu.xom.Attribute;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ArrayBlockingQueue;
 
 public class AsyncManager implements Runnable
 {
@@ -24,7 +26,8 @@ public class AsyncManager implements Runnable
 	private volatile boolean isStoped=false;
 	private volatile boolean isStarted=false;
 	private final DateTime base = new DateTime(2011, 4, 1, 0, 0, 0);
-	private ArrayList<byte[]> resultList = new ArrayList<byte[]> ();
+	private final int CAPACITPY = 100;
+	private BlockingQueue<byte[]> queue = new ArrayBlockingQueue<byte[]> (CAPACITPY);
 	public AsyncManager()
 	{
 	}
@@ -34,10 +37,19 @@ public class AsyncManager implements Runnable
 		this.slidingWindow = slidingWindow;
 	}
 
-	public synchronized void add(byte[] result)
+	public  void add(byte[] result)
 	{
-		this.resultList.add(result);
-		this.notify();
+		if(result==null){
+			return;
+		}
+		try
+		{
+			this.queue.put(result);
+		}
+		catch (InterruptedException ex)
+		{
+			this.logger.error("enqueue failed",ex);
+		}
 	}
 
 	public void start()
@@ -55,18 +67,19 @@ public class AsyncManager implements Runnable
 		this.isStoped=true;
 	}
 
-	public synchronized byte[] dequeue()
+	public  byte[] dequeue()
 	{
-		return dequeueHelper();
+		try
+		{
+			return this.queue.take();
+		}
+		catch (InterruptedException ex)
+		{
+			this.logger.error("dequeue failed",ex);
+			return null;
+		}
 	}
 
-	private byte[] dequeueHelper()
-	{
-		int size = this.resultList.size();
-		byte[] result = this.resultList.get(size - 1);
-		this.resultList.remove(size - 1);
-		return result;
-	}
 
 	public void run()
 	{
@@ -74,25 +87,17 @@ public class AsyncManager implements Runnable
 		{
 			while (!Thread.interrupted())
 			{
-				if(this.isStoped)
+				if (this.isStoped)
 				{
 					break;
 				}
 				while (true)
 				{
-					if(this.isStoped)
+					if (this.isStoped)
 					{
 						break;
 					}
-					byte[] result = null;
-					synchronized (this)
-					{
-						while(this.resultList.size() == 0)
-						{
-							this.wait();
-						}
-						result = dequeueHelper();
-					}
+					byte[] result = dequeue();
 					if (result == null)
 					{
 						break;
