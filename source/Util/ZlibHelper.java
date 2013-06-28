@@ -5,9 +5,9 @@ import java.util.zip.Inflater;
 
 public class ZlibHelper {
 	private static byte[] buffer = new byte[1024*1000];
-	public static byte[] Decompress(byte[] input) throws DataFormatException{
+	public static byte[] Decompress(byte[] input,int offset, int count) throws DataFormatException{
 		Inflater decompresser = new Inflater();
-		decompresser.setInput(input, 0, input.length);
+		decompresser.setInput(input, offset, count);
 		int resultLength = decompresser.inflate(buffer);
 		decompresser.end();
 		byte[] result = new byte[resultLength];

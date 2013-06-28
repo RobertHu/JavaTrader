@@ -110,7 +110,7 @@ public class ActivateAccountForm extends JDialog
 						ActivateAccountForm.Set_IsSubmit(true);
 						this.dispose();
 
-						this._tradingConsole.enterMainForm();
+						this._tradingConsole.enterMainForm(null);
 					}
 					else
 					{

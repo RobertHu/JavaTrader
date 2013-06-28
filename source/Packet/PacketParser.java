@@ -39,9 +39,10 @@ public class PacketParser
 				result = new ComunicationObject(content,keepAliveResult);
 			}
 			else if(isInitData){
-				content = new String(contentBytes,PacketContants.ContentEncoding);
-				String invokeId = content.substring(0,36);
-				String rawContent = content.substring(36);
+				final int invokeIDLength = 36;
+				String invokeId =new String(contentBytes,0,invokeIDLength,PacketContants.ContentEncoding);
+				byte[] decompressContentBytes = ZlibHelper.Decompress(contentBytes,invokeIDLength,contentBytes.length - invokeIDLength);
+				String rawContent = new String(decompressContentBytes,PacketContants.ContentEncoding);
 				result = ComunicationObject.CreateForInitData(invokeId,rawContent);
 			}
 			else{

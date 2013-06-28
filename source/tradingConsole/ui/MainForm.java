@@ -1224,7 +1224,7 @@ public class MainForm extends MainFormBase
 
 	public void loggedIn(LoginResult loginResult)
 	{
-		this.setLogo(loginResult);
+		//this.setLogo(loginResult);
 
 		AppToolkit.menuItemInit(this.connectButton, Language.MenuimgConnectText, Language.MenuimgConnectText, Language.MenuimgConnect, "Disconnect.gif");
 		AppToolkit.toolBarItemInit(this.connectButton2, Language.MenuimgConnectText, Language.MenuimgConnectText, Language.MenuimgConnect, "Disconnect.gif");

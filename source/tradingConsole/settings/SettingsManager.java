@@ -17,6 +17,7 @@ import tradingConsole.enumDefine.*;
 import tradingConsole.service.*;
 import tradingConsole.ui.*;
 import Packet.GuidMapping;
+import java.util.concurrent.Semaphore;
 
 public class SettingsManager
 {
@@ -49,6 +50,12 @@ public class SettingsManager
 	private boolean _isGotNews = false;
 	private boolean _isExistsAgentAccount = false;
 	private boolean _isHasNotifiedAssignOrder = false;
+
+
+	public void setTradingConsole(TradingConsole tradingConsole){
+		this._tradingConsole = tradingConsole;
+	}
+
 
 	public void activeAgentedAccount(Guid customerId)
 	{
@@ -688,13 +695,15 @@ public class SettingsManager
 		this._uiSettings.put(UISetting.openOrderListUiSetting, new UISetting(UISetting.openOrderListUiSetting, UISettingsManager.openOrderListUiSetting));
 	}
 
-	public void initialize(TradingConsole tradingConsole, DataSet dataSet)
+	public void initialize(TradingConsole tradingConsole, DataSet dataSet,Semaphore semaphore)
 	{
+
 		this._paymentInstructionRemarks.clear();
 		Instrument.clearSummary();
+		this._tradingConsole = tradingConsole;
+
 
 		TradingConsole.traceSource.trace(TraceType.Information, "SettingsManager.initialize()");
-		this._tradingConsole = tradingConsole;
 		if (dataSet == null)
 		{
 			TradingConsole.traceSource.trace(TraceType.Information, "SettingsManager.initialize() end");
@@ -706,6 +715,36 @@ public class SettingsManager
 		DataTable dataTable;
 		DataRowCollection dataRowCollection;
 		DataRow dataRow;
+
+		dataTable = tables.get_Item("Instrument");
+		if (dataTable != null)
+		{
+			dataRowCollection = dataTable.get_Rows();
+			for (int rowIndex = 0; rowIndex < dataRowCollection.get_Count(); rowIndex++)
+			{
+				dataRow = dataRowCollection.get_Item(rowIndex);
+
+				Guid id = new Guid(dataRow.get_Item("ID").toString());
+				if (this._instruments.containsKey(id))
+				{
+					Instrument instrument = (Instrument)this._instruments.get(id);
+					instrument.replace(dataRow);
+				}
+				else
+				{
+					Instrument instrument = new Instrument(this._tradingConsole, this, dataRow);
+					this._instruments.put(id, instrument);
+				}
+			}
+			fillGuidMapping(dataTable);
+		}
+		Instrument.fillInstrumentsToSubtotal(this._instruments.values());
+
+		if (semaphore != null)
+		{
+			semaphore.release();
+		}
+
 
 		dataTable = tables.get_Item("Customer");
 		if (dataTable != null)
@@ -865,6 +904,10 @@ public class SettingsManager
 			}
 		}
 
+
+
+
+
 		dataTable = tables.get_Item("AccountAgentHistory");
 		if (dataTable != null)
 		{
@@ -965,29 +1008,6 @@ public class SettingsManager
 			TradingConsole.traceSource.trace(TraceType.Information, "accountCurrency.addNode end");
 		}
 
-		dataTable = tables.get_Item("Instrument");
-		if (dataTable != null)
-		{
-			dataRowCollection = dataTable.get_Rows();
-			for (int rowIndex = 0; rowIndex < dataRowCollection.get_Count(); rowIndex++)
-			{
-				dataRow = dataRowCollection.get_Item(rowIndex);
-
-				Guid id = new Guid(dataRow.get_Item("ID").toString());
-				if (this._instruments.containsKey(id))
-				{
-					Instrument instrument = (Instrument)this._instruments.get(id);
-					instrument.replace(dataRow);
-				}
-				else
-				{
-					Instrument instrument = new Instrument(this._tradingConsole, this, dataRow);
-					this._instruments.put(id, instrument);
-				}
-			}
-			fillGuidMapping(dataTable);
-		}
-		Instrument.fillInstrumentsToSubtotal(this._instruments.values());
 
 		dataTable = tables.get_Item("TradePolicyDetail");
 		if (dataTable != null)

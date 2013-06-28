@@ -109,7 +109,7 @@ public class RecoverPasswordQuotationSettingForm extends JDialog//Frame
 			  boolean isSucceed = updatePasswordResult.get_IsSucceed();
 			  if (isSucceed)
 			  {
-				  this._tradingConsole.enterMainForm();
+				  this._tradingConsole.enterMainForm(null);
 
 				  ActivateAccountForm.Set_IsSubmit(true);
 

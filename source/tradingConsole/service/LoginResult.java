@@ -6,6 +6,10 @@ import framework.data.DataSet;
 import nu.xom.Element;
 import Util.*;
 import org.apache.log4j.Logger;
+import framework.data.DataRow;
+import framework.data.DataTable;
+import framework.data.DataRowCollection;
+import framework.data.DataTableCollection;
 public class LoginResult
 {
 	private Guid _userId;
@@ -18,11 +22,18 @@ public class LoginResult
 	private XmlNode _settings;
 	private DataSet _recoverPasswordData;
 	private DataSet _tradingAccountData;
+	private int commandSeqence;
+	private DataSet initData;
+	private String session;
 	private Logger logger = Logger.getLogger(LoginResult.class);
 
 	public Guid get_UserId()
 	{
 		return this._userId;
+	}
+
+	public String getSession(){
+		return this.session;
 	}
 
 	public String get_CompanyName()
@@ -70,8 +81,22 @@ public class LoginResult
 		return this._tradingAccountData;
 	}
 
+	public DataSet getInitData(){
+		return this.initData;
+	}
+
+	public int getCommandSequence(){
+		return this.commandSeqence;
+	}
+
+
+
 	public LoginResult(Element result)
 	{
+		parseLoginData(result);
+	}
+
+	private void parseLoginData(Element result){
 		this._tradingAccountData = XmlElementHelper.convertToDataset(result.getFirstChildElement("tradingAccountData"));
 		this._recoverPasswordData = XmlElementHelper.convertToDataset(result.getFirstChildElement("recoverPasswordData"));
 		this._companyName = result.getFirstChildElement("companyName").getValue();
@@ -82,7 +107,35 @@ public class LoginResult
 		this._parameter = XmlElementHelper.ConvertToXmlNode(result.getFirstChildElement("parameter"));
 		this._settings = XmlElementHelper.ConvertToXmlNode(result.getFirstChildElement("settings"));
 		this._userId = new Guid(result.getFirstChildElement("userId").getValue());
+		this.session = result.getFirstChildElement("session").getValue();
 	}
+
+	public LoginResult(String content){
+		this.initData = XmlElementHelper.convertToDataset(content);
+		if(this.initData!=null){
+			DataTableCollection tables = this.initData.get_Tables();
+			DataTable commadSequenceTable = tables.get_Item("CommandSequence");
+			DataRowCollection commandSequenceCollection = commadSequenceTable.get_Rows();
+			DataRow dRow = commandSequenceCollection.get_Item(0);
+			int commandSequence = (Integer)dRow.get_Item("CommandSequenceCol");
+			this.commandSeqence = commandSequence;
+
+			DataTable loginTable = tables.get_Item("LoginTable");
+			DataRowCollection loginCollection =loginTable.get_Rows();
+			DataRow loginRow = loginCollection.get_Item(0);
+			String loginData = (String)loginRow.get_Item("LoginColumn");
+			//System.out.println(loginData);
+			try{
+				Element loginElement = XmlElementHelper.parse(loginData);
+				parseLoginData(loginElement);
+			}
+			catch(Exception ex){
+				this.logger.error("parse login data error",ex);
+			}
+		}
+
+	}
+
 
 
 	public LoginResult(Object[] results)

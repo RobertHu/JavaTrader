@@ -796,7 +796,7 @@ public class TradingConsole extends Applet implements Scheduler.ISchedulerCallba
 			this.connect(false);
 		}
 		catch(Exception ex){
-			this.logger.error(ex.getStackTrace());
+			this.logger.error("start failed",ex);
 			this.disconnect(false);
 		}
 	}
@@ -845,71 +845,24 @@ public class TradingConsole extends Applet implements Scheduler.ISchedulerCallba
 		}
 	}
 
-	public void loggedIn(LoginResult loginResult)
+	public void loggedIn(final LoginResult loginResult)
 	{
 		try
 		{
-			String serviceUrl = this._serviceManager.get_ServiceUrl();
-			String host = new URL(serviceUrl).getHost();
-			if (TradingConsole.changeDomainOfUpdateUrl(host))
-			{
-				TradingConsole.launchAutoUpdater(this);
-			}
-
-			this.showMainForm();
-			//this._mainForm.setTitle("Loading data....");
-
+			this.loginInHelper(loginResult);
 			boolean needActiveAccount = loginResult.get_NeedActiveAccount();
-
-			Trace.setLogProperties(this);
-			if (PublicParametersManager.isEmptyAllLogFilesWhenEnterSystem)
-			{
-				TraceManager.emptyAllLogFiles(false);
-			}
-
-			TradingConsole.traceSource.trace(TraceType.Information, AppToolkit.getSystemInfo());
-			TradingConsole.traceSource.trace(TraceType.Information, "------------------------------------------------------------");
-			TradingConsole.traceSource.trace(TraceType.Information, "TradingConsole.loggedIn");
-
-			this._loginInformation.set_LoginStatus(LoginStatus.LoginSucceed);
-			this._mainForm.loggedIn(loginResult);
-
-			XmlNode parameterXmlNode = loginResult.get_Parameter();
-			if (parameterXmlNode == null)
-			{
-				TradingConsole.traceSource.trace(TraceType.Error, "Parameter: " + Language.InitializeParameterError);
-			}
-			else
-			{
-				Parameter.initialize(parameterXmlNode);
-				//TradingConsole.traceSource.trace(TraceType.Information, parameterXmlNode.get_Value());
-				TradingConsole.traceSource.trace(TraceType.Information,
-												 "Trading fact url = " +
-												 (StringHelper.isNullOrEmpty(Parameter.tradingFactUrl) ? "null" : Parameter.tradingFactUrl));
-				if (!StringHelper.isNullOrEmpty(Parameter.tradingFactUrl))
-				{
-					this._mainForm.showTradingFactButton();
-				}
-			}
-
-			this.tradingAccountInstance(loginResult);
-
-			this._recoverPasswordManager.initialize(loginResult.get_RecoverPasswordData(), this._serviceManager.getRecoverPasswordAnswerCount());
-			ActivateAccount.initialize();
-
 			if (!needActiveAccount)
 			{
-				enterMainForm();
+				enterMainForm(loginResult);
 			}
 			else
 			{
 				ActivateAccountForm activateAccountForm = new ActivateAccountForm(this._mainForm, this);
 				activateAccountForm.show();
 			}
-			ExecutorService executorService = Executors.newCachedThreadPool();
+			ExecutorService executorService =Executors.newCachedThreadPool();
 			executorService.execute(new Runnable(){
-				public void run()
-				{
+				public void run(){
 					SwingUtilities.invokeLater(new Runnable()
 					{
 						public void run()
@@ -925,9 +878,10 @@ public class TradingConsole extends Applet implements Scheduler.ISchedulerCallba
 							TradingConsole.traceSource.trace(TraceType.Information, "End chartManager.clearStorage");
 						}
 					});
-				}
-			});
 
+				}
+			}
+			);
 		}
 		catch (Throwable throwable)
 		{
@@ -941,6 +895,62 @@ public class TradingConsole extends Applet implements Scheduler.ISchedulerCallba
 			return;
 		}
 	}
+
+	private void loginInHelper(LoginResult loginResult) throws MalformedURLException
+	{
+		String serviceUrl = this._serviceManager.get_ServiceUrl();
+		final String host = new URL(serviceUrl).getHost();
+		final TradingConsole self = this;
+		ExecutorService executorService =Executors.newCachedThreadPool();
+		executorService.execute(new Runnable(){
+			public void run(){
+
+				if (TradingConsole.changeDomainOfUpdateUrl(host))
+				{
+					TradingConsole.launchAutoUpdater(self);
+				}
+
+			}
+		});
+
+		this.showMainForm();
+		Trace.setLogProperties(this);
+		if (PublicParametersManager.isEmptyAllLogFilesWhenEnterSystem)
+		{
+			TraceManager.emptyAllLogFiles(false);
+		}
+
+		TradingConsole.traceSource.trace(TraceType.Information, AppToolkit.getSystemInfo());
+		TradingConsole.traceSource.trace(TraceType.Information, "------------------------------------------------------------");
+		TradingConsole.traceSource.trace(TraceType.Information, "TradingConsole.loggedIn");
+
+		this._loginInformation.set_LoginStatus(LoginStatus.LoginSucceed);
+		this._mainForm.loggedIn(loginResult);
+
+		XmlNode parameterXmlNode = loginResult.get_Parameter();
+		if (parameterXmlNode == null)
+		{
+			TradingConsole.traceSource.trace(TraceType.Error, "Parameter: " + Language.InitializeParameterError);
+		}
+		else
+		{
+			Parameter.initialize(parameterXmlNode);
+			//TradingConsole.traceSource.trace(TraceType.Information, parameterXmlNode.get_Value());
+			TradingConsole.traceSource.trace(TraceType.Information,
+											 "Trading fact url = " +
+											 (StringHelper.isNullOrEmpty(Parameter.tradingFactUrl) ? "null" : Parameter.tradingFactUrl));
+			if (!StringHelper.isNullOrEmpty(Parameter.tradingFactUrl))
+			{
+				this._mainForm.showTradingFactButton();
+			}
+		}
+
+		this.tradingAccountInstance(loginResult);
+
+		this._recoverPasswordManager.initialize(loginResult.get_RecoverPasswordData(), this._serviceManager.getRecoverPasswordAnswerCount());
+		ActivateAccount.initialize();
+	}
+
 
 	public boolean needRecoverPasswordQuotationSetting()
 	{
@@ -962,7 +972,7 @@ public class TradingConsole extends Applet implements Scheduler.ISchedulerCallba
 		}
 	}
 
-	public void enterMainForm()
+	public void enterMainForm(final LoginResult loginResult)
 	{
 	try
 		{
@@ -984,9 +994,19 @@ public class TradingConsole extends Applet implements Scheduler.ISchedulerCallba
 		//this.unbind();
 		this.initializeForm();
 		ExecutorService executorService = Executors.newCachedThreadPool();
-
+		executorService.execute(new Runnable()
+		{
+			public void run()
+			{
+				try
+				{
+					PalceLotNnemonic.load();
+				}
+				catch (Exception ex)
+				{}
+			}
+		});
 		final Semaphore semaphore = new Semaphore(1, true);
-
 		executorService.execute(new Runnable()
 		{
 			public void run()
@@ -994,9 +1014,7 @@ public class TradingConsole extends Applet implements Scheduler.ISchedulerCallba
 				try
 				{
 					semaphore.acquire();
-					initData();
-					PalceLotNnemonic.load();
-					semaphore.release();
+					initData(semaphore,loginResult);
 				}
 				catch (Exception ex)
 				{
@@ -1018,10 +1036,7 @@ public class TradingConsole extends Applet implements Scheduler.ISchedulerCallba
 					public void run()
 					{
 						enterMainFormHelper();
-						try{
-							semaphore.release();
-						}
-						catch(Exception ex){}
+						semaphore.release();
 					}
 				});
 			}
@@ -1079,7 +1094,7 @@ public class TradingConsole extends Applet implements Scheduler.ISchedulerCallba
 
 
 
-	public void initData()
+	public void initData(Semaphore semaphore,LoginResult loginResult)
 	{
 		TradingConsole.traceSource.trace(TraceType.Information, "TradingConsole.initData()");
 		if (this._instrumentStateManager != null)
@@ -1087,12 +1102,20 @@ public class TradingConsole extends Applet implements Scheduler.ISchedulerCallba
 			this._instrumentStateManager.stop();
 		}
 
-		GetInitDataResult getInitDataResult = this._tradingConsoleServer.getInitData(this._commandSequence);
+
 		try
 		{
-			DataSet ds = getInitDataResult.get_DataSet();
-			this._commandSequence = getInitDataResult.get_CommandSequence();
-			this.initialize(ds, false);
+			DataSet ds ;
+			if(semaphore== null && loginResult == null){
+				GetInitDataResult getInitDataResult = this._tradingConsoleServer.getInitData(this._commandSequence);
+				ds= getInitDataResult.get_DataSet();
+				this._commandSequence = getInitDataResult.get_CommandSequence();
+			}
+			else{
+				ds = loginResult.getInitData();
+				this._commandSequence = loginResult.getCommandSequence();
+			}
+			this.initialize(ds, false,semaphore);
 			this._bankAccountHelper = new BankAccountHelper(this);
 			this._bankAccountHelper.refresh();
 		}
@@ -1227,7 +1250,7 @@ public class TradingConsole extends Applet implements Scheduler.ISchedulerCallba
 
 		this.workSchedulerStart();
 
-		this.initData();
+		this.initData(null,null);
 		if (this._loginInformation.get_LoginStatus() == LoginStatus.LoginSucceed
 			|| this._loginInformation.get_LoginStatus() == LoginStatus.Ready)
 		{
@@ -1556,17 +1579,25 @@ public class TradingConsole extends Applet implements Scheduler.ISchedulerCallba
 		TradingConsole.traceSource.trace(TraceType.Information, "TradingConsole.setConfiguration()");
 		this.proxySet();
 		Login.initialize();
-		ServiceManager editingServiceManager= ServiceManager.Create();
-		Settings.setHostName(editingServiceManager.getSelectedHost());
-		Settings.setPort(editingServiceManager.getMapPort());
-		Settings.setIsDestinationChanged(false);
-		try{
-			this.connectHelper();
-		}
-		catch(Exception ex){}
+		final ServiceManager editingServiceManager = ServiceManager.Create();
 		LoginForm loginForm = new LoginForm(this, isRecover,editingServiceManager);
 		loginForm.toFront();
 		loginForm.show();
+		ExecutorService executorService = Executors.newCachedThreadPool();
+		executorService.execute(new Runnable(){
+			public void run()
+			{
+				try
+				{
+					Settings.setHostName(editingServiceManager.getSelectedHost());
+					Settings.setPort(editingServiceManager.getMapPort());
+					Settings.setIsDestinationChanged(false);
+					connectHelper();
+				}
+				catch (Exception ex)
+				{}
+			}
+		});
 
 	}
 
@@ -1872,10 +1903,16 @@ public class TradingConsole extends Applet implements Scheduler.ISchedulerCallba
 
 	public void setConnectStatus()
 	{
-		if (this._mainForm != null)
+		SwingUtilities.invokeLater(new Runnable()
 		{
-			this._mainForm.setConnectStatus();
-		}
+			public void run()
+			{
+				if (_mainForm != null)
+				{
+					_mainForm.setConnectStatus();
+				}
+			}
+		});
 	}
 
 	public void setDisconnectStatusDisplay()
@@ -1982,24 +2019,23 @@ public class TradingConsole extends Applet implements Scheduler.ISchedulerCallba
 
 	public void updateData(DataSet dataSet)
 	{
-		this.initialize(dataSet, false);
+		this.initialize(dataSet, false,null);
 	}
 
 	public void updateData2(DataSet dataSet)
 	{
-		this.initialize(dataSet, true);
+		this.initialize(dataSet, true,null);
 	}
 
-	private void initialize(DataSet dataSet, boolean supressAccountNotify)
+	private void initialize(DataSet dataSet, boolean supressAccountNotify,Semaphore semaphore)
 	{
 		TradingConsole.traceSource.trace(TraceType.Information, "TradingConsole.initialize()");
-		this._settingsManager.initialize(this, dataSet);
+		this._settingsManager.initialize(this, dataSet,semaphore);
 		this._settingsManager.resetCheckArrivedAlertLevel3();
 		if (!supressAccountNotify)
 		{
 			this._settingsManager.accountAlert();
 		}
-
 		this.initialize2(dataSet);
 		//Remarked by Michael on 2008-04-09
 		//this._settingsManager.checkAccountsForCut();

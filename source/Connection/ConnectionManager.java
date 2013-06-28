@@ -50,22 +50,11 @@ public class ConnectionManager
 
 	public void initializeTcpSettings() throws Connection.ConnectionManager.TcpInializeTimeoutException
 	{
-		long startTime = System.currentTimeMillis();
-		while(System.currentTimeMillis() - startTime <= TCP_INITIALIZE_TIME){
-			if(initializeTcpSettingsHelper()){
-				break;
-			}
-			else{
-				try{
-					TimeUnit.MILLISECONDS.sleep(INITIALIZE_SLEEP_PERIAD);
-				}
-				catch(Exception ex){}
-			}
-		}
-		if(System.currentTimeMillis() - startTime > TCP_INITIALIZE_TIME){
+		if (!initializeTcpSettingsHelper())
+		{
+
 			throw new TcpInializeTimeoutException();
 		}
-
 	}
 
 	public  void closeTcpConnect(){

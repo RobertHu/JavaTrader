@@ -440,15 +440,15 @@ public class TradingConsoleServer implements ITimeSyncService, Scheduler.ISchedu
 			if(signal.getIsError()){
 				return result;
 			}
-			Element ele= signal.getResult();
-			String session =ele.getFirstChildElement("session").getValue();
+			String content= signal.getRowContent();
+			result =new LoginResult(content);
+			String session =result.getSession();
 			LoginInfoManager.Default.setSession(session);
-			result = new LoginResult(ele);
 
 		}
 		catch (Throwable throwable)
 		{
-			this.logger.error(throwable.getStackTrace());
+			this.logger.error("get login data error",throwable);
 			this.throwableProcess("loginForJava", throwable);
 		}
 		return result;

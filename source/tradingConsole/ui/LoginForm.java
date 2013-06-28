@@ -74,7 +74,7 @@ public class LoginForm extends JFrame
 	public LoginForm(TradingConsole owner,boolean isRecover,ServiceManager editingServiceManager)
 	{
 		this( (JFrame) (owner.get_MainForm()));
-		this._editingServiceManager = editingServiceManager;
+		this._editingServiceManager =editingServiceManager;
 		this._owner = owner;
 		this.isRecover = isRecover;
 		Settings.setWaitTimeout(this._editingServiceManager.getWaitTimeout());
@@ -184,8 +184,6 @@ public class LoginForm extends JFrame
 		this.userIdEdit.requestFocus();
 		this.userIdEdit.select(0, this.userIdEdit.getText().length());
 	}
-
-
 
 	private void optionTab_actionPerformed()
 	{
@@ -449,6 +447,7 @@ public class LoginForm extends JFrame
 							AlertDialogForm.showDialog(this, null, true, Login.lblLoginPrompt23);
 							return;
 						}
+						this._owner.get_TradingConsoleServer().get_SlidingWindow().reset(result.getCommandSequence());
 
 						if (this._owner.getConnectionManager().getAsyncManager() != null)
 						{

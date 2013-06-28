@@ -80,8 +80,8 @@ public class XmlElementHelper
 
 	private static XmlNode convertToXmlNodeForDataset(String content)
 	{
-		String xml = StringEscapeUtils.unescapeXml(content);
-		return ConvertToXmlNodeCommon(xml);
+		//String xml = StringEscapeUtils.unescapeXml(content);
+		return ConvertToXmlNodeCommon(content);
 	}
 
 	public static DataSet convertToDataset(String content)
