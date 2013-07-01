@@ -451,7 +451,7 @@ public class LoginForm extends JFrame
 
 						if (this._owner.getConnectionManager().getAsyncManager() != null)
 						{
-							this._owner.getConnectionManager().getAsyncManager().setSlidingWindow(this._owner.get_TradingConsoleServer().get_SlidingWindow());
+							this._owner.getConnectionManager().getAsyncManager().setSlidingWindow(this._owner.get_TradingConsoleServer().get_SlidingWindow(),this._owner);
 						}
 						TradingConsole.traceSource.trace(TraceType.Information, "call loggedIn-Begin");
 

@@ -1015,6 +1015,7 @@ public class TradingConsole extends Applet implements Scheduler.ISchedulerCallba
 				{
 					semaphore.acquire();
 					initData(semaphore,loginResult);
+//					semaphore.release();
 				}
 				catch (Exception ex)
 				{
@@ -3271,7 +3272,7 @@ public class TradingConsole extends Applet implements Scheduler.ISchedulerCallba
 			if(this.recoverService.recover()){
 				this.logger.info("recoved");
 				isRecoved = true;
-				this.connectionManager.getAsyncManager().setSlidingWindow(this.get_TradingConsoleServer().get_SlidingWindow());
+				this.connectionManager.getAsyncManager().setSlidingWindow(this.get_TradingConsoleServer().get_SlidingWindow(),this);
 				this._loginInformation.set_LoginStatus(LoginStatus.Ready);
 				this.setConnectStatus();
 			}
@@ -3294,7 +3295,6 @@ public class TradingConsole extends Applet implements Scheduler.ISchedulerCallba
 		}
 
 	}
-
 
 
 	private String[] getUpdateUrlString()

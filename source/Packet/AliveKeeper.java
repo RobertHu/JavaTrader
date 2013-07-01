@@ -13,7 +13,7 @@ import tradingConsole.LoginInformation;
 public class AliveKeeper implements Runnable {
 	private Logger logger= Logger.getLogger(AliveKeeper.class);
 	private List<ConnectionObserver> observers= new ArrayList<ConnectionObserver>();
-	private final int SLEEP_TIME = 30000;
+	private final int SLEEP_TIME = 20000;
 	private final int MAX_EXCEPTION_COUNT = 3;
 	private int sleepTime = SLEEP_TIME;
 	private int exceptionCount = 0;

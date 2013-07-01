@@ -18,6 +18,7 @@ import nu.xom.Element;
 import nu.xom.Attribute;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ArrayBlockingQueue;
+import tradingConsole.TradingConsole;
 
 public class AsyncManager implements Runnable
 {
@@ -28,13 +29,15 @@ public class AsyncManager implements Runnable
 	private final DateTime base = new DateTime(2011, 4, 1, 0, 0, 0);
 	private final int CAPACITPY = 100;
 	private BlockingQueue<byte[]> queue = new ArrayBlockingQueue<byte[]> (CAPACITPY);
+    private TradingConsole tradingConsole;
 	public AsyncManager()
 	{
 	}
 
-	public void setSlidingWindow(SlidingWindow slidingWindow)
+	public void setSlidingWindow(SlidingWindow slidingWindow, TradingConsole tradingConsole)
 	{
 		this.slidingWindow = slidingWindow;
+		this.tradingConsole = tradingConsole;
 	}
 
 	public  void add(byte[] result)
@@ -153,7 +156,8 @@ public class AsyncManager implements Runnable
 				}
 			}
 			else{
-				if(target.getContent().getLocalName().equals("News")){
+				String localName =target.getContent().getLocalName();
+				if(localName.equals("News")){
 					Element content = target.getContent();
 					Attribute sequenceA = content.getAttribute(PacketContants.COMMAND_SEQUENCE);
 					content.removeAttribute(sequenceA);
@@ -161,6 +165,9 @@ public class AsyncManager implements Runnable
 					String xml = String.format("<Commands FirstSequence=\"%s\" LastSequence=\"%s\">%s</Commands>", sequence, sequence,
 											   content.toXML());
 					command2 = XmlElementHelper.parse(xml);
+				}
+				else if(localName.equals("KickoutCommand")){
+					this.tradingConsole.kickout();
 				}
 				else{
 					XmlNode cmd = XmlElementHelper.ConvertToXmlNode(target.getRawContent());
