@@ -79,8 +79,6 @@ public class LoginForm extends JFrame
 		this.isRecover = isRecover;
 		Settings.setWaitTimeout(this._editingServiceManager.getWaitTimeout());
 		this.serverSettingInitalize();
-
-		//this.setTitle(Login.loginFormTitle);
 		if (PublicParametersManager.version.equals("JPN"))
 		{
 			this.setTitle(this._owner.get_ServiceManager().getSelectedHostName() + " " + Login.loginFormTitle);
@@ -89,8 +87,6 @@ public class LoginForm extends JFrame
 		{
 			this.setTitle(Login.loginFormTitle + " " + this._owner.get_ServiceManager().getSelectedHostName());
 		}
-
-
 
 		this.languageStaticText.setText(Language.optionFormLanguageLabel);
 		ItemListener itemListener = new ItemListener()
@@ -389,8 +385,9 @@ public class LoginForm extends JFrame
 		{
 			passwordHost = AppToolkit.getHost(passwordHost);
 		}
+
 		Settings.setHostName(host);
-		Settings.setPort(this._editingServiceManager.getMapPort());
+		Settings.setPort(this._editingServiceManager.getMapPort(selectedServiceHostSequence));
 		isSucceed = ServiceManager.saveServerSetting(this.hostChoice.getSelectedIndex(), host, passwordHost);
 		if (!isSucceed)
 		{

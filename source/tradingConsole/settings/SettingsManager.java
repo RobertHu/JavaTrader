@@ -18,6 +18,7 @@ import tradingConsole.service.*;
 import tradingConsole.ui.*;
 import Packet.GuidMapping;
 import java.util.concurrent.Semaphore;
+import org.apache.log4j.Logger;
 
 public class SettingsManager
 {
@@ -50,7 +51,7 @@ public class SettingsManager
 	private boolean _isGotNews = false;
 	private boolean _isExistsAgentAccount = false;
 	private boolean _isHasNotifiedAssignOrder = false;
-
+	private Logger logger = Logger.getLogger(SettingsManager.class);
 
 	public void setTradingConsole(TradingConsole tradingConsole){
 		this._tradingConsole = tradingConsole;
@@ -1152,7 +1153,6 @@ public class SettingsManager
 			for (int rowIndex = 0; rowIndex < dataRowCollection.get_Count(); rowIndex++)
 			{
 				dataRow = dataRowCollection.get_Item(rowIndex);
-
 				Guid id = (Guid) dataRow.get_Item("ID");
 				if (this._newses.containsKey(id))
 				{

@@ -14,6 +14,7 @@ public class Settings
 	private static int port;
 	private static boolean isIpOrPortChanged=false;
 	public static final String ConfigFileName = "config.xml";
+	public static final String LocalConfigFileName = "local_config.xml";
 
 	public static boolean isDestinationChanged(){
 		return isIpOrPortChanged;

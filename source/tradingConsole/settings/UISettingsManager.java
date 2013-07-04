@@ -262,7 +262,7 @@ public class UISettingsManager
 
 	private static String getDefaultTradingPanelUiSetting()
 	{
-		return "<Grid FontName=\"SansSerif\" FontSize=\"12\" RowHeight=\"20\">" +
+		return "<Grid FontName=\"SansSerif\" FontSize=\"12\" RowHeight=\"25\">" +
 			"<Cols>" +
 			"<Col ColKey=\"Select\" ColWidth=\"" + UISettingsManager.getWidth(0.025) + "\" Sequence=\"0\"/>" +
 			"<Col ColKey=\"Ask\" ColWidth=\"" + UISettingsManager.getWidth(0.06) + "\" Sequence=\"4\"/>" +
@@ -285,7 +285,7 @@ public class UISettingsManager
 
 	private static String getDefaultAccountStatusUiSetting()
 	{
-		return "<Grid FontName=\"SansSerif\" FontSize=\"12\" RowHeight=\"20\">" +
+		return "<Grid FontName=\"SansSerif\" FontSize=\"12\"  RowHeight=\"20\">" +
 			"<Cols>" +
 			"</Cols>" +
 			"</Grid>";

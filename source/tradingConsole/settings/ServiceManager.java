@@ -19,52 +19,25 @@ import nu.xom.Builder;
 import nu.xom.Document;
 import nu.xom.Element;
 import Util.XmlElementHelper;
+import nu.xom.ParsingException;
+import Util.DocumentHelper;
+import nu.xom.Elements;
 
 public class ServiceManager
 {
-	//private String autoUpdateUrl = "";
-	//private int autoUpdateListenPort = 26969;
-	private String authenticationUrl = "";
-	//using service url
 	private String serviceUrl = "";
 	private String serviceUrlFor99Bill = "";
 	private String companyCodeForTransfer= "";
 	private boolean showMarginAsChuRuJin=false;
 	//1st service host, not allow change
-	private String serviceHost1 = "";
-	//2nd service host, not allow change
-	private String serviceHost2 = "";
-	//3th service host, not allow change
-	private String serviceHost3 = "";
-	//4th service host, not allow change
-	private String serviceHost4 = "";
-	//5th service host, not allow change
-	private String serviceHost5 = "";
-	//6th service host, not allow change
-	private String serviceHost6 = "";
+	private String[] serverHosts;
 	//user define service host, allow change
 	private String userDefineServiceHost = "";
 	//using which service host
 	private int selectedServiceHostSequence = 1; //0: userDefineServiceHost,1: serviceHost1,2: serviceHost2,3: serviceHost3,4: serviceHost4,5: serviceHost5,6: serviceHost6
-	private int totalService = 1;
-
-	private String mapPortString = "";
-	private String mapPortString1 = "";
-	private String mapPortString2 = "";
-	private String mapPortString3 = "";
-	private String mapPortString4 = "";
-	private String mapPortString5 = "";
-	private String mapPortString6 = "";
-
+	private String[] mapPorts;
 	private String userDefinePasswordLink = "";
-	private String forgetPasswordLink = "";
-	private String forgetPasswordLink1 = "";
-	private String forgetPasswordLink2 = "";
-	private String forgetPasswordLink3 = "";
-	private String forgetPasswordLink4 = "";
-	private String forgetPasswordLink5 = "";
-	private String forgetPasswordLink6 = "";
-
+	private String[] forgetPasswordLinks;
 	private String priceAlignString = "";
 	private String placardUrl = "";
 	private String useCell = "false";
@@ -86,6 +59,7 @@ public class ServiceManager
 
 	private boolean useBlackAsBackground = false;
 	private Integer waitTimeout;
+	private String defaultMapPort;
 
 	public int getMapPort()
 	{
@@ -93,45 +67,27 @@ public class ServiceManager
 		return (StringHelper.isNullOrEmpty(mapPortString)) ? AppToolkit.getPort(this.serviceUrl) : XmlConvert.toInt32(mapPortString);
 	}
 
+	public int getMapPort(int selectedServiceHostSequence)
+	{
+		if(selectedServiceHostSequence < 0 || selectedServiceHostSequence> this.serverHosts.length)
+		{
+			return Integer.parseInt( this.defaultMapPort);
+		}
+		return Integer.parseInt(this.mapPorts[selectedServiceHostSequence - 1]);
+	}
+
+
 	private String getSelectedMapPortString()
 	{
-		if (this.selectedServiceHostSequence < 0 || this.selectedServiceHostSequence > this.totalService)
+		if (this.selectedServiceHostSequence < 0 || this.selectedServiceHostSequence >  this.mapPorts.length)
 		{
 			this.selectedServiceHostSequence = 0;
 		}
-
-		if (selectedServiceHostSequence == 0)
+		if(this.selectedServiceHostSequence ==0)
 		{
-			return this.mapPortString;
+			return this.defaultMapPort;
 		}
-		else if (selectedServiceHostSequence == 1)
-		{
-			return this.mapPortString1;
-		}
-		else if (selectedServiceHostSequence == 2)
-		{
-			return this.mapPortString2;
-		}
-		else if (selectedServiceHostSequence == 3)
-		{
-			return this.mapPortString3;
-		}
-		else if (selectedServiceHostSequence == 4)
-		{
-			return this.mapPortString4;
-		}
-		else if (selectedServiceHostSequence == 5)
-		{
-			return this.mapPortString5;
-		}
-		else if (selectedServiceHostSequence == 6)
-		{
-			return this.mapPortString6;
-		}
-		else
-		{
-			return this.mapPortString;
-		}
+		return this.mapPorts[this.selectedServiceHostSequence - 1];
 	}
 
 	public String getSelectedForgetPasswordLink()
@@ -141,12 +97,11 @@ public class ServiceManager
 
 	public String getSelectedHostName()
 	{
-		if (this.selectedServiceHostSequence < 0 || this.selectedServiceHostSequence > this.totalService)
+		if (this.selectedServiceHostSequence < 0 || this.selectedServiceHostSequence > this.serverHosts.length)
 		{
 			this.selectedServiceHostSequence = 0;
 			return this.userDefineServiceHost;
 		}
-
 		String hostName = "";
 		if (this.selectedServiceHostSequence == 0)
 		{
@@ -186,74 +141,29 @@ public class ServiceManager
 	//edit option use
 	public String getSelectedHost(int selectedServiceHostSequence)
 	{
+		if(selectedServiceHostSequence<0 || selectedServiceHostSequence > this.serverHosts.length)
+		{
+			selectedServiceHostSequence = 0;
+		}
+
 		if (selectedServiceHostSequence == 0)
 		{
 			return this.userDefineServiceHost;
 		}
-		else if (selectedServiceHostSequence == 1)
-		{
-			return this.serviceHost1;
-		}
-		else if (selectedServiceHostSequence == 2)
-		{
-			return this.serviceHost2;
-		}
-		else if (selectedServiceHostSequence == 3)
-		{
-			return this.serviceHost3;
-		}
-		else if (selectedServiceHostSequence == 4)
-		{
-			return this.serviceHost4;
-		}
-		else if (selectedServiceHostSequence == 5)
-		{
-			return this.serviceHost5;
-		}
-		else if (selectedServiceHostSequence == 6)
-		{
-			return this.serviceHost6;
-		}
-		else
-		{
-			return this.userDefineServiceHost;
-		}
+	    return  this.serverHosts[selectedServiceHostSequence - 1];
 	}
 
 	public String getForgetPasswordLink(int selectedServiceHostSequence)
 	{
+		if(selectedServiceHostSequence<0 || selectedServiceHostSequence > this.serverHosts.length)
+		{
+			selectedServiceHostSequence = 0;
+		}
 		if (selectedServiceHostSequence == 0)
 		{
 			return this.userDefinePasswordLink;
 		}
-		else if (selectedServiceHostSequence == 1)
-		{
-			return this.forgetPasswordLink1;
-		}
-		else if (selectedServiceHostSequence == 2)
-		{
-			return this.forgetPasswordLink2;
-		}
-		else if (selectedServiceHostSequence == 3)
-		{
-			return this.forgetPasswordLink3;
-		}
-		else if (selectedServiceHostSequence == 4)
-		{
-			return this.forgetPasswordLink4;
-		}
-		else if (selectedServiceHostSequence == 5)
-		{
-			return this.forgetPasswordLink5;
-		}
-		else if (selectedServiceHostSequence == 6)
-		{
-			return this.forgetPasswordLink6;
-		}
-		else
-		{
-			return this.userDefinePasswordLink;
-		}
+		return this.forgetPasswordLinks[selectedServiceHostSequence - 1];
 	}
 
 	public String getSelectedHost()
@@ -358,44 +268,20 @@ public class ServiceManager
 		}
 	}
 
-	//public String get_AutoUpdateUrl()
-	//{
-	//	return this.autoUpdateUrl;
-	//}
 
-	//public int get_AutoUpdateListenPort()
-	//{
-	//	return this.autoUpdateListenPort;
-	//}
-
-	public String get_AuthenticationUrl()
-	{
-		switch(this.usingBackupSettingsIndex)
-		{
-			case 0:
-				return this.backupAuthenticationUrl;
-			case 1:
-				return this.backupAuthenticationUrl2;
-			case 2:
-				return this.backupAuthenticationUrl3;
-			default:
-				return this.authenticationUrl;
-		}
-	}
 
 	public int get_SelectedServiceHostSequence()
 	{
-		if (this.selectedServiceHostSequence < 0 || this.selectedServiceHostSequence > this.totalService)
+		if (this.selectedServiceHostSequence < 0 || this.selectedServiceHostSequence > this.serverHosts.length)
 		{
 			this.selectedServiceHostSequence = 0;
 		}
-
 		return this.selectedServiceHostSequence;
 	}
 
 	public int get_TotalService()
 	{
-		return this.totalService;
+		return this.serverHosts.length;
 	}
 
 	public int getBackupServerNumber()
@@ -439,186 +325,97 @@ public class ServiceManager
 	{
 	}
 
+
+	private void setConfigSettings() throws ParsingException, FileNotFoundException, IOException
+	{
+		Document doc = DocumentHelper.load(Settings.ConfigFileName);
+		if(doc==null)
+		{
+			throw new FileNotFoundException();
+		}
+		Element root = doc.getRootElement();
+		Element settingElement = root.getFirstChildElement("appSettings");
+		Element hostElement = settingElement.getFirstChildElement("serviceHosts");
+		Elements hostChildren = hostElement.getChildElements("serviceHost");
+		serviceUrl = XmlElementHelper.getInnerValue(settingElement,"serviceUrl");
+		if (settingElement.getFirstChildElement("useBlackAsBackground") != null)
+		{
+			useBlackAsBackground = XmlConvert.toBoolean(XmlElementHelper.getInnerValue(settingElement, "useBlackAsBackground"));
+		}
+
+		if (settingElement.getFirstChildElement("useGreenAsRiseColor") != null)
+		{
+			PublicParametersManager.useGreenAsRiseColor = XmlConvert.toBoolean(XmlElementHelper.getInnerValue(settingElement, "useGreenAsRiseColor"));
+		}
+
+		int hostCount = hostChildren.size();
+		serverHosts = new String[hostCount];
+		mapPorts = new String[hostCount];
+		for (int i = 0; i < hostCount; i++)
+		{
+			Element item =hostChildren.get(i);
+			serverHosts[i] = item.getValue();
+			mapPorts[i] = item.getAttributeValue("port");
+		}
+		Element forgetPwdElement = settingElement.getFirstChildElement("forgetPasswordLinks");
+		Elements forgetPwdChildren = forgetPwdElement.getChildElements("forgetPasswordLink");
+		int forgetPwdCount = forgetPwdChildren.size();
+		forgetPasswordLinks = new String[forgetPwdCount];
+		for (int i = 0; i < forgetPwdCount; i++)
+		{
+			forgetPasswordLinks[i] = forgetPwdChildren.get(i).getValue();
+		}
+
+		if (settingElement.getFirstChildElement("serviceUrlFor99Bill") != null)
+		{
+			serviceUrlFor99Bill = XmlElementHelper.getInnerValue(settingElement, "serviceUrlFor99Bill");
+		}
+		if (settingElement.getFirstChildElement("companyCodeForTransfer") != null)
+		{
+			companyCodeForTransfer = XmlElementHelper.getInnerValue(settingElement, "companyCodeForTransfer");
+		}
+
+		if (settingElement.getFirstChildElement("priceAlign") != null)
+		{
+			priceAlignString = XmlElementHelper.getInnerValue(settingElement, "priceAlign");
+		}
+		if (settingElement.getFirstChildElement("recoverPasswordAnswerCount") != null)
+		{
+			recoverPasswordAnswerCountString = XmlElementHelper.getInnerValue(settingElement, "recoverPasswordAnswerCount");
+		}
+		if (settingElement.getFirstChildElement("useCell") != null)
+		{
+			useCell = XmlElementHelper.getInnerValue(settingElement, "useCell");
+		}
+		if (settingElement.getFirstChildElement("defaultMainFormColor") != null)
+		{
+			defaultMainFormColor = XmlElementHelper.getInnerValue(settingElement, "defaultMainFormColor");
+		}
+		if (settingElement.getFirstChildElement("waitTimeout") != null)
+		{
+			waitTimeout = Integer.parseInt(XmlElementHelper.getInnerValue(settingElement, "waitTimeout"));
+		}
+	}
+
+	private void setLocalConfigSettings() throws ParsingException, FileNotFoundException, IOException
+	{
+		XmlDocument doc = new XmlDocument();
+		doc.load(Settings.LocalConfigFileName);
+		XmlNode root = doc.get_DocumentElement();
+		userDefineServiceHost = root.get_Item("userDefineServiceHost").get_InnerText();
+		userDefinePasswordLink =root.get_Item("userDefinePasswordLink").get_InnerText();
+		selectedServiceHostSequence = XmlConvert.toInt32(root.get_Item("selectedServiceHostSequence").get_InnerText());
+		defaultMapPort = root.get_Item("defaultMapPort").get_InnerText();
+	}
+
+
 	public static ServiceManager Create()
 	{
 		ServiceManager serviceManager = new ServiceManager();
 		try
 		{
-			File file = new File(Settings.ConfigFileName);
-			if(!file.exists()){
-				return null;
-			}
-			FileInputStream stream = new FileInputStream(file);
-			Builder builder = new Builder();
-			Document document = builder.build(stream);
-			Element root = document.getRootElement();
-			Element settingElement = root.getFirstChildElement("appSettings");
-			serviceManager.authenticationUrl = XmlElementHelper.getInnerValue(settingElement,"authenticationUrl");
-			serviceManager.serviceUrl = XmlElementHelper.getInnerValue(settingElement,"serviceUrl");
-			serviceManager.serviceHost1 = XmlElementHelper.getInnerValue(settingElement,"serviceHost1");
-			serviceManager.serviceHost2 = XmlElementHelper.getInnerValue(settingElement,"serviceHost2");
-			serviceManager.backupServerNumber = 1;
-			if (settingElement.getFirstChildElement("backupServerNumber") != null)
-			{
-				serviceManager.backupServerNumber = Integer.parseInt(XmlElementHelper.getInnerValue(settingElement,"backupServerNumber"));
-			}
-
-			if (settingElement.getFirstChildElement("serviceUrlFor99Bill") != null)
-			{
-				serviceManager.serviceUrlFor99Bill = XmlElementHelper.getInnerValue(settingElement,"serviceUrlFor99Bill");
-			}
-			if(settingElement.getFirstChildElement("companyCodeForTransfer") != null)
-			{
-				serviceManager.companyCodeForTransfer = XmlElementHelper.getInnerValue(settingElement,"companyCodeForTransfer");
-			}
-
-			if (settingElement.getFirstChildElement("showMarginAsChuRuJin") != null)
-			{
-				serviceManager.showMarginAsChuRuJin = XmlConvert.toBoolean(XmlElementHelper.getInnerValue(settingElement,"showMarginAsChuRuJin"));
-			}
-
-
-			if (settingElement.getFirstChildElement("useBlackAsBackground") != null)
-			{
-				serviceManager.useBlackAsBackground = XmlConvert.toBoolean(XmlElementHelper.getInnerValue(settingElement,"useBlackAsBackground"));
-			}
-
-			if (settingElement.getFirstChildElement("useGreenAsRiseColor") != null)
-			{
-				PublicParametersManager.useGreenAsRiseColor = XmlConvert.toBoolean(XmlElementHelper.getInnerValue(settingElement,"useGreenAsRiseColor"));
-			}
-
-			if (settingElement.getFirstChildElement("backupAuthenticationUrl") != null)
-			{
-				serviceManager.backupAuthenticationUrl = XmlElementHelper.getInnerValue(settingElement,"backupAuthenticationUrl");
-			}
-			if (settingElement.getFirstChildElement("backupServiceUrl") != null)
-			{
-				serviceManager.backupServiceUrl = XmlElementHelper.getInnerValue(settingElement,"backupServiceUrl");
-			}
-
-			if (settingElement.getFirstChildElement("backupAuthenticationUrl2") != null)
-			{
-				serviceManager.backupAuthenticationUrl2 = XmlElementHelper.getInnerValue(settingElement,"backupAuthenticationUrl2");
-			}
-			if (settingElement.getFirstChildElement("backupServiceUrl2") != null)
-			{
-				serviceManager.backupServiceUrl2 = XmlElementHelper.getInnerValue(settingElement,"backupServiceUrl2");
-			}
-
-			if (settingElement.getFirstChildElement("backupAuthenticationUrl3") != null)
-			{
-				serviceManager.backupAuthenticationUrl3 = XmlElementHelper.getInnerValue(settingElement,"backupAuthenticationUrl3");
-			}
-			if (settingElement.getFirstChildElement("backupServiceUrl3") != null)
-			{
-				serviceManager.backupServiceUrl3 = XmlElementHelper.getInnerValue(settingElement,"backupServiceUrl3");
-			}
-
-			if (settingElement.getFirstChildElement("serviceHost3") != null)
-			{
-				serviceManager.serviceHost3 = XmlElementHelper.getInnerValue(settingElement,"serviceHost3");
-			}
-			if (settingElement.getFirstChildElement("serviceHost4") != null)
-			{
-				serviceManager.serviceHost4 = XmlElementHelper.getInnerValue(settingElement,"serviceHost4");
-			}
-			if (settingElement.getFirstChildElement("serviceHost5") != null)
-			{
-				serviceManager.serviceHost5 = XmlElementHelper.getInnerValue(settingElement,"serviceHost5");
-			}
-			if (settingElement.getFirstChildElement("serviceHost6") != null)
-			{
-				serviceManager.serviceHost6 = XmlElementHelper.getInnerValue(settingElement,"serviceHost6");
-			}
-			serviceManager.userDefineServiceHost = XmlElementHelper.getInnerValue(settingElement,"userDefineServiceHost");
-			serviceManager.userDefinePasswordLink = XmlElementHelper.getInnerValue(settingElement,"userDefinePasswordLink");
-			serviceManager.selectedServiceHostSequence = XmlConvert.toInt32(XmlElementHelper.getInnerValue(settingElement,"selectedServiceHostSequence"));
-			if (settingElement.getFirstChildElement("totalService") != null)
-			{
-				serviceManager.totalService = XmlConvert.toInt32(XmlElementHelper.getInnerValue(settingElement,"totalService"));
-			}
-			if (settingElement.getFirstChildElement("mapPort") != null)
-			{
-				serviceManager.mapPortString = XmlElementHelper.getInnerValue(settingElement,"mapPort");
-			}
-			if (settingElement.getFirstChildElement("mapPort1") != null)
-			{
-				serviceManager.mapPortString1 = XmlElementHelper.getInnerValue(settingElement,"mapPort1");
-			}
-			if (settingElement.getFirstChildElement("mapPort2") != null)
-			{
-				serviceManager.mapPortString2 = XmlElementHelper.getInnerValue(settingElement,"mapPort2");
-			}
-			if (settingElement.getFirstChildElement("mapPort3") != null)
-			{
-				serviceManager.mapPortString3 = XmlElementHelper.getInnerValue(settingElement,"mapPort3");
-			}
-			if (settingElement.getFirstChildElement("mapPort4") != null)
-			{
-				serviceManager.mapPortString4 = XmlElementHelper.getInnerValue(settingElement,"mapPort4");
-			}
-			if (settingElement.getFirstChildElement("mapPort5") != null)
-			{
-				serviceManager.mapPortString5 = XmlElementHelper.getInnerValue(settingElement,"mapPort5");
-			}
-			if (settingElement.getFirstChildElement("mapPort6") != null)
-			{
-				serviceManager.mapPortString6 = XmlElementHelper.getInnerValue(settingElement,"mapPort6");
-			}
-			if (settingElement.getFirstChildElement("priceAlign") != null)
-			{
-				serviceManager.priceAlignString = XmlElementHelper.getInnerValue(settingElement,"priceAlign");
-			}
-			if (settingElement.getFirstChildElement("recoverPasswordAnswerCount") != null)
-			{
-				serviceManager.recoverPasswordAnswerCountString = XmlElementHelper.getInnerValue(settingElement,"recoverPasswordAnswerCount");
-			}
-			if (settingElement.getFirstChildElement("placardUrl") != null)
-			{
-				serviceManager.placardUrl = XmlElementHelper.getInnerValue(settingElement,"placardUrl");
-			}
-			if (settingElement.getFirstChildElement("useCell") != null)
-			{
-				serviceManager.useCell = XmlElementHelper.getInnerValue(settingElement,"useCell");
-			}
-			if (settingElement.getFirstChildElement("forgetPasswordLink") != null)
-			{
-				serviceManager.forgetPasswordLink = XmlElementHelper.getInnerValue(settingElement,"forgetPasswordLink");
-			}
-			if (settingElement.getFirstChildElement("forgetPasswordLink1") != null)
-			{
-				serviceManager.forgetPasswordLink1 = XmlElementHelper.getInnerValue(settingElement,"forgetPasswordLink1");
-			}
-			if (settingElement.getFirstChildElement("forgetPasswordLink2") != null)
-			{
-				serviceManager.forgetPasswordLink2 = XmlElementHelper.getInnerValue(settingElement,"forgetPasswordLink2");
-			}
-			if (settingElement.getFirstChildElement("forgetPasswordLink3") != null)
-			{
-				serviceManager.forgetPasswordLink3 = XmlElementHelper.getInnerValue(settingElement,"forgetPasswordLink3");
-			}
-			if (settingElement.getFirstChildElement("forgetPasswordLink4") != null)
-			{
-				serviceManager.forgetPasswordLink4 = XmlElementHelper.getInnerValue(settingElement,"forgetPasswordLink4");
-			}
-			if (settingElement.getFirstChildElement("forgetPasswordLink5") != null)
-			{
-				serviceManager.forgetPasswordLink5 = XmlElementHelper.getInnerValue(settingElement,"forgetPasswordLink5");
-			}
-			if (settingElement.getFirstChildElement("forgetPasswordLink6") != null)
-			{
-				serviceManager.forgetPasswordLink6 = XmlElementHelper.getInnerValue(settingElement,"forgetPasswordLink6");
-			}
-
-			if (settingElement.getFirstChildElement("defaultMainFormColor") != null)
-			{
-				serviceManager.defaultMainFormColor = XmlElementHelper.getInnerValue(settingElement,"defaultMainFormColor");
-			}
-			if(settingElement.getFirstChildElement("waitTimeout")!=null)
-			{
-				serviceManager.waitTimeout = Integer.parseInt(XmlElementHelper.getInnerValue(settingElement,"waitTimeout"));
-			}
+			serviceManager.setConfigSettings();
+			serviceManager.setLocalConfigSettings();
 		}
 		catch (Throwable exception)
 		{
@@ -654,74 +451,21 @@ public class ServiceManager
 	{
 		try
 		{
-			//if (StringHelper.isNullOrEmpty(host)
-			//	&& StringHelper.isNullOrEmpty(autoUpdateListenPort))
-
-			//if (StringHelper.isNullOrEmpty(autoUpdateListenPort))
-			//{
-			//	ServiceManager.copy();
-			//	return true;
-			//}
-			//else
+			XmlDocument doc  = new XmlDocument();
+			doc.load(Settings.LocalConfigFileName);
+			XmlNode root = doc.get_DocumentElement();
+			if (selectedServiceHostSequence == 0)
 			{
-				ServiceManager.checkParameterFilePath();
-
-				//String settingDirectory = AppToolkit.get_SettingDirectory();
-				//String parameterFilePath = settingDirectory + "TradingConsole.config";
-				//XmlNode xmlNode = AppToolkit.getXml(parameterFilePath);
-
-				//String parameterFilePath = DirectoryHelper.combine(AppToolkit.get_SettingDirectory(),"TradingConsole.config");
-				String parameterFilePath = DirectoryHelper.combine(AppToolkit.get_CompanySettingDirectory(),"TradingConsole.config");
-				//XmlNode xmlNode = AppToolkit.getUserSettingXml("TradingConsole.config");
-				XmlNode xmlNode = AppToolkit.getCompanySettingXml("TradingConsole.config");
-				if (xmlNode == null)
+				root.get_Item("userDefineServiceHost").set_InnerText(host);
+				String forgetPasswordLink = root.get_Item("userDefinePasswordLink").get_InnerText();
+				if (!StringHelper.isNullOrEmpty(forgetPasswordLink))
 				{
-					return false;
+					root.get_Item("userDefinePasswordLink").set_InnerText(forgetPasswordHost);
 				}
-
-				XmlNode xmlNode2 = xmlNode.get_Item("appSettings");
-
-				//String autoUpdateUrl = xmlNode2.get_Item("autoUpdateUrl").get_InnerText();
-				//autoUpdateUrl = AppToolkit.changeUrlHost(autoUpdateUrl, host);
-				//xmlNode2.get_Item("autoUpdateUrl").set_InnerText(autoUpdateUrl);
-
-				//xmlNode2.get_Item("autoUpdateListenPort").set_InnerText(autoUpdateListenPort);
-
-				String authenticationUrl = xmlNode2.get_Item("authenticationUrl").get_InnerText();
-				authenticationUrl = AppToolkit.changeUrlHost(authenticationUrl, host);
-				xmlNode2.get_Item("authenticationUrl").set_InnerText(authenticationUrl);
-
-				String serviceUrl = xmlNode2.get_Item("serviceUrl").get_InnerText();
-				serviceUrl = AppToolkit.changeUrlHost(serviceUrl, host);
-				xmlNode2.get_Item("serviceUrl").set_InnerText(serviceUrl);
-
-				String forgetPasswordLink = xmlNode2.get_Item("forgetPasswordLink").get_InnerText();
-				if(!StringHelper.isNullOrEmpty(forgetPasswordLink))
-				{
-					forgetPasswordLink = AppToolkit.changeUrlHost(forgetPasswordLink, forgetPasswordHost);
-				}
-				xmlNode2.get_Item("forgetPasswordLink").set_InnerText(forgetPasswordLink);
-
-				if (selectedServiceHostSequence == 0)
-				{
-					xmlNode2.get_Item("userDefineServiceHost").set_InnerText(host);
-					if(!StringHelper.isNullOrEmpty(forgetPasswordLink))
-					{
-						xmlNode2.get_Item("userDefinePasswordLink").set_InnerText(forgetPasswordHost);
-					}
-					else
-					{
-						xmlNode2.get_Item("userDefinePasswordLink").set_InnerText("");
-					}
-				}
-
-				xmlNode2.get_Item("selectedServiceHostSequence").set_InnerText(XmlConvert.toString(selectedServiceHostSequence));
-
-				xmlNode.get_OwnerDocument().save(parameterFilePath);
-				//ServiceManager.autoUpdaterCopy(autoUpdateUrl, autoUpdateListenPort);
-
-				return true;
 			}
+			root.get_Item("selectedServiceHostSequence").set_InnerText(XmlConvert.toString(selectedServiceHostSequence));
+			doc.save(Settings.LocalConfigFileName);
+			return true;
 		}
 		catch (Throwable exception)
 		{
@@ -1420,9 +1164,8 @@ public class ServiceManager
 
 	public String get_ForgetPasswordLink()
 	{
-		return this.forgetPasswordLink;
+		return this.getForgetPasswordLink(this.selectedServiceHostSequence);
 	}
-
 	public String get_BackupHostName(int index)
 	{
 		String backupAuthenticationUrl = this.backupAuthenticationUrl;

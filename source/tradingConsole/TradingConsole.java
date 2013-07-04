@@ -1015,7 +1015,6 @@ public class TradingConsole extends Applet implements Scheduler.ISchedulerCallba
 				{
 					semaphore.acquire();
 					initData(semaphore,loginResult);
-//					semaphore.release();
 				}
 				catch (Exception ex)
 				{
@@ -1102,7 +1101,6 @@ public class TradingConsole extends Applet implements Scheduler.ISchedulerCallba
 		{
 			this._instrumentStateManager.stop();
 		}
-
 
 		try
 		{

@@ -84,7 +84,7 @@ public class AliveKeeper implements Runnable {
 			}
 			catch (Exception e)
 			{
-				logger.error("has exception");
+				logger.error("has exception",e);
 				if (IsExceedMaxExceptionCount())
 				{
 					this.fireConnectionBroken();

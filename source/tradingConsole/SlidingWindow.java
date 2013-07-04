@@ -821,7 +821,6 @@ public class SlidingWindow implements ISchedulerCallback, Runnable, WaitCallback
 		{
 			return SequenceHelper.compare(o1.get_BeginSequence(), o2.get_BeginSequence());
 		}
-
 		public boolean equals(Object obj)
 		{
 			return false;
