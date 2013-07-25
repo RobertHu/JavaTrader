@@ -73,7 +73,7 @@ public class OrderQueryPanel extends JPanel
 		this._queryOrderTable.setBackground(GridFixedBackColor.workingOrderList);
 		this._queryOrderTable.setForeground(GridBackColor.workingOrderList);
 		this._queryOrderTable.setShowGrid(false);
-		this._queryOrderTable.setRowHeight(16);
+		this._queryOrderTable.setRowHeight(8);
 
 		this._openOrderTable.setOptimized(true);
 		this._queryOrderTable.setOptimized(true);

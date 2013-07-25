@@ -135,6 +135,15 @@ public class Message
 		}
 	}
 
+	public void setValue(Guid id,String title, String content, DateTime publishTime)
+	{
+		this._id=id;
+		this._title = title;
+		this._content=content;
+		this._publishTime = publishTime;
+	}
+
+
 	public static void updateProperties(String dataSourceKey,DockableFrame dockableFrame)
 	{
 		TradingConsole.bindingManager.updateProperties(dataSourceKey,Message.getPropertyDescriptors(dockableFrame));

@@ -269,6 +269,6 @@ public class HistoryOrder
 											  new Font(uiSetting.get_FontName(), Font.BOLD, uiSetting.get_FontSize()), false, true, true);
 		TradingConsole.bindingManager.setHeader(dataSourceKey, SwingConstants.CENTER, 25, GridFixedForeColor.workingOrderList, Color.white,
 												HeaderFont.workingOrderList);
-		grid.setRowHeight(25);
+		grid.setRowHeight(12);
 	}
 }

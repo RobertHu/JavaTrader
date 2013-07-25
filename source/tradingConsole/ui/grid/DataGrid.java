@@ -199,13 +199,14 @@ public class DataGrid extends HierarchicalTable implements IView
 	public void setFont(Font font)
 	{
 		super.setFont(font);
-		this.setRowHeight(font.getSize() * 2);
+		this.setRowHeight(font.getSize());
 	}
 
 	@Override
 	public void setRowHeight(int height)
 	{
-		if(this.getFont() != null) height = Math.max(height, this.getFont().getSize());
+		if(this.getFont() != null) height =  this.getFont().getSize();
+		height = height * 2;
 		super.setRowHeight(height);
 	}
 

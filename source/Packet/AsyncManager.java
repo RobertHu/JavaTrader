@@ -157,7 +157,7 @@ public class AsyncManager implements Runnable
 			}
 			else{
 				String localName =target.getContent().getLocalName();
-				if(localName.equals("News")){
+				if(localName.equals("News") || localName.equals("Chat")){
 					Element content = target.getContent();
 					Attribute sequenceA = content.getAttribute(PacketContants.COMMAND_SEQUENCE);
 					content.removeAttribute(sequenceA);

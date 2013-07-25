@@ -262,7 +262,7 @@ public class UISettingsManager
 
 	private static String getDefaultTradingPanelUiSetting()
 	{
-		return "<Grid FontName=\"SansSerif\" FontSize=\"12\" RowHeight=\"25\">" +
+		return "<Grid FontName=\"SansSerif\" FontSize=\"12\" RowHeight=\"0\">" +
 			"<Cols>" +
 			"<Col ColKey=\"Select\" ColWidth=\"" + UISettingsManager.getWidth(0.025) + "\" Sequence=\"0\"/>" +
 			"<Col ColKey=\"Ask\" ColWidth=\"" + UISettingsManager.getWidth(0.06) + "\" Sequence=\"4\"/>" +
@@ -285,7 +285,7 @@ public class UISettingsManager
 
 	private static String getDefaultAccountStatusUiSetting()
 	{
-		return "<Grid FontName=\"SansSerif\" FontSize=\"12\"  RowHeight=\"20\">" +
+		return "<Grid FontName=\"SansSerif\" FontSize=\"12\"  RowHeight=\"10\">" +
 			"<Cols>" +
 			"</Cols>" +
 			"</Grid>";
@@ -293,7 +293,7 @@ public class UISettingsManager
 
 	private static String getDefaultWorkingOrderListUiSetting()
 	{
-		return "<Grid FontName=\"SansSerif\" FontSize=\"12\" RowHeight=\"20\">" +
+		return "<Grid FontName=\"SansSerif\" FontSize=\"12\" RowHeight=\"10\">" +
 			"<Cols>" +
 			"<Col ColKey=\"PhaseString\" ColWidth=\"100\" Sequence=\"0\"/>" +
 			"<Col ColKey=\"SubmitTime\" ColWidth=\"120\" Sequence=\"1\"/>" +
@@ -315,7 +315,7 @@ public class UISettingsManager
 
 	private static String getDefaultOpenOrderListUiSetting()
 	{
-		return "<Grid FontName=\"SansSerif\" FontSize=\"12\" RowHeight=\"20\">" +
+		return "<Grid FontName=\"SansSerif\" FontSize=\"12\" RowHeight=\"10\">" +
 			"<Cols>" +
 			"<Col ColKey=\"Close\" ColWidth=\"70\" Sequence=\"0\"/>" +
 			"<Col ColKey=\"ShortCode\" ColWidth=\"120\" Sequence=\"1\"/>" +

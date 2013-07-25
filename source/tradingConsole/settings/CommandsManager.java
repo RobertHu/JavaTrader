@@ -1300,6 +1300,7 @@ public class CommandsManager
 
 	public void processCommands(Element commandNode)
 	{
+		if(commandNode==null) return;
 		this._tradingConsole.suspendRefreshSummary();
 		Elements parentNodes =commandNode.getChildElements();
 		for(int i = 0; i < parentNodes.size(); i++ )
@@ -1308,31 +1309,61 @@ public class CommandsManager
 			String localName = node.getLocalName();
 			if(localName.equalsIgnoreCase("News"))
 			{
-				Elements childNodes = node.getChildElements();
-				if(childNodes==null || childNodes.size() == 0)
-				{
-					continue;
-				}
-				for(int j=0; j<childNodes.size();j++)
-				{
-					Element newsNode = childNodes.get(j);
-					Guid id = new Guid(newsNode.getAttributeValue("Id"));
-					News news = this._settingsManager.getNews(id);
-					if (news == null)
-					{
-						news = new News();
-					}
-					String title = newsNode.getAttributeValue("Title");
-					String contents = newsNode.getAttributeValue("Contents");
-					DateTime publishTime = AppToolkit.getDateTime(newsNode.getAttributeValue("PublishTime"));
-					String author =  newsNode.getAttributeValue("Author");
-					news.setValue(id,title,contents,publishTime,author);
-					this._settingsManager.setNews(news);
-					this._tradingConsole.addNews(news);
-					NewsContentForm.updateButtonStatusForAll();
-				}
+				processNews(node);
+			}
+			else if(localName.equalsIgnoreCase("Chat"))
+			{
+				processChat(node);
 			}
 		}
+	}
+
+	private void processNews(Element node)
+	{
+		Elements childNodes = node.getChildElements();
+		if (childNodes == null || childNodes.size() == 0)
+		{
+			return;
+		}
+		for (int j = 0; j < childNodes.size(); j++)
+		{
+			Element newsNode = childNodes.get(j);
+			Guid id = new Guid(newsNode.getAttributeValue("Id"));
+			News news = this._settingsManager.getNews(id);
+			if (news == null)
+			{
+				news = new News();
+			}
+			String title = newsNode.getAttributeValue("Title");
+			String contents = newsNode.getAttributeValue("Contents");
+			DateTime publishTime = AppToolkit.getDateTime(newsNode.getAttributeValue("PublishTime"));
+			String author = newsNode.getAttributeValue("Author");
+			news.setValue(id, title, contents, publishTime, author);
+			this._settingsManager.setNews(news);
+			this._tradingConsole.addNews(news);
+			NewsContentForm.updateButtonStatusForAll();
+		}
+	}
+
+	private void processChat(Element node)
+	{
+		Sound.play(Sound.Message);
+		Guid id = new Guid(node.getAttributeValue("ID"));
+		Message message = this._settingsManager.getMessage(id);
+		if (message == null)
+		{
+			message = new Message();
+		}
+		String title = node.getAttributeValue("Title");
+		String content = node.getAttributeValue("Content");
+		DateTime publishDatetime =AppToolkit.getDateTime(node.getAttributeValue("PublishTime"));
+		message.setValue(id,title,content,publishDatetime);
+		this._settingsManager.setMessage(message);
+		this._tradingConsole.rebindMessage();
+		MessageContentForm.updateButtonStatusForAll();
+		MessageContentForm messageContentForm = new MessageContentForm(this._tradingConsole, this._settingsManager, message);
+		messageContentForm.setAlwaysOnTop(true);
+		messageContentForm.show();
 	}
 
 
