@@ -9,6 +9,7 @@ import javax.swing.*;
 import tradingConsole.ui.language.*;
 import tradingConsole.Price;
 import tradingConsole.settings.PublicParametersManager;
+import framework.StringHelper;
 
 public class BidAskButton extends JButton
 {
@@ -81,7 +82,7 @@ public class BidAskButton extends JButton
 
 		this._priceChangeFlag = 0;
 		String price = this._isBid ? this._priceProvider.get_Bid() : this._priceProvider.get_Ask();
-		if(this._price == null || !price.equalsIgnoreCase(this._price))
+		if(!StringHelper.isNullOrEmpty(price) && (this._price == null || !price.equalsIgnoreCase(this._price)))
 		{
 			BigDecimal price2 = new BigDecimal(price);
 			if (this._lastPrice != null)

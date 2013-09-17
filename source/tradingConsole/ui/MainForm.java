@@ -24,6 +24,7 @@ import tradingConsole.*;
 import tradingConsole.Account;
 import tradingConsole.enumDefine.*;
 import tradingConsole.framework.*;
+import tradingConsole.physical.*;
 import tradingConsole.service.*;
 import tradingConsole.settings.*;
 import tradingConsole.ui.account.HierarchicalTableComponentFactory;
@@ -45,6 +46,7 @@ public class MainForm extends MainFormBase
 
 			this._chartPanels = new HashMap<String, AioChartPanel> ();
 			this.initAccountStatusTable();
+			this.initAccountListTable();
 
 			Rectangle rectangle = AppToolkit.getRectangleByDimension2();
 			this.setBounds(rectangle);
@@ -98,11 +100,24 @@ public class MainForm extends MainFormBase
 		this.getDockingManager().setWithinFrameBoundsOnDragging(true);
 		//this.getDockingManager().setWithinScreenBoundsOnDragging(true);
 
-		this.getDockingManager().floatFrame("PositionSummaryFrame", this.getFloatingRectangle("PositionSummaryFrame"), false);
+		if(this._settingsManager.hasInstrumentOf(InstrumentCategory.Margin))
+		{
+			this.getDockingManager().floatFrame("PositionSummaryFrame", this.getFloatingRectangle("PositionSummaryFrame"), false);
+		}
+		else
+		{
+			this.getDockingManager().floatFrame("AccountStatusFrame", this.getFloatingRectangle("AccountStatusFrame"), false);
+		}
 		this.getDockingManager().floatFrame("TradingPanelListFrame", this.getFloatingRectangle("TradingPanelListFrame"), false);
-		this.getDockingManager().floatFrame("OpenOrderListFrame", this.getFloatingRectangle("OpenOrderListFrame"), false);
+		if(this._settingsManager.hasInstrumentOf(InstrumentCategory.Margin))
+		{
+			this.getDockingManager().floatFrame("OpenOrderListFrame", this.getFloatingRectangle("OpenOrderListFrame"), false);
+		}
 		this.getDockingManager().floatFrame("QueryOrderListFrame", this.getFloatingRectangle("QueryOrderListFrame"), false);
-
+		if(this._settingsManager.hasInstrumentOf(InstrumentCategory.Physical))
+		{
+			this.getDockingManager().floatFrame("PhysicalStokFrame", this.getFloatingRectangle("PhysicalStokFrame"), false);
+		}
 		if(this._settingsManager.get_IsForRSZQ()) this.getDockingManager().floatFrame("WorkingOrderListFrame", this.getFloatingRectangle("WorkingOrderListFrame"), false);
 		for(String key : this.getDockingManager().getAllFrames())
 		{
@@ -132,6 +147,27 @@ public class MainForm extends MainFormBase
 		this.accountStatusTable.setComponentFactory(new HierarchicalTableComponentFactory());
 		this.accountStatusTable.setIntercellSpacing(new Dimension(0, 0));
 		this.accountStatusTable.setOpaque(false);
+	}
+
+	public void initAccountListTable()
+	{
+		this.accountListTable.setModel(this._owner.get_AccountBindingManager().get_AccountListBindingSource());
+		this.accountListTable.setHierarchicalColumn(0);
+
+		TableColumn tableColumn = this.accountListTable.getColumn("IsSelected");
+		BooleanCheckBoxCellEditor booleanCheckBoxCellEditor = new BooleanCheckBoxCellEditor();
+		tableColumn.setCellEditor(booleanCheckBoxCellEditor);
+		tableColumn.addPropertyChangeListener(null);
+
+		BooleanCheckBoxCellRenderer booleanCheckBoxCellRenderer = new BooleanCheckBoxCellRenderer();
+		tableColumn.setCellRenderer(booleanCheckBoxCellRenderer);
+		tableColumn.setWidth(20);
+
+		this.accountListTable.setComponentFactory(new HierarchicalOpenOrderTableComponentFactory());
+		this.accountListTable.setIntercellSpacing(new Dimension(0, 0));
+		this.accountListTable.setOpaque(false);
+
+		this.accountListTable.setRowHeight(18);
 	}
 
 	private void closeAllChartForms()
@@ -197,6 +233,21 @@ public class MainForm extends MainFormBase
 	public HierarchicalTable get_AccountTable()
 	{
 		return this.accountStatusTable;
+	}
+
+	public DataGrid get_PhysicalPendingInventoryTable()
+	{
+		return this.physicalPendingInventoryTable;
+	}
+
+	public DataGrid get_PhysicalInventoryTable()
+	{
+		return this.physicalInventoryTable;
+	}
+
+	public DataGrid get_PhysicalShotSellTable()
+	{
+		return this.physicalShotSellTable;
 	}
 
 	public tradingConsole.ui.grid.DockableTable get_SummaryTable()
@@ -851,20 +902,14 @@ public class MainForm extends MainFormBase
 		if(e.get_GridAction() == tradingConsole.ui.grid.Action.DoubleClicked)
 		{
 			Instrument instrument = (Instrument)e.get_Object();
-			if (instrument.get_Category() == InstrumentCategory.Order)
+
+			String columnName = e.get_ColumnName();
+			if (columnName.equalsIgnoreCase(InstrumentColKey.Description)
+				|| columnName.equalsIgnoreCase(InstrumentColKey.Ask)
+				|| columnName.equalsIgnoreCase(InstrumentColKey.Bid))
 			{
-				this.matchingOrderProcess(instrument);
-			}
-			else
-			{
-				String columnName = e.get_ColumnName();
-				if (columnName.equalsIgnoreCase(InstrumentColKey.Description)
-					|| columnName.equalsIgnoreCase(InstrumentColKey.Ask)
-					|| columnName.equalsIgnoreCase(InstrumentColKey.Bid))
-				{
-					this.processInstrumentEvent(instrument, !columnName.equalsIgnoreCase(InstrumentColKey.Description),
-										   columnName.equalsIgnoreCase(InstrumentColKey.Ask));
-				}
+				this.processInstrumentEvent(instrument, !columnName.equalsIgnoreCase(InstrumentColKey.Description),
+									   columnName.equalsIgnoreCase(InstrumentColKey.Ask));
 			}
 		}
 	}
@@ -903,25 +948,19 @@ public class MainForm extends MainFormBase
 		if(e.get_GridAction() == tradingConsole.ui.grid.Action.DoubleClicked)
 		{
 			Instrument instrument = (Instrument)e.get_Object();
-			if (instrument.get_Category() == InstrumentCategory.Order)
-			{
-				this.matchingOrderProcess(instrument);
-			}
-			else
-			{
-				String columnName = e.get_ColumnName();
 
-				if (columnName.equalsIgnoreCase(InstrumentSpanBindingSource.ColumnNames.Description.name())
-					|| columnName.equalsIgnoreCase(InstrumentSpanBindingSource.ColumnNames.AskLeft.name())
-					|| columnName.equalsIgnoreCase(InstrumentSpanBindingSource.ColumnNames.AskRight.name())
-					|| columnName.equalsIgnoreCase(InstrumentSpanBindingSource.ColumnNames.BidLeft.name())
-					|| columnName.equalsIgnoreCase(InstrumentSpanBindingSource.ColumnNames.BidRight.name()))
-				{
-					boolean isLiquidation = !columnName.equalsIgnoreCase(InstrumentSpanBindingSource.ColumnNames.Description.name());
-					boolean isAsk = columnName.equalsIgnoreCase(InstrumentSpanBindingSource.ColumnNames.AskLeft.name())
-						|| columnName.equalsIgnoreCase(InstrumentSpanBindingSource.ColumnNames.AskRight.name());
-					this.processInstrumentEvent(instrument, isLiquidation, isAsk);
-				}
+			String columnName = e.get_ColumnName();
+
+			if (columnName.equalsIgnoreCase(InstrumentSpanBindingSource.ColumnNames.Description.name())
+				|| columnName.equalsIgnoreCase(InstrumentSpanBindingSource.ColumnNames.AskLeft.name())
+				|| columnName.equalsIgnoreCase(InstrumentSpanBindingSource.ColumnNames.AskRight.name())
+				|| columnName.equalsIgnoreCase(InstrumentSpanBindingSource.ColumnNames.BidLeft.name())
+				|| columnName.equalsIgnoreCase(InstrumentSpanBindingSource.ColumnNames.BidRight.name()))
+			{
+				boolean isLiquidation = !columnName.equalsIgnoreCase(InstrumentSpanBindingSource.ColumnNames.Description.name());
+				boolean isAsk = columnName.equalsIgnoreCase(InstrumentSpanBindingSource.ColumnNames.AskLeft.name())
+					|| columnName.equalsIgnoreCase(InstrumentSpanBindingSource.ColumnNames.AskRight.name());
+				this.processInstrumentEvent(instrument, isLiquidation, isAsk);
 			}
 		}
 	}
@@ -1002,6 +1041,13 @@ public class MainForm extends MainFormBase
 				MakeLimitOrder makeLimitOrder = (MakeLimitOrder)result2[2];
 				makeLimitOrder.showUi(isDblClickAsk, (Boolean)result[0], (Boolean)result2[0], isSpt);
 			}
+			else if(TradingConsole.DeliveryHelper.getDeliveryAccounts(this._owner, instrument).size() > 0)
+			{
+				DeliveryDialog dialog
+					= new DeliveryDialog(this, this._owner, instrument, null, null, false);
+				JideSwingUtilities.centerWindow(dialog);
+				dialog.show();
+			}
 			else
 			{
 				AlertDialogForm.showDialog(this, null, true, result[1].toString());
@@ -1046,6 +1092,100 @@ public class MainForm extends MainFormBase
 				exception.printStackTrace();
 			}
 		}
+		/*else if(e.get_GridAction() == tradingConsole.ui.grid.Action.Clicked
+			&& order.get_InstalmentPolicyId() != null)
+		{
+			InstalmentForm instalmentForm = new InstalmentForm(this, order);
+			JideSwingUtilities.centerWindow(instalmentForm);
+			instalmentForm.show();
+		}*/
+	}
+
+	protected void processPhysicalShortSellTable(tradingConsole.ui.grid.ActionEvent e)
+	{
+		Order order = (Order)e.get_Object();
+		this.closeOrder(e, order, false);
+	}
+
+	protected void processPhysicalInventoryTable(tradingConsole.ui.grid.ActionEvent e)
+	{
+		Object object = e.get_Object();
+		Order order = null;
+		Inventory inventory = null;
+		if(object instanceof Order)
+		{
+			order = (Order)object;
+		}
+		else if(object instanceof Inventory)
+		{
+			inventory = (Inventory)object;
+		}
+
+		if(order != null)
+		{
+			this.closeOrder(e, order, true);
+		}
+		else if(inventory != null && e.get_GridAction() == tradingConsole.ui.grid.Action.DoubleClicked)
+		{
+			Instrument instrument = inventory.get_Instrument2();
+			Account account = inventory.get_Account();
+
+			boolean closeAllSell = false;
+
+			if (this._settingsManager.get_Customer().get_SingleAccountOrderType() == 2
+				|| this._settingsManager.get_Customer().get_MultiAccountsOrderType() == 2)
+			{
+				//this.makeOrder2Process(instrument);
+				//doesn't support OrderType 2 now
+			}
+			else
+			{
+				if (instrument.get_MaxDQLot().compareTo(BigDecimal.ZERO) <= 0
+					&& instrument.get_MaxOtherLot().compareTo(BigDecimal.ZERO) <= 0
+					&& !TradingConsole.DeliveryHelper.hasInventory(this._owner, account, instrument))
+				{
+					AlertDialogForm.showDialog(this, null, true, Language.InstrumentIsNotAccepting);
+					return;
+				}
+
+				MakeOrderWindow makeOrderWindow = this._settingsManager.getMakeOrderWindow(instrument);
+				if (makeOrderWindow != null)
+				{
+					makeOrderWindow.closeAllWindow();
+					this._settingsManager.removeMakeOrderWindow(instrument, makeOrderWindow.get_MainWindow());
+				}
+
+				Object[] result = MakeOrder.isAllowMakeSpotTradeOrder(this._owner, this._settingsManager, instrument, account);
+				Object[] result2 = MakeOrder.isAllowMakeBroadLimitOrder(this._owner, this._settingsManager, instrument, account);
+				if ( (Boolean)result[0])
+				{
+					MakeSpotTradeOrder makeSpotTradeOrder = (MakeSpotTradeOrder)result[2];
+					if (makeSpotTradeOrder._makeOrderAccounts.size() == 1)
+					{
+						makeSpotTradeOrder.showUi(true, (Boolean)result[0], (Boolean)result2[0], true, closeAllSell);
+					}
+				}
+				else if ( (Boolean)result2[0])
+				{
+					MakeLimitOrder makeLimitOrder = (MakeLimitOrder)result2[2];
+					if (makeLimitOrder._makeOrderAccounts.size() == 1)
+					{
+						makeLimitOrder.showUi(true, (Boolean)result[0], (Boolean)result2[0], false, closeAllSell);
+					}
+				}
+				else if(TradingConsole.DeliveryHelper.getDeliveryAccounts(this._owner, instrument).size() > 0)
+				{
+					DeliveryDialog dialog
+						= new DeliveryDialog(this, this._owner, instrument, account, null, true);
+					JideSwingUtilities.centerWindow(dialog);
+					dialog.show();
+				}
+				else
+				{
+					AlertDialogForm.showDialog(this, null, true, result[1].toString());
+				}
+			}
+		}
 	}
 
 	protected void processOpenOrderTable(tradingConsole.ui.grid.ActionEvent e)
@@ -1054,7 +1194,12 @@ public class MainForm extends MainFormBase
 		Order order = (Order)e.get_Object();
 		grid.setSelectionForeground(BuySellColor.getColor(order.get_IsBuy(), true));
 
-		if(e.get_GridAction() == tradingConsole.ui.grid.Action.DoubleClicked
+		this.closeOrder(e, order, null);
+	}
+
+	private void closeOrder(tradingConsole.ui.grid.ActionEvent e, Order order, Boolean isBuyOfOpenOrders)
+	{
+		if (e.get_GridAction() == tradingConsole.ui.grid.Action.DoubleClicked
 			|| (e.get_GridAction() == tradingConsole.ui.grid.Action.Clicked
 				&& this._settingsManager.getMakeOrderWindow(order.get_Transaction().get_Instrument()) != null))
 		{
@@ -1067,21 +1212,21 @@ public class MainForm extends MainFormBase
 			else
 			{
 				Guid instrumentId = order.get_Transaction().get_Instrument().get_Id();
-				if(order.get_LotBalance().compareTo(BigDecimal.ZERO) > 0)
+				if (order.get_LotBalance().compareTo(BigDecimal.ZERO) > 0)
 				{
-					if(this._settingsManager.containsOpenContractFormOf(instrumentId))
+					if (this._settingsManager.containsOpenContractFormOf(instrumentId))
 					{
 						this._settingsManager.getOpenContractFormOf(instrumentId).toFront();
 					}
 
 					MakeOrderWindow makeOrderWindow = this._settingsManager.getMakeOrderWindow(order.get_Transaction().get_Instrument());
-					if(makeOrderWindow != null)
+					if (makeOrderWindow != null)
 					{
 						makeOrderWindow.get_MainWindow().toFront();
 					}
 					else
 					{
-						if(!this._settingsManager.containsOpenContractFormOf(instrumentId))
+						if (!this._settingsManager.containsOpenContractFormOf(instrumentId))
 						{
 							OpenContractForm openContractForm = new OpenContractForm(this._owner, this._settingsManager, order);
 							this._settingsManager.add(instrumentId, openContractForm);
@@ -1608,7 +1753,7 @@ public class MainForm extends MainFormBase
 
 			JMenuItem windowMenuItem = new JMenuItem();
 			AppToolkit.menuItemInit(windowMenuItem, Language.InstrumentViewPrompt, Language.InstrumentViewPrompt, Language.InstrumentViewPrompt,
-	"TradingPanelList.ico");
+									"TradingPanelList.ico");
 			windowMenuItem.addActionListener(new MainForm_windowMenuItem_actionAdapter(this, windowMenuItem));
 			super.windowMenu.add(windowMenuItem);
 
@@ -1616,7 +1761,7 @@ public class MainForm extends MainFormBase
 			{
 				windowMenuItem = new JMenuItem();
 				AppToolkit.menuItemInit(windowMenuItem, Language.InstrumentView2Prompt, Language.InstrumentView2Prompt, Language.InstrumentView2Prompt,
-										"TradingPanelGrid.ico");
+		"TradingPanelGrid.ico");
 				windowMenuItem.addActionListener(new MainForm_windowMenuItem_actionAdapter(this, windowMenuItem));
 				super.windowMenu.add(windowMenuItem);
 			}
@@ -1631,17 +1776,28 @@ public class MainForm extends MainFormBase
 			windowMenuItem.addActionListener(new MainForm_windowMenuItem_actionAdapter(this, windowMenuItem));
 			super.windowMenu.add(windowMenuItem);
 
-			windowMenuItem = new JMenuItem();
-			AppToolkit.menuItemInit(windowMenuItem, Language.SummaryPrompt, Language.SummaryPrompt, Language.SummaryPrompt, "PositionSummary.ico");
-			windowMenuItem.addActionListener(new MainForm_windowMenuItem_actionAdapter(this, windowMenuItem));
-			super.windowMenu.add(windowMenuItem);
+			if(this._settingsManager.get_Accounts().size() > 1)
+			{
+				windowMenuItem = new JMenuItem();
+				AppToolkit.menuItemInit(windowMenuItem, Language.AccountListPrompt, Language.AccountListPrompt, Language.AccountListPrompt, null);
+				windowMenuItem.addActionListener(new MainForm_windowMenuItem_actionAdapter(this, windowMenuItem));
+				super.windowMenu.add(windowMenuItem);
+			}
+
+			if (this._settingsManager.hasInstrumentOf(InstrumentCategory.Margin))
+			{
+				windowMenuItem = new JMenuItem();
+				AppToolkit.menuItemInit(windowMenuItem, Language.SummaryPrompt, Language.SummaryPrompt, Language.SummaryPrompt, "PositionSummary.ico");
+				windowMenuItem.addActionListener(new MainForm_windowMenuItem_actionAdapter(this, windowMenuItem));
+				super.windowMenu.add(windowMenuItem);
+			}
 
 			windowMenuItem = new JMenuItem();
 			AppToolkit.menuItemInit(windowMenuItem, Language.messageFormTitle, Language.messageFormTitle, Language.messageFormTitle, "Message.ico");
 			windowMenuItem.addActionListener(new MainForm_windowMenuItem_actionAdapter(this, windowMenuItem));
 			super.windowMenu.add(windowMenuItem);
 
-			if (Parameter.isHasNews/* && !this._settingsManager.get_IsForRSZQ()*/)
+			if (Parameter.isHasNews /* && !this._settingsManager.get_IsForRSZQ()*/)
 			{
 				windowMenuItem = new JMenuItem();
 				AppToolkit.menuItemInit(windowMenuItem, Language.newsFormTitle, Language.newsFormTitle, Language.newsFormTitle, "News.ico");
@@ -1666,11 +1822,23 @@ public class MainForm extends MainFormBase
 			windowMenuItem.addActionListener(new MainForm_windowMenuItem_actionAdapter(this, windowMenuItem));
 			super.windowMenu.add(windowMenuItem);
 
-			windowMenuItem = new JMenuItem();
-			AppToolkit.menuItemInit(windowMenuItem, Language.SettingOpenOrderGrid, Language.SettingOpenOrderGrid, Language.SettingOpenOrderGrid,
-									"OpenOrderList.ico");
-			windowMenuItem.addActionListener(new MainForm_windowMenuItem_actionAdapter(this, windowMenuItem));
-			super.windowMenu.add(windowMenuItem);
+			if(this._settingsManager.hasInstrumentOf(InstrumentCategory.Margin))
+			{
+				windowMenuItem = new JMenuItem();
+				AppToolkit.menuItemInit(windowMenuItem, Language.SettingOpenOrderGrid, Language.SettingOpenOrderGrid, Language.SettingOpenOrderGrid,
+										"OpenOrderList.ico");
+				windowMenuItem.addActionListener(new MainForm_windowMenuItem_actionAdapter(this, windowMenuItem));
+				super.windowMenu.add(windowMenuItem);
+			}
+
+			if(this._settingsManager.hasInstrumentOf(InstrumentCategory.Physical))
+			{
+				windowMenuItem = new JMenuItem();
+				AppToolkit.menuItemInit(windowMenuItem, Language.PhysicalStok, Language.PhysicalStok, Language.PhysicalStok,
+										"PhysicalStok.ico");
+				windowMenuItem.addActionListener(new MainForm_windowMenuItem_actionAdapter(this, windowMenuItem));
+				super.windowMenu.add(windowMenuItem);
+			}
 
 			//if (isConnected)
 			//if (!this._settingsManager.get_IsForRSZQ())
@@ -1707,6 +1875,10 @@ public class MainForm extends MainFormBase
 		{
 			key = "AccountStatusFrame";
 		}
+		if (name.equalsIgnoreCase(Language.AccountListPrompt))
+		{
+			key = "AccountListFrame";
+		}
 		if (name.equalsIgnoreCase(Language.SummaryPrompt))
 		{
 			key = "PositionSummaryFrame";
@@ -1731,6 +1903,10 @@ public class MainForm extends MainFormBase
 		{
 			key = "OpenOrderListFrame";
 		}
+		if (name.equalsIgnoreCase(Language.PhysicalStok))
+		{
+			key = "PhysicalStokFrame";
+		}
 		if (name.equalsIgnoreCase(Language.MenuimgShowAnalyticChart))
 		{
 			key = "ChartFrame";
@@ -1739,7 +1915,6 @@ public class MainForm extends MainFormBase
 		{
 			key = "QueryOrderListFrame";
 		}
-
 
 		if (!key.equalsIgnoreCase(""))
 		{
@@ -1783,6 +1958,41 @@ public class MainForm extends MainFormBase
 	public OrderQueryPanel get_QueryPanel()
 	{
 		return this.queryPanel;
+	}
+
+	public void setDetailVisibleInAccountList(boolean visible, boolean isForInit)
+	{
+		this.accountListTable.setAutoResizeMode(visible ? JTable.AUTO_RESIZE_OFF : JTable.AUTO_RESIZE_LAST_COLUMN);
+		if (!visible)
+		{
+			this.accountListTable.getColumnModel().getColumn(0).setMaxWidth(40);
+		}
+		else
+		{
+			this.accountListTable.getColumnModel().getColumn(0).setMaxWidth(4000);
+		}
+
+		if(isForInit && visible) return;
+
+		for(int index = 2; index < tradingConsole.ui.accountList.Account.propertyNames.length; index++)
+		{
+			String name = tradingConsole.ui.accountList.Account.propertyNames[index];
+			int column = this.accountListTable.get_BindingSource().getColumnByName(name);
+			if(!visible)
+			{
+				if(column > -1)
+				{
+					tradingConsole.ui.grid.TableColumnChooser.hideColumn(this.accountListTable, column);
+				}
+			}
+			else
+			{
+				if(column > -1)
+				{
+					tradingConsole.ui.grid.TableColumnChooser.showColumn(this.accountListTable, column, -1);
+				}
+			}
+		}
 	}
 }
 

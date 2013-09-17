@@ -299,6 +299,7 @@ public class Customer
 					tradingConsole.get_AccountBindingManager().clear();
 					this._settingsManager.showAccountStatus();
 					tradingConsole.get_MainForm().setMenuVisible();
+					tradingConsole.get_MainForm().setDetailVisibleInAccountList(!newValue, false);
 				}
 			}
 			else if (nodeName.equals("ShowLog")

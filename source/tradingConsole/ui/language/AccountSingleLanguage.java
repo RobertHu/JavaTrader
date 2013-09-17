@@ -16,4 +16,6 @@ public class AccountSingleLanguage
   public static String CreditAmount = "Credit Amount";
   public static String AlertLevel = "Memo";
   public static String Ratio = "Ratio";
+  public static String ValueAsMargin = "ValueAsMargin";
+  public static String FrozenFund = "FrozeFund";
 }

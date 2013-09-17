@@ -52,7 +52,15 @@ public class AccountDetail
 		}
 		else if (this._type == AccountDetailCategory.TradePLFloat)
 		{
-			return AppToolkit.format(TradingItem.sum(account.get_FloatTradingItem()), decimals);
+			return AppToolkit.format(TradingItem.sum(account.get_FloatTradingItem()) - account.get_FloatTradingItem().get_ValueAsMargin(), decimals);
+		}
+		else if (this._type == AccountDetailCategory.ValueAsMargin)
+		{
+			return AppToolkit.format(account.get_FloatTradingItem().get_ValueAsMargin(), decimals);
+		}
+		else if (this._type == AccountDetailCategory.FrozenFund)
+		{
+				return AppToolkit.format(account.get_FrozenFund(), decimals);
 		}
 		else if (this._type == AccountDetailCategory.TotalUnrealisedSwap)
 		{
@@ -202,6 +210,14 @@ public class AccountDetail
 		else if (this._type == AccountDetailCategory.AlertLevel)
 		{
 			return AccountSingleLanguage.AlertLevel;
+		}
+		else if (this._type == AccountDetailCategory.ValueAsMargin)
+		{
+			return AccountSingleLanguage.ValueAsMargin;
+		}
+		else if (this._type == AccountDetailCategory.FrozenFund)
+		{
+			return AccountSingleLanguage.FrozenFund;
 		}
 
 		throw new IllegalStateException(this._type.name() + " is not supportted");

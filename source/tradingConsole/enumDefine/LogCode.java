@@ -20,6 +20,8 @@ public class LogCode extends Enum<LogCode>
 	public static final LogCode Ledger = new LogCode("Ledger", 9);
 	public static final LogCode Statement = new LogCode("Statement", 10);
 	public static final LogCode AccountSummary = new LogCode("AccountSummary", 11);
+	public static final LogCode PhysicalLedger = new LogCode("PhysicalLedger", 12);
+	public static final LogCode PhysicalDelivery = new LogCode("PhysicalDelivery", 12);
 
 	private LogCode(String name, int value)
 	{

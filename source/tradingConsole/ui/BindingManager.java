@@ -118,6 +118,11 @@ public class BindingManager
 		}
 	}
 
+	public boolean contains(String dataSourceKey)
+	{
+		return this._dataView.containsKey(dataSourceKey);
+	}
+
 	public void setBackground(String dataSourceKey, Object item, Color background)
 	{
 		if (this._dataView.containsKey(dataSourceKey))

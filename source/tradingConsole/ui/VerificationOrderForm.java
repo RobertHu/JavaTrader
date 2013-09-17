@@ -107,7 +107,7 @@ public class VerificationOrderForm extends JDialog implements Scheduler.ISchedul
 		this.confirmButton.setText(Language.OrderPlacementbtnConfirm);
 		this.cancelButton.setText(Language.OrderPlacementbtnCancel);
 		this.timeRemainStaticText.setText(Language.TimeRemainPrompt);
-		this.instrumentDescriptionStaticText.setText(this._instrument.get_Description());
+		this.instrumentDescriptionStaticText.setText(this._instrument.get_DescriptionForTrading());
 
 		this.timeRemainStaticText.setVisible(false);
 		this.timeRemainValueStaticText.setVisible(false);
@@ -121,6 +121,11 @@ public class VerificationOrderForm extends JDialog implements Scheduler.ISchedul
 		{
 			this.fillMessage(message);
 			this.show();
+			return;
+		}
+
+		if(this.shouldIgnoreForShortSell())
+		{
 			return;
 		}
 
@@ -503,6 +508,51 @@ public class VerificationOrderForm extends JDialog implements Scheduler.ISchedul
 		}
 		this.fillVerificationInfo();
 		this.verificationTextArea.doLayout();
+	}
+
+	private boolean shouldIgnoreForShortSell()
+	{
+		if(!this._instrument.get_Category().equals(InstrumentCategory.Physical)) return false;
+
+		StringBuilder sb = new StringBuilder();
+		for (Iterator<MakeOrderAccount> iterator = this._makeOrderAccounts.values().iterator(); iterator.hasNext(); )
+		{
+			MakeOrderAccount makeOrderAccount = iterator.next();
+			BigDecimal lot = makeOrderAccount.get_IsBuyForCurrent() ? BigDecimal.ZERO : makeOrderAccount.get_SellLot();
+			if ( lot.compareTo(BigDecimal.ZERO) > 0)
+			{
+				BigDecimal totalBuyLot = BigDecimal.ZERO;
+				for(Order order : this._tradingConsole.get_OpenOrders().values())
+				{
+					if(order.get_IsBuy() && order.get_LotBalance().compareTo(BigDecimal.ZERO) > 0
+					   && order.get_Account() == makeOrderAccount.get_Account() && order.get_Instrument() == this._instrument)
+					{
+						totalBuyLot = totalBuyLot.add(order.get_LotBalance());
+					}
+				}
+
+				if(lot.compareTo(totalBuyLot) > 0)
+				{
+					if(sb.length() > 0) sb.append("\r\n");
+					sb.append(StringHelper.format(Language.shortSellWarning, new String[]{makeOrderAccount.get_Account().get_Code()}));
+				}
+			}
+		}
+
+		if(sb.length() > 0)
+		{
+			AskDialog askDialog = new AskDialog(this, true);
+			askDialog.setMessage(sb.toString());
+			askDialog.pack();
+			askDialog.setLocationRelativeTo(null);
+			askDialog.setVisible(true);
+
+			if(askDialog.getDialogResult() == StandardDialog.RESULT_CANCELLED)
+			{
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private void confirm()

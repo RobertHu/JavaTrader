@@ -41,6 +41,9 @@ import tradingConsole.ui.colorHelper.*;
 import tradingConsole.ui.columnKey.*;
 import tradingConsole.ui.grid.*;
 import tradingConsole.ui.language.*;
+import tradingConsole.physical.*;
+import tradingConsole.ui.fontHelper.HeaderFont;
+import tradingConsole.enumDefine.physical.PhysicalTradeSide;
 
 import Packet.*;
 
@@ -320,6 +323,7 @@ public class TradingConsole extends Applet implements Scheduler.ISchedulerCallba
 	public void setTransaction(Transaction transaction)
 	{
 		this._transactions.put(transaction.get_Id(), transaction);
+		InventoryManager.instance.add(transaction);
 	}
 
 	public Order getOrder(Guid orderId)
@@ -330,6 +334,7 @@ public class TradingConsole extends Applet implements Scheduler.ISchedulerCallba
 	public void setOrder(Order order)
 	{
 		this._orders.put(order.get_Id(), order);
+		InventoryManager.instance.add(order.get_Transaction());
 	}
 
 	public Order getWorkingOrder(Guid orderId)
@@ -360,7 +365,18 @@ public class TradingConsole extends Applet implements Scheduler.ISchedulerCallba
 		{
 			this._openOrders.put(order.get_Id(), order);
 			Instrument instrument = order.get_Transaction().get_Instrument();
-
+			/*if (order.get_Transaction().needCalculateSummary())
+			 {
+			 if (order.get_IsBuy())
+			 {
+			  instrument.addBuyLots(order.get_LotBalance());
+			 }
+			 else
+			 {
+			  instrument.addSellLots(order.get_LotBalance());
+			 }
+			 this.rebindSummary();
+			 }*/
 		}
 	}
 
@@ -611,6 +627,106 @@ public class TradingConsole extends Applet implements Scheduler.ISchedulerCallba
 			return false;
 		}
 		return true;
+	}
+
+	public static class DeliveryHelper
+	{
+		public static boolean isDeliveryAccount(Account account, Instrument instrument)
+		{
+			TradingConsole tradingConsole = account.get_TradingConsole();
+
+			for(Order order : tradingConsole._orders.values())
+			{
+				if(order.get_Account() == account && order.get_Instrument() == instrument && order.get_Account().get_Select()
+				   && order.get_Transaction().get_Instrument().get_Category().equals(InstrumentCategory.Physical)
+					&& order.get_IsOpen() && order.get_LotBalance().compareTo(BigDecimal.ZERO) > 0
+					&& (order.get_PhysicalTradeSide() == PhysicalTradeSide.Buy || order.get_PhysicalTradeSide() == PhysicalTradeSide.Deposit ))
+				{
+					TradePolicyDetail tradePolicyDetail =
+						tradingConsole._settingsManager.getTradePolicyDetail(order.get_Account().get_TradePolicyId(), order.get_Instrument().get_Id());
+					if(tradePolicyDetail.isAllowed(PhysicalTradeSide.Delivery))
+					{
+						Guid deliveryChargeId = tradePolicyDetail.get_DeliveryChargeId();
+						if(deliveryChargeId == null)
+						{
+							return true;
+						}
+						else
+						{
+							DeliveryCharge deliveryCharge = tradingConsole.get_SettingsManager().getDeliveryCharge(deliveryChargeId);
+							if (deliveryCharge.get_PriceType().equals(MarketValuePriceType.DayOpenPrice))
+							{
+								if (instrument.get_LastQuotation() != null && instrument.get_LastQuotation().get_Open() != null)
+									return true;
+							}
+							else
+							{
+								if (instrument.get_Quotation() != null && !instrument.get_Quotation().get_Timestamp().before(instrument.get_OpenTime()))
+									return true;
+							}
+						}
+					}
+				}
+			}
+
+			return false;
+		}
+
+		public static boolean hasInventory(TradingConsole tradingConsole, Account account, Instrument instrument)
+		{
+			for(Order order : tradingConsole._orders.values())
+			{
+				if(order.get_Instrument() == instrument && order.get_Account() == account
+				   && order.get_Transaction().get_Instrument().get_Category().equals(InstrumentCategory.Physical)
+					&& order.get_IsOpen() && order.get_LotBalance().compareTo(BigDecimal.ZERO) > 0
+					&& (order.get_PhysicalTradeSide() == PhysicalTradeSide.Buy || order.get_PhysicalTradeSide() == PhysicalTradeSide.Deposit ))
+				{
+					return true;
+				}
+			}
+			return false;
+		}
+
+		public static Collection<MakeOrderAccount> getDeliveryAccounts(TradingConsole tradingConsole, Instrument instrument)
+		{
+			HashMap<Guid, MakeOrderAccount> deliveryAccounts = new HashMap<Guid, MakeOrderAccount>();
+
+			for(Order order : tradingConsole._orders.values())
+			{
+				if(order.get_Instrument() == instrument && order.get_Account().get_Select()
+				   && order.get_Transaction().get_Instrument().get_Category().equals(InstrumentCategory.Physical)
+					&& order.get_IsOpen() && order.get_LotBalance().compareTo(BigDecimal.ZERO) > 0
+					&& (order.get_PhysicalTradeSide() == PhysicalTradeSide.Buy || order.get_PhysicalTradeSide() == PhysicalTradeSide.Deposit ))
+				{
+					Account account = order.get_Account();
+					TradePolicyDetail tradePolicyDetail =
+						tradingConsole._settingsManager.getTradePolicyDetail(account.get_TradePolicyId(), instrument.get_Id());
+					if(!tradePolicyDetail.isAllowed(PhysicalTradeSide.Delivery)) continue;
+					Guid deliveryChargeId = tradePolicyDetail.get_DeliveryChargeId();
+					if (deliveryChargeId != null)
+					{
+						DeliveryCharge deliveryCharge = tradingConsole.get_SettingsManager().getDeliveryCharge(deliveryChargeId);
+						if (deliveryCharge.get_PriceType().equals(MarketValuePriceType.DayOpenPrice))
+						{
+							if (instrument.get_LastQuotation() == null || instrument.get_LastQuotation().get_Open() == null) continue;
+						}
+						else
+						{
+							if (instrument.get_Quotation() == null || instrument.get_Quotation().get_Timestamp().before(instrument.get_OpenTime())) continue;
+						}
+					}
+
+					if(!deliveryAccounts.containsKey(account.get_Id()))
+					{
+						MakeOrderAccount makeOrderAccount =
+							MakeOrderAccount.create(tradingConsole, tradingConsole.get_SettingsManager(), account, instrument, true);
+						deliveryAccounts.put(account.get_Id(), makeOrderAccount);
+					}
+				}
+			}
+
+			return deliveryAccounts.values();
+		}
 	}
 
 	private static class Updater implements Runnable
@@ -1212,7 +1328,7 @@ public class TradingConsole extends Applet implements Scheduler.ISchedulerCallba
 			//will cause exception after called more than twice, use followed two lines
 			this._bindingManager = null;
 			this._mainForm.initAccountStatusTable();
-
+			this._mainForm.initAccountListTable();
 		}
 		catch (Throwable exception)
 		{
@@ -1349,18 +1465,6 @@ public class TradingConsole extends Applet implements Scheduler.ISchedulerCallba
 			this._bindingSourceForMessagePanel = new tradingConsole.ui.grid.BindingSource();
 			this._bindingSourceForWorkingOrderList = new tradingConsole.ui.grid.BindingSource();
 
-			TableModelListener workingOrderTableModelListener = new TableModelListener()
-			{
-				public void tableChanged(TableModelEvent e)
-				{
-					if (e.getType() == TableModelEvent.INSERT)
-					{
-						String key = _mainForm.get_OrderTable().get_DockableFrame().getKey();
-						_mainForm.getDockingManager().showFrame(key);
-					}
-				}
-			};
-			this._bindingSourceForWorkingOrderList.addTableModelListener(workingOrderTableModelListener);
 			this._bindingSourceForNotConfirmedPendingList = new BindingSource();
 
 			this._hierarchicalOpenOrderTableModel = new HierarchicalOpenOrderTableModel();
@@ -1399,13 +1503,126 @@ public class TradingConsole extends Applet implements Scheduler.ISchedulerCallba
 						   this._bindingSourceForMessagePanel);
 		Order.initializeWorkingOrderList(this._settingsManager, this._mainForm.get_OrderTable(), Order.workingOrdersKey, this._workingOrders.values(),
 										 this._bindingSourceForWorkingOrderList);
+		adjustWorkingListColumn(true);
+		if(this._bindingSourceForWorkingOrderList.getRowCount() > 0)
+		{
+			String key = this._mainForm.get_OrderTable().get_DockableFrame().getKey();
+			this._mainForm.getDockingManager().showFrame(key);
+		}
+		TableModelListener workingOrderTableModelListener = new TableModelListener()
+		{
+			public void tableChanged(TableModelEvent e)
+			{
+				if (e.getType() == TableModelEvent.INSERT)
+				{
+					String key = _mainForm.get_OrderTable().get_DockableFrame().getKey();
+					_mainForm.getDockingManager().showFrame(key);
+				}
 
-		Order.initializeOpenOrderList(this._settingsManager, this._mainForm.get_OpenOrderTable(), Order.openOrdersKey, this._openOrders.values(),
+				if (e.getType() == TableModelEvent.INSERT || e.getType() == TableModelEvent.UPDATE)
+				{
+					adjustWorkingListColumn(false);
+				}
+			}
+		};
+		this._bindingSourceForWorkingOrderList.addTableModelListener(workingOrderTableModelListener);
+
+
+		Order.initializeOpenOrderList(this._settingsManager, this._mainForm.get_OpenOrderTable(), Order.openOrdersKey, this.getMarginOpenOrders(),
 									  this._bindingSourceForOpenOrderList);
+		adjustOpenListColumn(true);
+		TableModelListener openOrderTableModelListener = new TableModelListener()
+		{
+			public void tableChanged(TableModelEvent e)
+			{
+				if (e.getType() == TableModelEvent.INSERT || e.getType() == TableModelEvent.UPDATE)
+				{
+					adjustOpenListColumn(false);
+				}
+			}
+		};
+		this._bindingSourceForOpenOrderList.addTableModelListener(openOrderTableModelListener);
+
 
 		Order.initializeWorkingOrderList(this._settingsManager, this._mainForm.get_NotConfirmedPendingOrderTable(), Order.notConfirmedPendingOrdersKey, this._workingOrders.values(),
 										 this._bindingSourceForNotConfirmedPendingList, true);
 		this._mainForm.get_QueryPanel().initailize();
+	}
+
+	private void adjustOpenListColumn(boolean isInitialize)
+	{
+		boolean shouldShowRebateColumn = false;
+
+		for(int index = 0; index < this._bindingSourceForOpenOrderList.getRowCount(); index++)
+		{
+			Order order = (Order)(this._bindingSourceForOpenOrderList.getObject(index));
+			if(order.hasRebate())
+			{
+				shouldShowRebateColumn = true;
+				break;
+			}
+		}
+
+		if(isInitialize)
+		{
+			if(!shouldShowRebateColumn)
+			{
+				int autoLimitColumn = this._bindingSourceForOpenOrderList.getColumnByName(OrderColKey.RebateString);
+				com.jidesoft.grid.TableColumnChooser.hideColumn(this.get_MainForm().get_OpenOrderTable(), autoLimitColumn);
+			}
+		}
+		else if(shouldShowRebateColumn)
+		{
+			int autoLimitColumn = this._bindingSourceForOpenOrderList.getColumnByName(OrderColKey.RebateString);
+			if(!com.jidesoft.grid.TableColumnChooser.isVisibleColumn(this.get_MainForm().get_OpenOrderTable().getColumnModel(), autoLimitColumn))
+			{
+				com.jidesoft.grid.TableColumnChooser.showColumn(this.get_MainForm().get_OpenOrderTable(), autoLimitColumn, -1);
+			}
+		}
+	}
+
+	private void adjustWorkingListColumn(boolean isInitialize)
+	{
+		boolean shouldShowRebateColumn = false;
+		for(int index = 0; index < this._bindingSourceForWorkingOrderList.getRowCount(); index++)
+		{
+			Order order = (Order)(this._bindingSourceForWorkingOrderList.getObject(index));
+			if(order.hasRebate())
+			{
+				shouldShowRebateColumn = true;
+				break;
+			}
+		}
+
+		if(isInitialize)
+		{
+			if(!shouldShowRebateColumn)
+			{
+				int autoLimitColumn = this._bindingSourceForWorkingOrderList.getColumnByName(OrderColKey.RebateString);
+				com.jidesoft.grid.TableColumnChooser.hideColumn(this.get_MainForm().get_OrderTable(), autoLimitColumn);
+			}
+		}
+		else if(shouldShowRebateColumn)
+		{
+			int autoLimitColumn = this._bindingSourceForWorkingOrderList.getColumnByName(OrderColKey.RebateString);
+			if(!com.jidesoft.grid.TableColumnChooser.isVisibleColumn(this.get_MainForm().get_OrderTable().getColumnModel(), autoLimitColumn))
+			{
+				com.jidesoft.grid.TableColumnChooser.showColumn(this.get_MainForm().get_OrderTable(), autoLimitColumn, -1);
+			}
+		}
+	}
+
+	private Collection<Order> getMarginOpenOrders()
+	{
+		Collection<Order> marginOpenOrders = new ArrayList<Order>();
+		for(Order order : this._openOrders.values())
+		{
+			if(order.get_Instrument().get_Category().equals(InstrumentCategory.Margin))
+			{
+				marginOpenOrders.add(order);
+			}
+		}
+		return marginOpenOrders;
 	}
 
 	public void initializeQueryOrderList()
@@ -1462,6 +1679,12 @@ public class TradingConsole extends Applet implements Scheduler.ISchedulerCallba
 
 	public void rebindSummary()
 	{
+		this.rebindSummary(false);
+	}
+
+	public void rebindSummary(boolean unbindFirst)
+	{
+		if(unbindFirst) Instrument.unbind(Instrument.summaryPanelKey, this._bindingSourceForSummaryPanel);
 		if (this._mainForm != null)
 		{
 			Instrument.initializeSummaryPanel(this._mainForm.get_PositionSummaryFrame(), this._mainForm.get_SummaryTable(), Instrument.summaryPanelKey,
@@ -1561,6 +1784,7 @@ public class TradingConsole extends Applet implements Scheduler.ISchedulerCallba
 	{
 		try
 		{
+			this.disconnect(false);
 			Language.initialize();
 			this.destoryMainForm();
 			this.initializeForm();
@@ -2036,6 +2260,7 @@ public class TradingConsole extends Applet implements Scheduler.ISchedulerCallba
 			this._settingsManager.accountAlert();
 		}
 		this.initialize2(dataSet);
+		this.initializePhysical(dataSet);
 		//Remarked by Michael on 2008-04-09
 		//this._settingsManager.checkAccountsForCut();
 		this.calculatePLFloat();
@@ -2049,6 +2274,8 @@ public class TradingConsole extends Applet implements Scheduler.ISchedulerCallba
 		{
 			this._mainForm.setTitle(this.getOrganizationName(dataSet));
 		}
+		boolean visibleOfAccountDetail = !this._settingsManager.get_Customer().get_IsNoShowAccountStatus();
+		this._mainForm.setDetailVisibleInAccountList(visibleOfAccountDetail, true);
 	}
 
 	private String getOrganizationName(DataSet dataSet)
@@ -2079,6 +2306,65 @@ public class TradingConsole extends Applet implements Scheduler.ISchedulerCallba
 			organizationName = this._settingsManager.get_OrganizationName();
 		}
 		return organizationName;
+	}
+
+	private void initializePhysical(DataSet initData)
+	{
+		PendingInventoryManager.instance.initialize(initData, this);
+		InventoryManager.instance.initialize(this._transactions.values());
+
+		TradingConsole.bindingManager.bind(Inventory.bindingKey, InventoryManager.instance.get_Inventories(),
+										   InventoryManager.instance.get_BindingSource(false), Inventory.getPropertyDescriptors());
+
+		DataGrid grid = this._mainForm.get_PhysicalInventoryTable();
+		grid.setModel(InventoryManager.instance.get_BindingSource(false));
+		grid.setHierarchicalColumn(0);
+		grid.setComponentFactory(new HierarchicalOpenOrderTableComponentFactory(this._mainForm.get_PhysicalInventoryTableActionListener()));
+		grid.addFilter(new AccountInstrumentFilter(grid.get_BindingSource(), false));
+		grid.filter();
+
+		SettingsManager settingsManager = this._settingsManager;
+		UISetting uiSetting = settingsManager.getUISetting(UISetting.workingOrderListUiSetting);
+		TradingConsole.bindingManager.setGrid(Inventory.bindingKey, uiSetting.get_RowHeight(),
+											  ColorSettings.useBlackAsBackground ? ColorSettings.GridForeground : Color.black,
+											  ColorSettings.useBlackAsBackground ? ColorSettings.TradingListGridBackground : Color.white, Color.blue, true, true,
+											  new Font(uiSetting.get_FontName(), Font.BOLD, uiSetting.get_FontSize()), false, true, true);
+		TradingConsole.bindingManager.setHeader(Inventory.bindingKey, SwingConstants.CENTER, 25, GridFixedForeColor.workingOrderList, Color.white,
+												HeaderFont.workingOrderList);
+
+		TradingConsole.bindingManager.bind(Inventory.shortSellBindingKey, InventoryManager.instance.get_ShortSellOrders(),
+										   InventoryManager.instance.get_BindingSource(true), Order.getPropertyDescriptorsForShortSell());
+		grid.addFilter(new AccountInstrumentFilter(grid.get_BindingSource(), false));
+		grid.filter();
+
+		grid = this._mainForm.get_PhysicalShotSellTable();
+		grid.setModel(InventoryManager.instance.get_BindingSource(true));
+		TradingConsole.bindingManager.setGrid(Inventory.shortSellBindingKey, uiSetting.get_RowHeight(),
+											  ColorSettings.useBlackAsBackground ? ColorSettings.GridForeground : Color.black,
+											  ColorSettings.useBlackAsBackground ? ColorSettings.TradingListGridBackground : Color.white, Color.blue, true, true,
+											  new Font(uiSetting.get_FontName(), Font.BOLD, uiSetting.get_FontSize()), false, true, true);
+		TradingConsole.bindingManager.setHeader(Inventory.shortSellBindingKey, SwingConstants.CENTER, 25, GridFixedForeColor.workingOrderList, Color.white,
+												HeaderFont.workingOrderList);
+		grid.addFilter(new AccountInstrumentFilter(grid.get_BindingSource(), false));
+		grid.filter();
+
+
+		TradingConsole.bindingManager.bind(PendingInventory.bindingKey, PendingInventoryManager.instance.getValues(),
+										   PendingInventoryManager.instance.get_BindingSource(), PendingInventory.getPropertyDescriptors());
+
+		grid = this._mainForm.get_PhysicalPendingInventoryTable();
+		grid.setModel(PendingInventoryManager.instance.get_BindingSource());
+		int column = PendingInventoryManager.instance.get_BindingSource().getColumnByName(PhysicalInventoryColKey.SubmitTime);
+		grid.sortColumn(column, true);
+
+		TradingConsole.bindingManager.setGrid(PendingInventory.bindingKey, uiSetting.get_RowHeight(),
+											  ColorSettings.useBlackAsBackground ? ColorSettings.GridForeground : Color.black,
+											  ColorSettings.useBlackAsBackground ? ColorSettings.TradingListGridBackground : Color.white, Color.blue, true, true,
+											  new Font(uiSetting.get_FontName(), Font.BOLD, uiSetting.get_FontSize()), false, true, true);
+		TradingConsole.bindingManager.setHeader(PendingInventory.bindingKey, SwingConstants.CENTER, 25, GridFixedForeColor.workingOrderList, Color.white,
+												HeaderFont.workingOrderList);
+		grid.addFilter(new AccountInstrumentFilter(grid.get_BindingSource(), false));
+		grid.filter();
 	}
 
 	private void initialize2(DataSet dataSet)
@@ -2510,9 +2796,12 @@ public class TradingConsole extends Applet implements Scheduler.ISchedulerCallba
 		this._settingsManager.getInstrument(instrumentId).get_Transactions().remove(transactionId);
 		this._settingsManager.getAccount(accountId).get_Transactions().remove(transactionId);
 		this._transactions.remove(transactionId);
+		InventoryManager.RemoveTransactionResult result = InventoryManager.instance.remove(transaction);
+		if(result.hasInventoryRemoved)
+		{
+			this._mainForm.get_PhysicalInventoryTable().collapseAllRows();
+		}
 	}
-
-
 
 	public void removeOrder(Order order)
 	{
@@ -2560,6 +2849,12 @@ public class TradingConsole extends Applet implements Scheduler.ISchedulerCallba
 		if (this.getOpenOrder(orderId) != null)
 		{
 			this._openOrders.remove(orderId);
+		}
+
+		InventoryManager.RemoveTransactionResult result = InventoryManager.instance.remove(order);
+		if(result.hasInventoryRemoved)
+		{
+			this._mainForm.get_PhysicalInventoryTable().collapseAllRows();
 		}
 	}
 
@@ -2994,6 +3289,7 @@ public class TradingConsole extends Applet implements Scheduler.ISchedulerCallba
 				tradingItem.set_Interest(AppToolkit.round(tradingItem.get_Interest(), decimals));
 				tradingItem.set_Storage(AppToolkit.round(tradingItem.get_Storage(), decimals));
 				tradingItem.set_Trade(AppToolkit.round(tradingItem.get_Trade(), decimals));
+				tradingItem.set_ValueAsMargin(AppToolkit.round(tradingItem.get_ValueAsMargin(), decimals));
 			}
 			else
 			{
@@ -3136,7 +3432,7 @@ public class TradingConsole extends Applet implements Scheduler.ISchedulerCallba
 		for (Iterator<Transaction> iterator = this._transactions.values().iterator(); iterator.hasNext(); )
 		{
 			Transaction transaction = iterator.next();
-			if (transaction.isVerify(appTime))
+			if (transaction.isSuspicious(appTime))
 			{
 				transactions.put(transaction.get_Id(), transaction);
 			}

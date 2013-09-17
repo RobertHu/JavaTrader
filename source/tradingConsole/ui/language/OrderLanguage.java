@@ -18,6 +18,7 @@ public class OrderLanguage
 	public static String OrderTypeString = "Type";
 	public static String TradePLString = "Trade PL";
 	public static String CommissionSumString = "Fee";
+	public static String RebateString = "Rebate";
 	public static String LevySumString = "Levy";
 
 	public static String LotString = "Lot";
@@ -79,6 +80,10 @@ public class OrderLanguage
 			else if (nodeName.equals("CommissionSum"))
 			{
 				OrderLanguage.CommissionSumString = nodeValue;
+			}
+			else if (nodeName.equals("RebateString"))
+			{
+				OrderLanguage.RebateString = nodeValue;
 			}
 			else if (nodeName.equals("LevySum"))
 			{

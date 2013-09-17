@@ -32,8 +32,8 @@ import tradingConsole.ui.language.*;
 import javax.swing.event.TableModelEvent;
 import javax.swing.event.TableModelListener;
 import tradingConsole.common.Combinator;
+import tradingConsole.enumDefine.physical.PhysicalTradeSide;
 import org.apache.log4j.Logger;
-
 public class Instrument implements Scheduler.ISchedulerCallback
 {
 	private Logger logger = Logger.getLogger(Instrument.class);
@@ -50,6 +50,9 @@ public class Instrument implements Scheduler.ISchedulerCallback
 	private String _originCode;
 	private String _code;
 	private String _description;
+	private String _narrative;
+	private String _quoteDescription;
+	private String _unit;
 	private int _denominator;
 	private int _numeratorUnit;
 	private Short _commissionFormula;
@@ -79,6 +82,8 @@ public class Instrument implements Scheduler.ISchedulerCallback
 	private DateTime _dayCloseTime;
 	private boolean _canPlacePendingOrderAtAnyTime;
 	private AllowedOrderSides _allowAddNewPosition = AllowedOrderSides.AllowAll;
+	private int _deliveryTimeBeginDay = 0;
+	private int _deliveryTimeEndDay = 0;
 
 	//Added by Michael on 2008-04-23
 	private DateTime _lastDayCloseTime;
@@ -87,6 +92,7 @@ public class Instrument implements Scheduler.ISchedulerCallback
 	private DateTime _mocTime;
 	private DateTime _lastTradeDay;
 	private InstrumentCategory _category;
+	private Guid _deliveryPointGroupId;
 
 	private Quotation _quotation; //temp store price
 	private boolean _select; //isDisplay order
@@ -115,8 +121,9 @@ public class Instrument implements Scheduler.ISchedulerCallback
 	private BestPendings _bestPendings;
 	private TimeAndSales _timeAndSales;
 	private Guid _groupId;
+	private short _physicalLotDecimal;
 
-	public static Instrument SubtotalInstrument = new Instrument();
+	public static Instrument SubtotalInstrument = new Instrument(InstrumentCategory.Margin);
 	private static ArrayList<Instrument> _instrumentsToSubtotal = new ArrayList<Instrument>();
 
 	static
@@ -602,6 +609,16 @@ public class Instrument implements Scheduler.ISchedulerCallback
 		return dealingPolicyDetail == null ? this._acceptDQVariation :  dealingPolicyDetail.get_AcceptDQVariation();
 	}
 
+	public int get_DeliveryTimeBeginDay()
+	{
+		return this._deliveryTimeBeginDay;
+	}
+
+	public int get_DeliveryTimeEndDay()
+	{
+		return this._deliveryTimeEndDay;
+	}
+
 	public int get_CancelLmtVariation()
 	{
 		DealingPolicyDetail dealingPolicyDetail = this.getDealingPolicyDetail();
@@ -669,6 +686,11 @@ public class Instrument implements Scheduler.ISchedulerCallback
 	{
 		DealingPolicyDetail dealingPolicyDetail = this.getDealingPolicyDetail();
 		return dealingPolicyDetail == null ? this._maxDQLot :  dealingPolicyDetail.get_MaxDQLot();
+	}
+
+	public short get_PhysicalLotDecimal()
+	{
+		return this._physicalLotDecimal;
 	}
 
 	public BigDecimal get_MaxOtherLot()
@@ -769,6 +791,10 @@ public class Instrument implements Scheduler.ISchedulerCallback
 		this._tradingConsole.get_MainForm().get_OpenOrderTable().filter();
 		this._tradingConsole.get_MainForm().get_OrderTable().filter();
 		this._tradingConsole.get_MainForm().get_NotConfirmedPendingOrderTable().filter();
+		this._tradingConsole.get_MainForm().get_PhysicalInventoryTable().filter();
+		this._tradingConsole.get_MainForm().get_PhysicalPendingInventoryTable().filter();
+		this._tradingConsole.get_MainForm().get_PhysicalShotSellTable().filter();
+
 		//this._settingsManager.calculateSummary();
 	}
 
@@ -790,6 +816,38 @@ public class Instrument implements Scheduler.ISchedulerCallback
 	public String get_Description()
 	{
 		return this._description;
+	}
+
+	public String get_DescriptionForTrading()
+	{
+		if(!StringHelper.isNullOrEmpty(this._narrative))
+		{
+			return this._description + "(" + this._narrative + ")";
+		}
+		else
+		{
+			return this._description;
+		}
+	}
+
+	public String get_Narrative()
+	{
+		return this._narrative;
+	}
+
+	public String get_QuoteDescription()
+	{
+		return this._quoteDescription;
+	}
+
+	public String get_Unit()
+	{
+		return this._unit;
+	}
+
+	public Guid get_DeliveryPointGroupId()
+	{
+		return this._deliveryPointGroupId;
 	}
 
 	public String get_Bid()
@@ -1131,14 +1189,18 @@ public class Instrument implements Scheduler.ISchedulerCallback
 		return this._timeAndSales;
 	}
 
-	private Instrument()//for SubtotalInstrument
+	private Instrument(InstrumentCategory category)//for SubtotalInstrument
 	{
 		this._id = Guid.empty;
 		this._select = true;
 		this._isActive = false;
+		this._category = category;
 		this._sequence = Integer.MAX_VALUE;
 		this._code = "";
 		this._description = "";
+		this._narrative = "";
+		this._quoteDescription = "";
+		this._unit = "";
 		this._sellLots = BigDecimal.ZERO;
 		this._buyLots = BigDecimal.ZERO;
 		this._totalBuyPrice = 0.0;//BigDecimal.ZERO;
@@ -1199,6 +1261,15 @@ public class Instrument implements Scheduler.ISchedulerCallback
 		this._originCode = (String)dataRow.get_Item("OriginCode");
 		this._code = (String)dataRow.get_Item("Code");
 		this._description = (String)dataRow.get_Item("Description");
+		if(dataRow.get_Table().get_Columns().contains("Narrative"))
+		{
+			this._narrative = dataRow.get_Item("Narrative") == DBNull.value ? "" : ((String)dataRow.get_Item("Narrative")).trim();
+		}
+		if(dataRow.get_Table().get_Columns().contains("QuoteDescription"))
+		{
+			this._quoteDescription = dataRow.get_Item("QuoteDescription") == DBNull.value ? "" : ((String)dataRow.get_Item("QuoteDescription")).trim();
+		}
+		this._unit = dataRow.get_Item("Unit") == DBNull.value ? "" : (String)dataRow.get_Item("Unit");
 		this._denominator = (Integer)dataRow.get_Item("Denominator");
 		this._numeratorUnit = (Integer)dataRow.get_Item("NumeratorUnit");
 		this._commissionFormula = (Short)dataRow.get_Item("CommissionFormula");
@@ -1209,6 +1280,7 @@ public class Instrument implements Scheduler.ISchedulerCallback
 		this._maxDQLot = AppToolkit.convertDBValueToBigDecimal(dataRow.get_Item("MaxDQLot"), 0.0);
 		this._maxOtherLot = AppToolkit.convertDBValueToBigDecimal(dataRow.get_Item("MaxOtherLot"), 0.0);
 		this._currencyId = (Guid)dataRow.get_Item("CurrencyID");
+		this._deliveryPointGroupId = dataRow.get_Item("DeliveryPointGroupId") == DBNull.value ? null : (Guid)dataRow.get_Item("DeliveryPointGroupId");
 		this._priceValidTime = (Integer)dataRow.get_Item("PriceValidTime");
 		this._dqQuoteMinLot = AppToolkit.convertDBValueToBigDecimal(dataRow.get_Item("DQQuoteMinLot"), 0.0);
 		this._isSinglePrice = (Boolean)dataRow.get_Item("IsSinglePrice");
@@ -1216,11 +1288,17 @@ public class Instrument implements Scheduler.ISchedulerCallback
 		this._beginTime = (DateTime)dataRow.get_Item("BeginTime");
 		this._endTime = (DateTime)dataRow.get_Item("EndTime");
 		this._acceptDQVariation = (Integer)dataRow.get_Item("AcceptDQVariation");
+		if(dataRow.get_Item("DeliveryTimeBeginDay") != DBNull.value) this._deliveryTimeBeginDay = (Integer)dataRow.get_Item("DeliveryTimeBeginDay");
+		if(dataRow.get_Item("DeliveryTimeEndDay") != DBNull.value) this._deliveryTimeEndDay = (Integer)dataRow.get_Item("DeliveryTimeEndDay");
 		this._acceptLmtVariation = (Integer)dataRow.get_Item("AcceptLmtVariation");
 		this._acceptCloseLmtVariation = (Integer)dataRow.get_Item("AcceptCloseLmtVariation");
 		this._cancelLmtVariation = (Integer)dataRow.get_Item("CancelLmtVariation");
 		this._acceptIfDoneVariation = (Integer)dataRow.get_Item("AcceptIfDoneVariation");
 		this._priceType = (Short)dataRow.get_Item("PriceType");
+		if(dataRow.get_Table().get_Columns().contains("PhysicalLotDecimal"))
+		{
+			this._physicalLotDecimal = (Short)dataRow.get_Item("PhysicalLotDecimal");
+		}
 		//this._isHasDocument = (Boolean)dataRow.get_Item("IsHasDocument");
 		this._sequence = (Integer)dataRow.get_Item("Sequence");
 		this._dayOpenTime = (AppToolkit.isDBNull(dataRow.get_Item("DayOpenTime"))) ? null : (DateTime)dataRow.get_Item("DayOpenTime");
@@ -1313,6 +1391,17 @@ public class Instrument implements Scheduler.ISchedulerCallback
 			{
 				this._currencyId = new Guid(nodeValue);
 			}
+			else if (nodeName.equals("DeliveryPointGroupId"))
+			{
+				if(StringHelper.isNullOrEmpty(nodeValue))
+				{
+					this._deliveryPointGroupId = null;
+				}
+				else
+				{
+					this._deliveryPointGroupId = new Guid(nodeValue);
+				}
+			}
 			else if (nodeName.equals("PriceValidTime"))
 			{
 				this._priceValidTime = Integer.parseInt(nodeValue);
@@ -1356,6 +1445,10 @@ public class Instrument implements Scheduler.ISchedulerCallback
 			else if (nodeName.equals("PriceType"))
 			{
 				this._priceType = Short.parseShort(nodeValue);
+			}
+			else if (nodeName.equals("PhysicalLotDecimal"))
+			{
+				this._physicalLotDecimal = Short.parseShort(nodeValue);
 			}
 			else if (nodeName.equals("LastAcceptTimeSpan"))
 			{
@@ -1403,6 +1496,14 @@ public class Instrument implements Scheduler.ISchedulerCallback
 			else if (nodeName.equals("AcceptDQVariation"))
 			{
 				this._acceptDQVariation = Integer.parseInt(nodeValue);
+			}
+			else if (nodeName.equals("DeliveryTimeBeginDay"))
+			{
+				this._deliveryTimeBeginDay = Integer.parseInt(nodeValue);
+			}
+			else if (nodeName.equals("DeliveryTimeEndDay"))
+			{
+				this._deliveryTimeEndDay = Integer.parseInt(nodeValue);
 			}
 			//else if (nodeName.equals("IsHasDocument"))
 			//{
@@ -1804,8 +1905,11 @@ public class Instrument implements Scheduler.ISchedulerCallback
 
 	public void addSummaryPanel(String dataSourceKey)
 	{
-		TradingConsole.bindingManager.add(dataSourceKey, this);
-		this.changeSummaryPanelStyle(dataSourceKey);
+		if(this._category.equals(InstrumentCategory.Margin))
+		{
+			TradingConsole.bindingManager.add(dataSourceKey, this);
+			this.changeSummaryPanelStyle(dataSourceKey);
+		}
 		//this.setValidateColor();
 	}
 
@@ -2318,6 +2422,7 @@ public class Instrument implements Scheduler.ISchedulerCallback
 			for (Iterator<Order> iterator2 = transaction.get_Orders().values().iterator(); iterator2.hasNext(); )
 			{
 				Order order = iterator2.next();
+				if(this._tradingConsole.getOpenOrder(order.get_Id()) == null) continue;
 				if (order.get_Phase().equals(Phase.Executed)
 					&& order.get_IsOpen()
 					&& order.get_LotBalance().compareTo(BigDecimal.ZERO) > 0)
@@ -2360,6 +2465,8 @@ public class Instrument implements Scheduler.ISchedulerCallback
 			for (Iterator<Order> iterator2 = transaction.get_Orders().values().iterator(); iterator2.hasNext(); )
 			{
 				Order order = iterator2.next();
+				if(this._tradingConsole.getOpenOrder(order.get_Id()) == null) continue;
+
 				if (order.get_Phase().equals(Phase.Executed)
 					&& order.get_IsOpen()
 					&& order.get_LotBalance().compareTo(BigDecimal.ZERO) > 0)
@@ -2496,11 +2603,14 @@ public class Instrument implements Scheduler.ISchedulerCallback
 		Instrument.SubtotalInstrument._plFloatCurrencies.clear();
 		for(Instrument instrument : Instrument._instrumentsToSubtotal)
 		{
-			for(String currencyCode : instrument._plFloats.keySet())
+			if(instrument.get_Category().equals(InstrumentCategory.Margin))
 			{
-				double value = instrument._plFloats.get(currencyCode);
-				Currency currency = instrument._plFloatCurrencies.get(currencyCode);
-				Instrument.SubtotalInstrument.addPLFloat(currency, value);
+				for (String currencyCode : instrument._plFloats.keySet())
+				{
+					double value = instrument._plFloats.get(currencyCode);
+					Currency currency = instrument._plFloatCurrencies.get(currencyCode);
+					Instrument.SubtotalInstrument.addPLFloat(currency, value);
+				}
 			}
 		}
 		Instrument.SubtotalInstrument.updateSummaryPanel(Instrument.summaryPanelKey);
@@ -3044,6 +3154,8 @@ public class Instrument implements Scheduler.ISchedulerCallback
 
 	public void addToSummary(Order order)
 	{
+		if(!order.get_PhysicalTradeSide().equals(PhysicalTradeSide.None)) return;
+
 		BigDecimal lotBalance = order.get_LotBalance();
 		//BigDecimal executePrice = new BigDecimal(Price.toString(order.get_ExecutePrice()), this.get_Decimal());
 		double executePrice = Price.toDouble(order.get_ExecutePrice());
@@ -3076,7 +3188,7 @@ public class Instrument implements Scheduler.ISchedulerCallback
 					TradingConsole.bindingManager.bind(AccountTradingSummary.AccountTradingSummaryBindingKey+this._code, new Vector(0), this._accountTradingSummary,
 						AccountTradingSummary.getPropertyDescriptorsForSummary(this._tradingConsole.get_MainForm().get_PositionSummaryFrame()));
 
-					/*TableModelListener tableModelListener = new TableModelListener()
+					TableModelListener tableModelListener = new TableModelListener()
 					{
 						public void tableChanged(TableModelEvent e)
 						{
@@ -3090,7 +3202,7 @@ public class Instrument implements Scheduler.ISchedulerCallback
 							}
 						}
 					};
-					this._accountTradingSummary.addTableModelListener(tableModelListener);*/
+					this._accountTradingSummary.addTableModelListener(tableModelListener);
 				}
 
 				AccountTradingSummary accountTradingSummary = null;
@@ -3121,33 +3233,36 @@ public class Instrument implements Scheduler.ISchedulerCallback
 
 	public void calculateSummary()
 	{
-		this._tradingConsole.get_MainForm().get_SummaryTable().collapseAllRows();
-		if(this._accountTradingSummary != null)
+		if(this._category.equals(InstrumentCategory.Margin))
 		{
-			this._accountTradingSummary.removeAll();
-		}
-		this.clearBuySellLots(false);
-
-		for (Iterator<Transaction> iterator = this._transactions.values().iterator(); iterator.hasNext(); )
-		{
-			Transaction transaction = iterator.next();
-			if (transaction.get_Phase() == Phase.Executed && transaction.needCalculateSummary())
+			this._tradingConsole.get_MainForm().get_SummaryTable().collapseAllRows();
+			if (this._accountTradingSummary != null)
 			{
-				HashMap<Guid, Order> orders = transaction.get_Orders();
-				for (Iterator<Order> iterator2 = orders.values().iterator(); iterator2.hasNext(); )
+				this._accountTradingSummary.removeAll();
+			}
+			this.clearBuySellLots(false);
+
+			for (Iterator<Transaction> iterator = this._transactions.values().iterator(); iterator.hasNext(); )
+			{
+				Transaction transaction = iterator.next();
+				if (transaction.get_Phase() == Phase.Executed && transaction.needCalculateSummary())
 				{
-					Order order = iterator2.next();
-					if (order.get_Phase() == Phase.Executed)
+					HashMap<Guid, Order> orders = transaction.get_Orders();
+					for (Iterator<Order> iterator2 = orders.values().iterator(); iterator2.hasNext(); )
 					{
-						this.addToSummary(order);
-						/*if (order.get_IsBuy())
+						Order order = iterator2.next();
+						if (order.get_Phase() == Phase.Executed)
 						{
-							this._buyLots = this._buyLots.add(order.get_LotBalance());
+							this.addToSummary(order);
+							/*if (order.get_IsBuy())
+								   {
+							 this._buyLots = this._buyLots.add(order.get_LotBalance());
+								   }
+								   else
+								   {
+							 this._sellLots = this._sellLots.add(order.get_LotBalance());
+								   }*/
 						}
-						else
-						{
-							this._sellLots = this._sellLots.add(order.get_LotBalance());
-						}*/
 					}
 				}
 			}

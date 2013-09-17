@@ -115,7 +115,10 @@ public class Account
 
 				if((accountDetailType == AccountDetailCategory.TotalUnrealisedSwap && (this._rawAccount.get_NotValuedTradingItem().get_Interest() + this._rawAccount.get_NotValuedTradingItem().get_Storage()) == 0)
 				   || (accountDetailType == AccountDetailCategory.UnrealisedPL && this._rawAccount.get_NotValuedTradingItem().get_Trade() == 0)
-				   ||(accountDetailType == AccountDetailCategory.CreditAmount && this._rawAccount.get_CreditAmount() == 0))
+				   ||(accountDetailType == AccountDetailCategory.CreditAmount && this._rawAccount.get_CreditAmount() == 0)
+				   ||(accountDetailType == AccountDetailCategory.FrozenFund && this._rawAccount.get_FrozenFund() == 0)
+				   ||(accountDetailType== AccountDetailCategory.Usable && this._rawAccount.get_Necessary() == 0)
+				   ||(accountDetailType == AccountDetailCategory.ValueAsMargin && this._rawAccount.get_FloatTradingItem().get_ValueAsMargin() == 0))
 				{
 					shouldRemoveDetails.add(accountDetail);
 				}
@@ -141,7 +144,28 @@ public class Account
 				{
 					if (this._rawAccount.get_CreditAmount() != 0)
 					{
-						shouldAddDetails.add(new AccountDetail(this, accountDetailType));
+						shouldAddDetails.add(this.createDetail(accountDetailType));
+					}
+				}
+				else if (accountDetailType == AccountDetailCategory.ValueAsMargin)
+				{
+					if (this._rawAccount.get_FloatTradingItem().get_ValueAsMargin() != 0)
+					{
+						shouldAddDetails.add(this.createDetail(accountDetailType));
+					}
+				}
+				else if (accountDetailType == AccountDetailCategory.FrozenFund)
+				{
+					if (this._rawAccount.get_FrozenFund() != 0)
+					{
+						shouldAddDetails.add(this.createDetail(accountDetailType));
+					}
+				}
+				else if (accountDetailType== AccountDetailCategory.Usable)
+				{
+					if (this._rawAccount.get_Necessary()!= 0)
+					{
+						shouldAddDetails.add(this.createDetail(accountDetailType));
 					}
 				}
 			}
@@ -265,7 +289,8 @@ public class Account
 			if ((accountDetailType == AccountDetailCategory.Unclear && account.get_UnclearAmount() == 0)
 				|| (accountDetailType == AccountDetailCategory.CreditAmount && account.get_CreditAmount() == 0)
 				|| (accountDetailType == AccountDetailCategory.TotalUnrealisedSwap && (account.get_NotValuedTradingItem().get_Interest() + account.get_NotValuedTradingItem().get_Storage()) == 0)
-				|| (accountDetailType == AccountDetailCategory.UnrealisedPL && account.get_NotValuedTradingItem().get_Trade() == 0))
+				|| (accountDetailType == AccountDetailCategory.UnrealisedPL && account.get_NotValuedTradingItem().get_Trade() == 0)
+				|| (accountDetailType == AccountDetailCategory.ValueAsMargin && account.get_FloatTradingItem().get_ValueAsMargin() == 0))
 			{
 				continue;
 			}
@@ -315,6 +340,8 @@ public class Account
 		return accountDetailCategory == AccountDetailCategory.Balance
 			|| accountDetailCategory == AccountDetailCategory.Necessary
 			|| accountDetailCategory == AccountDetailCategory.TradePLFloat
+			|| accountDetailCategory == AccountDetailCategory.FrozenFund
+			|| accountDetailCategory == AccountDetailCategory.ValueAsMargin
 			|| (accountDetailCategory == AccountDetailCategory.TotalUnrealisedSwap)
 			|| (accountDetailCategory == AccountDetailCategory.UnrealisedPL)
 			|| accountDetailCategory == AccountDetailCategory.Unclear

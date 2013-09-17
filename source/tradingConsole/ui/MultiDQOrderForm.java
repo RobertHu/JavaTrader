@@ -22,6 +22,8 @@ import tradingConsole.ui.colorHelper.*;
 import tradingConsole.ui.columnKey.*;
 import tradingConsole.ui.grid.*;
 import tradingConsole.ui.language.*;
+import java.util.ArrayList;
+import java.util.HashMap;
 
 public class MultiDQOrderForm extends FrameBase2
 {
@@ -37,6 +39,9 @@ public class MultiDQOrderForm extends FrameBase2
 
 	private JideTabbedPane tabbedPane = new JideTabbedPane();
 	private JPanel spotTradePanel = new JPanel();
+
+	//MultiTextArea instrumentNarrative = new MultiTextArea();
+	NoneResizeableTextField instrumentQuoteDescription = new NoneResizeableTextField();
 
 	private int _dQMaxMove = 0;
 	private BigDecimal _dealTotalLot = null;
@@ -73,6 +78,7 @@ public class MultiDQOrderForm extends FrameBase2
 		//this(tradingConsole, settingsManager, instrument);
 		super(tradingConsole, settingsManager, instrument);
 		this._dQMaxMove = makeSpotTradeOrder.GetDQMaxMove();
+		this._instrument = instrument;
 		try
 		{
 			jbInit();
@@ -92,7 +98,6 @@ public class MultiDQOrderForm extends FrameBase2
 		this._makeSpotTradeOrder = makeSpotTradeOrder;
 		this._isDblClickAsk = isDblClickAsk;
 
-		this._instrument = instrument;
 		this._isHasDeal = this.isHasDeal();
 
 		this.lotStaticText.setText(Language.OrderLMTlblLot);
@@ -107,9 +112,10 @@ public class MultiDQOrderForm extends FrameBase2
 		this.submitButton.setText(Language.OrderMultiDQbtnSubmit);
 		this.exitButton.setText(Language.OrderMultiDQbtnExit);
 		this.closeAllButton.setText(Language.CloseAll);
+		this.instalmentButton.setText(InstalmentLanguage.Instalment);
 
 		//this.instrumentDescriptionStaticText.setText(this._instrument.get_Description());
-		this.setTitle(this._instrument.get_Description());
+		this.setTitle(this._instrument.get_DescriptionForTrading());
 		InstrumentPriceProvider priceProvider = new InstrumentPriceProvider(this._instrument);
 		this.bidButton.set_PriceProvider(priceProvider);
 		this.askButton.set_PriceProvider(priceProvider);
@@ -117,6 +123,15 @@ public class MultiDQOrderForm extends FrameBase2
 		//fill accountTable
 		int stepSize = this._instrument.get_NumeratorUnit();
 		this._makeSpotTradeOrder.initialize(this.accountTable, true, false, this._isDblClickAsk, this._dQMaxMove, stepSize, new PropertyChangingListener(this));
+		this.accountTable.get_BindingSource().addPropertyChangedListener(new IPropertyChangedListener()
+		{
+			public void propertyChanged(Object owner, PropertyDescriptor propertyDescriptor, Object oldValue, Object newValue, int row, int column)
+			{
+				updateInstalmentButtonStatus();
+			}
+		});
+
+		this.updateInstalmentButtonStatus();
 		this.initializeSaveMaxMove();
 		this.updateAccountTableEditable();
 		//int column = this.accountTable.get_BindingSource().getColumnByName(MakeOrderAccountGridColKey.SetPriceString);
@@ -161,6 +176,14 @@ public class MultiDQOrderForm extends FrameBase2
 			}
 		}
 
+		boolean showDeliveryForm = TradingConsole.DeliveryHelper.getDeliveryAccounts(this._tradingConsole, this._instrument).size() > 0;
+		if(showDeliveryForm)
+		{
+			deliveryForm
+				= new DeliveryForm(this, this._tradingConsole, this._instrument, null, null, closeAllSell);
+			this.tabbedPane.addTab(Language.deliveryFormTitle, deliveryForm);
+		}
+
 		//init outstanding Order Grid
 		boolean isBuy = Instrument.getSelectIsBuy(this._instrument, this._isDblClickAsk);
 		this._makeOrderAccount.set_IsBuyForCurrent(isBuy);
@@ -192,7 +215,7 @@ public class MultiDQOrderForm extends FrameBase2
 
 		this.accountTable.requestFocus();
 
-		this.setTitle(this._instrument.get_Description());
+		this.setTitle(this._instrument.get_DescriptionForTrading());
 
 		this.tabbedPane.setHideOneTab(true);
 
@@ -299,6 +322,62 @@ public class MultiDQOrderForm extends FrameBase2
 		}
 	}
 
+	private void updateInstalmentButtonStatus()
+	{
+		boolean canInstalment = false;
+		BindingSource makeOrderAccounts = this.accountTable.get_BindingSource();
+		for(int index = 0; index < makeOrderAccounts.getRowCount(); index++)
+		{
+			MakeOrderAccount makeOrderAccount = (MakeOrderAccount)makeOrderAccounts.getObject(index);
+			TradePolicyDetail tradePolicyDetail = this._settingsManager.getTradePolicyDetail(makeOrderAccount.get_Account().get_TradePolicyId(),
+				this._instrument.get_Id());
+			if(makeOrderAccount.get_IsBuyForCurrent() && tradePolicyDetail.get_InstalmentPolicyId() != null)
+			{
+				InstalmentPolicy instalmentPolicy = this._settingsManager.getInstalmentPolicy(tradePolicyDetail.get_InstalmentPolicyId());
+				if(instalmentPolicy != null && instalmentPolicy.getPeriods().size() > 0 && makeOrderAccount.get_BuyLot().compareTo(BigDecimal.ZERO) > 0)
+				{
+					canInstalment = true;
+					break;
+				}
+			}
+		}
+		this.instalmentButton.setVisible(canInstalment);
+	}
+
+	private void doSetupInstalment()
+	{
+		ArrayList<Account> accounts = new ArrayList<Account>();
+		HashMap<Guid, BigDecimal> lots = new HashMap<Guid,BigDecimal>();
+
+		BindingSource makeOrderAccounts = this.accountTable.get_BindingSource();
+		for(int index = 0; index < makeOrderAccounts.getRowCount(); index++)
+		{
+			MakeOrderAccount makeOrderAccount = (MakeOrderAccount)makeOrderAccounts.getObject(index);
+			TradePolicyDetail tradePolicyDetail = this._settingsManager.getTradePolicyDetail(makeOrderAccount.get_Account().get_TradePolicyId(),
+				this._instrument.get_Id());
+			if(makeOrderAccount.get_IsBuyForCurrent() && tradePolicyDetail.get_InstalmentPolicyId() != null)
+			{
+				InstalmentPolicy instalmentPolicy = this._settingsManager.getInstalmentPolicy(tradePolicyDetail.get_InstalmentPolicyId());
+				if(instalmentPolicy != null && instalmentPolicy.getPeriods().size() > 0 && makeOrderAccount.get_BuyLot().compareTo(BigDecimal.ZERO) > 0)
+				{
+					accounts.add(makeOrderAccount.get_Account());
+					lots.put(makeOrderAccount.get_Account().get_Id(), makeOrderAccount.get_BuyLot());
+				}
+			}
+		}
+		Account[] accountArray = new Account[accounts.size()];
+		accountArray = accounts.toArray(accountArray);
+		InstalmentForm form
+			= new InstalmentForm(this, accountArray, lots, this._instrument, this._settingsManager, this.instalmentInfoList);
+		JideSwingUtilities.centerWindow(form);
+		form.show();
+		form.toFront();
+		if(form.get_IsConfirmed())
+		{
+			this.instalmentInfoList = form.get_InstalmentInfoList();
+		}
+	}
+
 	private void applyDQMaxMove()
 	{
 		int stepSize = this._instrument.get_NumeratorUnit();
@@ -393,6 +472,7 @@ public class MultiDQOrderForm extends FrameBase2
 		/*this.setPriceBidStaticText.setText( (!this._instrument.get_IsSinglePrice()) ? this._instrument.get_Bid() : this._instrument.get_Ask());
 		this.setPriceAskStaticText.setText(this._instrument.get_Ask());*/
 	    if(this.limitOrderForm != null) this.limitOrderForm.refreshPrice();
+		if(this.deliveryForm != null) this.deliveryForm.refreshPrice();
 		this._makeSpotTradeOrder.update(this._selectedAccountChangedListener.get_RelationSnapshot(), this.isHasDeal());
 	}
 
@@ -791,6 +871,7 @@ public class MultiDQOrderForm extends FrameBase2
 			if (this.isValidOrder(true))
 			{
 				this.saveMaxMoves();
+				this.fillInstalmentInfo();
 				VerificationOrderForm verificationOrderForm = new VerificationOrderForm(this, "Verification Order", true, this._tradingConsole,
 					this._settingsManager, this._instrument,
 					this._makeSpotTradeOrder.get_MakeOrderAccounts(), OrderType.SpotTrade, OperateType.MultiSpotTrade, this._isHasDeal, null, null);
@@ -816,6 +897,34 @@ public class MultiDQOrderForm extends FrameBase2
 			this._inSubmit = false;
 		}
 		//this.outTimeSchedulerStart();
+	}
+
+	private void fillInstalmentInfo()
+	{
+		BindingSource makeOrderAccounts = this.accountTable.get_BindingSource();
+		for (int index = 0; index < makeOrderAccounts.getRowCount(); index++)
+		{
+			MakeOrderAccount makeOrderAccount = (MakeOrderAccount)makeOrderAccounts.getObject(index);
+			makeOrderAccount.set_InstalmentInfo(null);
+		}
+
+		if(this.instalmentInfoList == null) return;
+		for(Guid accountId : this.instalmentInfoList.keySet())
+		{
+			InstalmentInfo instalmentInfo = this.instalmentInfoList.get(accountId);
+			if(instalmentInfo.isEnabled())
+			{
+				for (int index = 0; index < makeOrderAccounts.getRowCount(); index++)
+				{
+					MakeOrderAccount makeOrderAccount = (MakeOrderAccount)makeOrderAccounts.getObject(index);
+					if (makeOrderAccount.get_Account().get_Id().equals(accountId))
+					{
+						makeOrderAccount.set_InstalmentInfo(instalmentInfo);
+						break;
+					}
+				}
+			}
+		}
 	}
 
 	private void saveMaxMoves()
@@ -939,6 +1048,7 @@ public class MultiDQOrderForm extends FrameBase2
 						 {
 					 table.setSelectionForeground(BuySellColor.getColor(isBuy));
 						 }*/
+					   this._owner.updateInstalmentButtonStatus();
 				}
 			}
 			else if (property.get_Name().equals(MakeOrderAccountGridColKey.LotString))
@@ -1075,7 +1185,7 @@ public class MultiDQOrderForm extends FrameBase2
 		{
 			TradePolicyDetail tradePolicyDetail = this._settingsManager.getTradePolicyDetail(this._makeOrderAccount.get_Account().get_TradePolicyId(),
 				this._instrument.get_Id());
-			accountLot = AppToolkit.fixLot(accountLot, false, tradePolicyDetail, this._makeOrderAccount.get_Account());
+			accountLot = AppToolkit.fixLot(accountLot, false, tradePolicyDetail, this._makeOrderAccount);
 		}
 
 		boolean isBuy = this._makeOrderAccount.get_IsBuyForCurrent();
@@ -1171,6 +1281,11 @@ public class MultiDQOrderForm extends FrameBase2
 			return null;
 		}
 
+		public boolean isDelivery()
+		{
+			return false;
+		}
+
 		public void addPlaceOrderTypeChangedListener(IPlaceOrderTypeChangedListener placeOrderTypeChangedListener)
 		{
 		}
@@ -1226,7 +1341,7 @@ public class MultiDQOrderForm extends FrameBase2
 	{
 		this.addWindowListener(new MultiDQOrderUi_this_windowAdapter(this));
 
-		this.setSize(_dQMaxMove > 0 ? 552 : 502, 460);
+		this.setSize(_dQMaxMove > 0 ? 552 : 502, 470);
 		this.setResizable(true);
 
 		this.getContentPane().add(tabbedPane, java.awt.BorderLayout.CENTER);
@@ -1236,6 +1351,7 @@ public class MultiDQOrderForm extends FrameBase2
 
 		timerTime = new Timer(500, new MultiDQOrderForm_timerTime_actionAdapter(this));
 		Font font = new Font("SansSerif", Font.BOLD, 14);
+		instrumentQuoteDescription.setFont(font);
 		lotStaticText.setText("Lot");
 		lotNumeric.setHorizontalAlignment(SwingConstants.RIGHT);
 		lotNumeric.addFocusListener(new MultiDQOrderForm_lotNumeric_focusAdapter(this));
@@ -1250,6 +1366,13 @@ public class MultiDQOrderForm extends FrameBase2
 		submitButton.addActionListener(new MultiDQOrderForm_submitButton_actionAdapter(this));
 		exitButton.addActionListener(new MultiDQOrderForm_exitButton_actionAdapter(this));
 		closeAllButton.addActionListener(new MultiDQOrderForm_closeAllButton_actionAdapter(this));
+		this.instalmentButton.addActionListener(new ActionListener()
+		{
+			public void actionPerformed(ActionEvent e)
+			{
+				doSetupInstalment();
+			}
+		});
 		bidButton.setEnabled(false);
 		askButton.setEnabled(false);
 
@@ -1312,6 +1435,19 @@ public class MultiDQOrderForm extends FrameBase2
 		spotTradePanel.add(askButton, new GridBagConstraints(2, 0, 2, 1, 0.0, 0.0
 			, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(5, 2, 0, 0), 80, 55));
 
+		spotTradePanel.add(this.instrumentQuoteDescription, new GridBagConstraints2(0, 1, 4, 1, 0.0, 0.0,
+				GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, new Insets(2, 5, 0, 0), 0, 20));
+
+		if(!StringHelper.isNullOrEmpty(this._instrument.get_QuoteDescription()))
+		{
+			this.instrumentQuoteDescription.setText(this._instrument.get_QuoteDescription());
+		}
+		else
+		{
+			this.instrumentQuoteDescription.setVisible(false);
+		}
+
+
 		JPanel panel = new JPanel();
 		panel.setBackground(Color.WHITE);
 		panel.setLayout(new GridBagLayout());
@@ -1334,15 +1470,18 @@ public class MultiDQOrderForm extends FrameBase2
 		saveMaxMovePanel.add(remberMaxMoveCheckBox, new GridBagConstraints(2, 0, 1, 1, 0.0, 1.0
 			, GridBagConstraints.EAST, GridBagConstraints.NONE, new Insets(0, 0, 0, 0), 0, 0));
 
-		spotTradePanel.add(panel, new GridBagConstraints(0, 1, 4, 1, 0.0, 1.0
+		spotTradePanel.add(panel, new GridBagConstraints(0, 2, 6, 1, 0.0, 1.0
 			, GridBagConstraints.WEST, GridBagConstraints.BOTH, new Insets(5, 5, 0, 0), 0, 0));
 
-		spotTradePanel.add(openOrderScrollPane, new GridBagConstraints(4, 0, 4, 2, 1.0, 1.0
+		spotTradePanel.add(instalmentButton, new GridBagConstraints(0, 3, 6, 1, 0.0, 0.0
+			, GridBagConstraints.SOUTHWEST, GridBagConstraints.HORIZONTAL, new Insets(0, 5, 0, 0), 0, 0));
+
+		spotTradePanel.add(openOrderScrollPane, new GridBagConstraints(4, 0, 6, 4, 1.0, 1.0
 			, GridBagConstraints.CENTER, GridBagConstraints.BOTH, new Insets(5, 10, 0, 5), 0, 0));
 
 		JPanel buttonPanel = new JPanel(new GridBagLayout());
 		buttonPanel.setBackground(null);
-		spotTradePanel.add(buttonPanel, new GridBagConstraints(0, 2, 4, 1, 0.0, 0.0
+		spotTradePanel.add(buttonPanel, new GridBagConstraints(0, 4, 6, 1, 0.0, 0.0
 			, GridBagConstraints.EAST, GridBagConstraints.BOTH, new Insets(0, 0, 0, 0), 0, 0));
 
 		buttonPanel.add(submitButton, new GridBagConstraints(0, 0, 1, 1, 1.0, 0.0
@@ -1354,15 +1493,15 @@ public class MultiDQOrderForm extends FrameBase2
 		buttonPanel.add(dealButton, new GridBagConstraints(2, 0, 1, 1, 1.0, 0.0
 			, GridBagConstraints.EAST, GridBagConstraints.VERTICAL, new Insets(5, 1, 10, 0), 10, 0));
 
-		spotTradePanel.add(lotStaticText, new GridBagConstraints(4, 2, 1, 1, 0.0, 0.0
+		spotTradePanel.add(lotStaticText, new GridBagConstraints(4, 4, 1, 1, 0.0, 0.0
 			, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(2, 10, 2, 0), 0, 0));
-		spotTradePanel.add(lotNumeric, new GridBagConstraints(5, 2, 1, 1, 0.0, 0.0
+		spotTradePanel.add(lotNumeric, new GridBagConstraints(5, 4, 1, 1, 0.0, 0.0
 			, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(2, 5, 2, 2), 40, 0));
 
-		spotTradePanel.add(closeAllButton, new GridBagConstraints(6, 2, 1, 1, 0.0, 0.0
-			, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(5, 5, 10, 0), 0, 0));
+		spotTradePanel.add(closeAllButton, new GridBagConstraints(6, 4, 1, 1, 0.0, 0.0
+			, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(5, 8, 10, 0), 0, 0));
 
-		spotTradePanel.add(exitButton, new GridBagConstraints(7, 2, 1, 1, 0.0, 0.0
+		spotTradePanel.add(exitButton, new GridBagConstraints(9, 4, 1, 1, 0.0, 0.0
 			, GridBagConstraints.NORTHEAST, GridBagConstraints.NONE, new Insets(5, 1, 10, 5), 10, 0));
 	}
 
@@ -1388,6 +1527,8 @@ public class MultiDQOrderForm extends FrameBase2
 	private PVStaticText2 dQMaxMoveStaticText = new PVStaticText2();
 	private JSpinner dQMaxMoveNumeric = new JSpinner();
 	private JCheckBox remberMaxMoveCheckBox = new JCheckBox();
+	private PVButton2 instalmentButton = new PVButton2();
+	private HashMap<Guid, InstalmentInfo> instalmentInfoList = null;
 
 	//Table verifyTable = new Table();
 	//PVStaticText2 openOrderStaticText = new PVStaticText2();
@@ -1400,6 +1541,7 @@ public class MultiDQOrderForm extends FrameBase2
 	java.awt.GridBagLayout gridBagLayout3 = new GridBagLayout();
 	private Timer timerTime;
 	private LimitOrderForm limitOrderForm;
+	private DeliveryForm deliveryForm;
 	private MatchingOrderForm matchingOrderForm;
 	private boolean _pauseSumit = false;
 	private boolean _inSubmit = false;

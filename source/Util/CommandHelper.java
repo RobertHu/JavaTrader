@@ -73,7 +73,6 @@ public final class CommandHelper
 		return request;
 	}
 
-
 	public static ComunicationObject buildGetLostCommands(Integer firstSequence, Integer lastSequence)
 	{
 		RequestWithRootAndArgumentNode target = newRootElementWithArgument();
@@ -409,9 +408,9 @@ public final class CommandHelper
 		return request;
 	}
 
-	public static ComunicationObject buildAccountSummaryForJava2Command(String tradeDay, String IDs, String reportxml){
+	public static ComunicationObject buildAccountSummaryForJava2Command(String fromDay, String toDay,String IDs, String reportxml){
 		RequestWithRootAndArgumentNode target = newRootElementWithArgument();
-		buildRequestArgumentsHelper(target.args,tradeDay,IDs,reportxml);
+		buildRequestArgumentsHelper(target.args,fromDay,toDay,IDs,reportxml);
 		ComunicationObject request = RequestCommandHelper.newCommandWithSession("AccountSummaryForJava2",target.root);
 		return request;
 	}
@@ -436,10 +435,31 @@ public final class CommandHelper
 		buildRequestArgumentsHelper(target.args,newsID.toString());
 		ComunicationObject request = RequestCommandHelper.newCommandWithSession("GetNewsContents",target.root);
 		return request;
-
 	}
 
+	public static ComunicationObject buildGetOrderInstalment(Guid orderId)
+	{
+		RequestWithRootAndArgumentNode target = newRootElementWithArgument();
+		buildRequestArgumentsHelper(target.args,orderId.toString());
+		ComunicationObject request = RequestCommandHelper.newCommandWithSession("GetOrderInstalment",target.root);
+		return request;
+	}
 
+	public static ComunicationObject buildApplyDelivery(XmlNode deliveryRequire)
+	{
+		RequestWithRootAndArgumentNode target = newRootElementWithArgument();
+		buildRequestArgumentsHelper(target.args,deliveryRequire.get_OuterXml());
+		ComunicationObject request = RequestCommandHelper.newCommandWithSession("ApplyDelivery",target.root);
+		return request;
+	}
+
+	public static ComunicationObject buildGetDeliveryAddress(Guid deliveryPointAddressGroupId)
+	{
+		RequestWithRootAndArgumentNode target = newRootElementWithArgument();
+		buildRequestArgumentsHelper(target.args,deliveryPointAddressGroupId.toString());
+		ComunicationObject request = RequestCommandHelper.newCommandWithSession("GetDeliveryAddress",target.root);
+		return request;
+	}
 
 
 	private static void buildRequestArgumentsHelper(Element argElement,String... args){

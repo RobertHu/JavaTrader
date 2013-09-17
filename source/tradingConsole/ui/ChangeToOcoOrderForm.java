@@ -25,6 +25,9 @@ import javax.swing.border.TitledBorder;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import java.util.Iterator;
+import javax.swing.event.ChangeListener;
+import javax.swing.event.ChangeEvent;
+import com.jidesoft.swing.JideSwingUtilities;
 
 public class ChangeToOcoOrderForm  extends JDialog implements IPriceSpinnerSite
 {
@@ -57,10 +60,15 @@ public class ChangeToOcoOrderForm  extends JDialog implements IPriceSpinnerSite
 	private JLabel _expireTimeLabel = new JLabel("Expire time");
 	private JTextField _expireTimeField = new JTextField();
 
+	//MultiTextArea instrumentNarrative = new MultiTextArea();
+	NoneResizeableTextField instrumentQuoteDescription = new NoneResizeableTextField();
+
 	private JList _closeOrdersGrid = new JList();
 
 	private JButton _submitButton = new JButton();
 	private JButton _exitButton = new JButton();
+	private JCheckBox _instalmentCheckBox =  new JCheckBox();
+	private JButton _instalmentButton =  new JButton();
 	private boolean _isCanceled = false;
 	private JScrollPane openOrdersPanel;
 	private JPanel ifDonePanel;
@@ -92,6 +100,8 @@ public class ChangeToOcoOrderForm  extends JDialog implements IPriceSpinnerSite
 	private JCheckBox stopCheckBoxForIfStopDone = new JCheckBox();
 
 	private IfDoneInfo ifDoneInfo;
+	private InstalmentInfo instalmentInfo;
+	private boolean instalmentInfoChanged = false;
 
 	public ChangeToOcoOrderForm(JDialog parent, TradingConsole tradingConsole, SettingsManager settingsManager, Order originalOrder)
 	{
@@ -99,6 +109,11 @@ public class ChangeToOcoOrderForm  extends JDialog implements IPriceSpinnerSite
 		this._tradingConsole = tradingConsole;
 		this._settingsManager = settingsManager;
 		this._originalOrder = originalOrder;
+		if(originalOrder.get_InstalmentPolicyId() != null)
+		{
+			this.instalmentInfo = new InstalmentInfo(originalOrder.get_InstalmentPolicyId(), originalOrder.get_Period(), originalOrder.get_DownPayment(),
+				originalOrder.get_PhysicalInstalmentType(), originalOrder.get_RecalculateRateType(), originalOrder.get_InstalmentFee(), true);
+		}
 
 		this._stopPriceField = new PriceSpinner(this);
 		this._limitPriceField = new PriceSpinner(this);
@@ -328,9 +343,25 @@ public class ChangeToOcoOrderForm  extends JDialog implements IPriceSpinnerSite
 
 	private void jbInit()
 	{
-		this.setSize(430, 305);
+		int height = 305;
+		Instrument instrument = this._originalOrder.get_Transaction().get_Instrument();
+		Guid tradePolicyId = this._originalOrder.get_Account().get_TradePolicyId();
+		TradePolicyDetail tradePolicyDetail
+			= this._tradingConsole.get_SettingsManager().getTradePolicyDetail(tradePolicyId, instrument.get_Id());
+
+		if(!StringHelper.isNullOrEmpty(instrument.get_QuoteDescription()))
+		{
+			this.instrumentQuoteDescription.setText(instrument.get_QuoteDescription());
+			height += 15;
+		}
+		else
+		{
+			this.instrumentQuoteDescription.setVisible(false);
+		}
+
+		this.setSize(height + 120, tradePolicyDetail.get_InstalmentPolicyId() != null ? height + 35 : height);
 		//this.setResizable(false);
-		this.setTitle(Language.limitOrderFormTitle);
+		this.setTitle(Language.limitOrderFormTitle + " " + instrument.get_DescriptionForTrading());
 		this.setBackground(FormBackColor.limitOrderForm);
 		this.setDefaultCloseOperation(javax.swing.WindowConstants.DISPOSE_ON_CLOSE);
 		this.setModal(true);
@@ -345,6 +376,8 @@ public class ChangeToOcoOrderForm  extends JDialog implements IPriceSpinnerSite
 
 		limitPriceEditForIfStopDone.setFont(font);
 		stopPriceEditForIfStopDone.setFont(font);
+
+		instrumentQuoteDescription.setFont(font);
 
 		ifLimitDonePanel = new JPanel();
 		ifLimitDonePanel.setBackground(null);
@@ -521,6 +554,8 @@ public class ChangeToOcoOrderForm  extends JDialog implements IPriceSpinnerSite
 		_expireTimeLabel.setFont(font);
 		_expireTimeLabel.setText(Language.ExpireOrderPrompt);
 		_expireTimeField.setText(_originalOrder.get_EndTime().toString());
+
+		_instalmentCheckBox.setFont(font);
 		_expireTimeField.setEditable(false);
 
 		_submitButton.setText(Language.OrderLMTbtnSubmit);
@@ -544,30 +579,37 @@ public class ChangeToOcoOrderForm  extends JDialog implements IPriceSpinnerSite
 		};
 		_exitButton.addActionListener(exitButtonActionListener);
 
+		_instalmentCheckBox.setText(InstalmentLanguage.Instalment);
+		_instalmentCheckBox.setSelected(this._originalOrder.get_InstalmentPolicyId() != null);
+		_instalmentButton.setText(InstalmentLanguage.Setup);
+
 		this.getContentPane().add(_instrumentLabel, new GridBagConstraints(0, 0, 2, 1, 0.0, 0.0
 			, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(10, 5, 0, 0), 80, 0));
+
+		this.getContentPane().add(this.instrumentQuoteDescription, new GridBagConstraints(0, 1, 4, 1, 0.0, 0.0
+			, GridBagConstraints.SOUTHWEST, GridBagConstraints.HORIZONTAL, new Insets(0, 5, 0, 0), 0, 20));
 
 		/*this.getContentPane().add(_orderTypeLabel, new GridBagConstraints(0, 1, 1, 1, 0.0, 0.0
 			, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(10, 10, 0, 0), 10, 0));
 		this.getContentPane().add(_orderTypeField, new GridBagConstraints(1, 1, 1, 1, 0.0, 0.0
 			, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, new Insets(10, 2, 0, 0), 20, 0));*/
 
-		this.getContentPane().add(_accountLabel, new GridBagConstraints(0, 1, 1, 1, 0.0, 0.0
+		this.getContentPane().add(_accountLabel, new GridBagConstraints(0, 3, 1, 1, 0.0, 0.0
 			, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(15, 10, 0, 0), 10, 0));
-		this.getContentPane().add(_accountField, new GridBagConstraints(1, 1, 1, 1, 0.0, 0.0
+		this.getContentPane().add(_accountField, new GridBagConstraints(1, 3, 1, 1, 0.0, 0.0
 			, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, new Insets(15, 2, 0, 0), 20, 0));
 
-		this.getContentPane().add(_buySellLabel, new GridBagConstraints(0, 2, 1, 1, 0.0, 0.0
+		this.getContentPane().add(_buySellLabel, new GridBagConstraints(0, 4, 1, 1, 0.0, 0.0
 			, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(2, 10, 0, 0), 10, 0));
-		this.getContentPane().add(_buySellField, new GridBagConstraints(1, 2, 1, 1, 0.0, 0.0
+		this.getContentPane().add(_buySellField, new GridBagConstraints(1, 4, 1, 1, 0.0, 0.0
 			, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, new Insets(2, 2, 0, 0), 20, 0));
 
-		this.getContentPane().add(_lotLabel, new GridBagConstraints(0, 3, 1, 1, 0.0, 0.0
+		this.getContentPane().add(_lotLabel, new GridBagConstraints(0, 5, 1, 1, 0.0, 0.0
 			, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(2, 10, 0, 0), 10, 0));
-		this.getContentPane().add(_lotField, new GridBagConstraints(1, 3, 1, 1, 0.0, 0.0
+		this.getContentPane().add(_lotField, new GridBagConstraints(1, 5, 1, 1, 0.0, 0.0
 			, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, new Insets(2, 2, 0, 0), 20, 0));
 
-		this.getContentPane().add(_stopPriceLabel, new GridBagConstraints(0, 5, 1, 1, 0.0, 0.0
+		this.getContentPane().add(_stopPriceLabel, new GridBagConstraints(0, 7, 1, 1, 0.0, 0.0
 			, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(2, 10, 0, 0), 10, 0));
 		JPanel stopPricePanel = new JPanel();
 		stopPricePanel.setLayout(new GridBagLayout());
@@ -577,11 +619,11 @@ public class ChangeToOcoOrderForm  extends JDialog implements IPriceSpinnerSite
 		stopPricePanel.add(_stopPriceField, new GridBagConstraints(1, 0, 1, 1, 1.0, 0.0
 			, GridBagConstraints.EAST, GridBagConstraints.HORIZONTAL, new Insets(0, 2, 0, 0), 0, 0));
 
-		this.getContentPane().add(stopPricePanel, new GridBagConstraints(1, 5, 1, 1, 0.0, 0.0
+		this.getContentPane().add(stopPricePanel, new GridBagConstraints(1, 7, 1, 1, 0.0, 0.0
 			, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, new Insets(2, -2, 0, 0), 0, 0));
 
 
-		this.getContentPane().add(_limitPriceLabel, new GridBagConstraints(0, 4, 1, 1, 0.0, 0.0
+		this.getContentPane().add(_limitPriceLabel, new GridBagConstraints(0, 6, 1, 1, 0.0, 0.0
 			, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(2, 10, 0, 0), 10, 0));
 
 		JPanel limitPricePanel = new JPanel();
@@ -597,12 +639,12 @@ public class ChangeToOcoOrderForm  extends JDialog implements IPriceSpinnerSite
 		this.limitCheckBoxForIfStopDone.setText(Language.ModifyCaption);
 		this.stopCheckBoxForIfStopDone.setText(Language.ModifyCaption);
 
-		this.getContentPane().add(limitPricePanel, new GridBagConstraints(1, 4, 1, 1, 0.0, 0.0
+		this.getContentPane().add(limitPricePanel, new GridBagConstraints(1, 6, 1, 1, 0.0, 0.0
 			, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, new Insets(2, -2, 0, 0), 0, 0));
 
 		JPanel panel = new JPanel();
 		panel.setBackground(null);
-		this.add(panel, new GridBagConstraints(1, 6, 1, 1, 0.0, 0.0
+		this.add(panel, new GridBagConstraints(1, 8, 1, 1, 0.0, 0.0
 			, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, new Insets(2, -2, 0, 0), 0, 0));
 
 		panel.setLayout(new GridBagLayout());
@@ -641,19 +683,24 @@ public class ChangeToOcoOrderForm  extends JDialog implements IPriceSpinnerSite
 		};
 		modifyStopPriceBox.addActionListener(stopLimitPriceBoxActionListener);
 
-		this.getContentPane().add(_expireTimeLabel, new GridBagConstraints(0, 7, 1, 1, 0.0, 0.0
+		this.getContentPane().add(_expireTimeLabel, new GridBagConstraints(0, 9, 1, 1, 0.0, 0.0
 			, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(2, 10, 0, 0), 10, 0));
-		this.getContentPane().add(_expireTimeField, new GridBagConstraints(1, 7, 1, 1, 0.0, 0.0
+		this.getContentPane().add(_expireTimeField, new GridBagConstraints(1, 9, 1, 1, 0.0, 0.0
 			, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, new Insets(2, 2, 0, 0), 135, 5));
+
+		this.getContentPane().add(this._instalmentCheckBox, new GridBagConstraints(0, 10, 1, 1, 0.0, 0.0
+			, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(2, 5, 0, 0), 10, 0));
+		this.getContentPane().add(this._instalmentButton, new GridBagConstraints(1, 10, 1, 1, 0.0, 0.0
+			, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, new Insets(2, 2, 0, 0), 0, 5));
 
 		_closeOrdersGrid.setFont(font);
 		openOrdersPanel = new JScrollPane(_closeOrdersGrid);
-		this.getContentPane().add(openOrdersPanel, new GridBagConstraints(2, 1, 2, 7, 1.0, 1.0
+		this.getContentPane().add(openOrdersPanel, new GridBagConstraints(2, 1, 2, 10, 1.0, 1.0
 			, GridBagConstraints.CENTER, GridBagConstraints.BOTH, new Insets(10, 10, 0, 10), 0, 0));
 
 		ifDonePanel = new JPanel();
 		ifDonePanel.setBackground(null);
-		this.add(ifDonePanel, new GridBagConstraints(2, 1, 2, 7, 1.0, 1.0
+		this.add(ifDonePanel, new GridBagConstraints(2, 3, 2, 10, 1.0, 1.0
 			, GridBagConstraints.CENTER, GridBagConstraints.BOTH, new Insets(5, 10, 0, 10), 0, 0));
 		ifDonePanel.setVisible(this._originalOrder.get_IsOpen());
 		openOrdersPanel.setVisible(!this._originalOrder.get_IsOpen());
@@ -664,10 +711,72 @@ public class ChangeToOcoOrderForm  extends JDialog implements IPriceSpinnerSite
 		ifDonePanel.add(ifStopDonePanel, new GridBagConstraints(0, 1, 1, 1, 1.0, 0.5
 			, GridBagConstraints.CENTER, GridBagConstraints.BOTH, new Insets(0, 0, 0, 0), 0, 0));
 
-		this.getContentPane().add(_submitButton, new GridBagConstraints(0, 8, 1, 1, 0.0, 0.0
+		this.getContentPane().add(_submitButton, new GridBagConstraints(0, 12, 1, 1, 0.0, 0.0
 			, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(10, 10, 10, 0), 20, 0));
-		this.getContentPane().add(_exitButton, new GridBagConstraints(3, 8, 1, 1, 0.0, 0.0
+		this.getContentPane().add(_exitButton, new GridBagConstraints(3, 12, 1, 1, 0.0, 0.0
 			, GridBagConstraints.EAST, GridBagConstraints.NONE, new Insets(10, 0, 10, 10), 20, 0));
+
+		if(tradePolicyDetail.get_InstalmentPolicyId() == null)
+		{
+			this._instalmentCheckBox.setVisible(false);
+			this._instalmentButton.setVisible(false);
+		}
+		else
+		{
+			this._instalmentButton.addActionListener(new ActionListener()
+			{
+				public void actionPerformed(ActionEvent e)
+				{
+					setupInstalment();
+				}
+			});
+
+			this._instalmentCheckBox.addChangeListener(new ChangeListener()
+			{
+				public void stateChanged(ChangeEvent e)
+				{
+					handleInstalmentCheckBoxChanged();
+				}
+			});
+		}
+	}
+
+	private void handleInstalmentCheckBoxChanged()
+	{
+		if(this.instalmentInfo != null)
+		{
+			this.instalmentInfo.setEnabled(this._instalmentCheckBox.isSelected());
+			this.instalmentInfoChanged = true;
+			this.updateSubmitButtonStatus();
+		}
+		this._instalmentButton.setEnabled(this._instalmentCheckBox.isSelected());
+	}
+
+	private void setupInstalment()
+	{
+		Account account = this._originalOrder.get_Account();
+		Instrument instrument = this._originalOrder.get_Instrument();
+		Price limitPrice = Price.parse(this._limitPriceField.getText(), instrument.get_NumeratorUnit(), instrument.get_Denominator());
+		Price stopPrice = Price.parse(this._stopPriceField.getText(), instrument.get_NumeratorUnit(), instrument.get_Denominator());
+
+		InstalmentForm form = new InstalmentForm(this, account, this._originalOrder.get_Lot(), instrument, this._settingsManager,
+			limitPrice, stopPrice, this.instalmentInfo);
+		JideSwingUtilities.centerWindow(form);
+		form.show();
+		form.toFront();
+		if(form.get_IsConfirmed())
+		{
+			InstalmentInfo instalmentInfo = form.get_InstalmentInfoList().get(this._originalOrder.get_Account().get_Id());
+			if(this.instalmentInfo.get_Period() != instalmentInfo.get_Period()
+			   || this.instalmentInfo.get_DownPayment() != instalmentInfo.get_DownPayment()
+			   || this.instalmentInfo.get_InstalmentType() != instalmentInfo.get_InstalmentType()
+			   || this.instalmentInfo.get_RecalculateRateType() != instalmentInfo.get_RecalculateRateType())
+			{
+				this.instalmentInfo = instalmentInfo;
+				this.instalmentInfoChanged = true;
+				this.updateSubmitButtonStatus();
+			}
+		}
 	}
 
 	private void limitCheckBoxForIfLimitDoneChanged()
@@ -869,7 +978,8 @@ public class ChangeToOcoOrderForm  extends JDialog implements IPriceSpinnerSite
 
 	private void updateSubmitButtonStatus()
 	{
-		this._submitButton.setEnabled(this._limitPriceField.isValueDifferentFromOrigin()
+		this._submitButton.setEnabled(this.instalmentInfoChanged
+									  || this._limitPriceField.isValueDifferentFromOrigin()
 									  || this._stopPriceField.isValueDifferentFromOrigin()
 									  || this.limitPriceEditForIfLimitDone.isValueDifferentFromOrigin()
 									  || this.stopPriceEditForIfLimitDone.isValueDifferentFromOrigin()
@@ -1079,6 +1189,10 @@ public class ChangeToOcoOrderForm  extends JDialog implements IPriceSpinnerSite
 
 			Transaction transaction = new Transaction(this._tradingConsole, this._settingsManager, this._originalOrder, this.ocoCheckBox.isSelected());
 			transaction.set_IfDoneInfo(this.ifDoneInfo);
+			if(this.instalmentInfo != null && this.instalmentInfo.isEnabled())
+			{
+				transaction.set_InstalmentInfo(this.instalmentInfo);
+			}
 			DateTime appTime = TradingConsoleServer.appTime();
 			DateTime beginTime = appTime.addMinutes(0 - Parameter.orderBeginTimeDiff);
 
@@ -1105,6 +1219,8 @@ public class ChangeToOcoOrderForm  extends JDialog implements IPriceSpinnerSite
 			orderDataRow.set_Item("ID", Guid.newGuid());
 			TradeOption tradeOption = this._originalOrder.get_TradeOption() == TradeOption.Better ? TradeOption.Stop : TradeOption.Better;
 			orderDataRow.set_Item("TradeOption", (short)tradeOption.value());
+			orderDataRow.set_Item("PhysicalTradeSide", this._originalOrder.get_PhysicalTradeSide().value());
+			if(this._originalOrder.get_PhysicalRequestId() != null) orderDataRow.set_Item("PhysicalRequestId", this._originalOrder.get_PhysicalRequestId());
 			orderDataRow.set_Item("IsOpen", this._originalOrder.get_IsOpen());
 			orderDataRow.set_Item("IsBuy", this._originalOrder.get_IsBuy());
 
@@ -1204,6 +1320,12 @@ public class ChangeToOcoOrderForm  extends JDialog implements IPriceSpinnerSite
 		boolean stopPriceChanged = this._stopPriceField.isValueDifferentFromOrigin();
 		Price newLimitPrice = Price.parse(this._limitPriceField.getText(), instrument.get_NumeratorUnit(), instrument.get_Denominator());
 		Price newStopPrice = Price.parse(this._stopPriceField.getText(), instrument.get_NumeratorUnit(), instrument.get_Denominator());
+		if(this.ocoCheckBox.isSelected() && (newLimitPrice == null || newStopPrice == null))
+		{
+			AlertDialogForm.showDialog(this, null, true, Language.OrderLMTPageorderValidAlert1);
+			isValidOrder = false;
+		}
+
 		if (newLimitPrice == null && newStopPrice == null)
 		{
 			AlertDialogForm.showDialog(this, null, true, Language.OrderLMTPageorderValidAlert1);

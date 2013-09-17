@@ -25,6 +25,7 @@ import tradingConsole.ui.columnKey.*;
 import tradingConsole.ui.fontHelper.*;
 import tradingConsole.ui.grid.*;
 import tradingConsole.ui.language.*;
+import com.jidesoft.swing.JideSwingUtilities;
 
 public class LimitOrderForm extends JPanel implements IPriceSpinnerSite
 {
@@ -96,11 +97,70 @@ public class LimitOrderForm extends JPanel implements IPriceSpinnerSite
 			Rectangle rectangle = AppToolkit.getRectangleByDimension(this.getSize());
 			this.setBounds(rectangle);
 			//this.setIconImage(TradingConsole.get_TraderImage());
+
+			this.instalmentButton.setEnabled(false);
 		}
 		catch (Throwable exception)
 		{
 			TradingConsole.traceSource.trace(TraceType.Error, exception);
 			//exception.printStackTrace();
+		}
+	}
+	private void updataInstalmentStatus(boolean isBuy)
+	{
+		if(isBuy)
+		{
+			boolean canInstalment = this.canInstalment();
+			this.instalmentCheckBox.setVisible(canInstalment);
+			this.instalmentButton.setVisible(canInstalment);
+		}
+		else
+		{
+			this.instalmentCheckBox.setVisible(false);
+			this.instalmentButton.setVisible(false);
+		}
+	}
+
+	private boolean canInstalment()
+	{
+		if(this._instrument.get_Category().equals(InstrumentCategory.Physical))
+		{
+			TradePolicyDetail tradePolicyDetail
+				= this._settingsManager.getTradePolicyDetail(this._makeOrderAccount.get_Account().get_TradePolicyId(), this._instrument.get_Id());
+			return tradePolicyDetail.get_InstalmentPolicyId() != null;
+		}
+		else
+		{
+			return false;
+		}
+	}
+
+	private void setupInstalment()
+	{
+		BigDecimal lot = AppToolkit.convertStringToBigDecimal(this.totalLotTextField.getText());
+
+		Price limitPrice = null, stopPrice = null;
+		OrderType orderType = this.getOrderType();
+		if(orderType.compareTo(OrderType.Limit) == 0 || orderType.compareTo(OrderType.OneCancelOther) == 0
+		   || orderType.compareTo(OrderType.Stop) == 0)
+		{
+			if(this.limitCheckBox.isSelected()) limitPrice = Price.parse(this.priceEdit.getText(), this._instrument.get_NumeratorUnit(), this._instrument.get_Denominator());
+			if(this.stopCheckBox.isSelected()) stopPrice = Price.parse(this.stopPriceEdit.getText(), this._instrument.get_NumeratorUnit(), this._instrument.get_Denominator());
+		}
+		this.instalmentForm
+			= new InstalmentForm(this.getFrame(), this._makeOrderAccount.get_Account(), lot, this._instrument, this._settingsManager, limitPrice, stopPrice, this.instalmentInfo);
+		JideSwingUtilities.centerWindow(instalmentForm);
+		this.instalmentForm.show();
+		this.instalmentForm.toFront();
+
+		if(this.instalmentForm.get_IsConfirmed())
+		{
+			this.instalmentInfo = this.instalmentForm.get_InstalmentInfoList().get(this._makeOrderAccount.get_Account().get_Id());
+			this.instalmentCheckBox.setSelected(true);
+		}
+		else
+		{
+			this.instalmentCheckBox.setSelected(this.instalmentInfo != null);
 		}
 	}
 
@@ -277,11 +337,12 @@ public class LimitOrderForm extends JPanel implements IPriceSpinnerSite
 				this._settingsManager.getTradePolicyDetail(this._order.get_Account().get_TradePolicyId(), this._instrument.get_Id());
 
 			BigDecimal availableLot = this._order.getAvailableLotBanlance(false, true);
-			BigDecimal lot = AppToolkit.fixLot(availableLot, false, tradePolicyDetail, this._order.get_Account());
+			BigDecimal lot = AppToolkit.fixLot(availableLot, false, tradePolicyDetail, this._makeOrderAccount);
+
 			this.limitCheckBox.setEnabled(availableLot.compareTo(BigDecimal.ZERO) > 0 && availableLot.compareTo(lot) >= 0);
 
 			availableLot = this._order.getAvailableLotBanlance(false, false);
-			lot = AppToolkit.fixLot(availableLot, false, tradePolicyDetail, this._order.get_Account());
+			lot = AppToolkit.fixLot(availableLot, false, tradePolicyDetail, this._makeOrderAccount);
 			this.stopCheckBox.setEnabled(availableLot.compareTo(BigDecimal.ZERO) > 0 && availableLot.compareTo(lot) >= 0);
 		}
 		this.lotNumericValidation(false);
@@ -290,6 +351,29 @@ public class LimitOrderForm extends JPanel implements IPriceSpinnerSite
 		if (this._instrument.isFromBursa())
 		{
 			this.fillBestLimits();
+		}
+
+		this.updataInstalmentStatus(this.getIsBuy());
+		if (this.canInstalment())
+		{
+			this.instalmentCheckBox.addChangeListener(new ChangeListener()
+			{
+				public void stateChanged(ChangeEvent e)
+				{
+					instalmentButton.setEnabled(instalmentCheckBox.isSelected());
+					if(instalmentCheckBox.isSelected() && instalmentInfo == null)
+					{
+						setupInstalment();
+					}
+				}
+			});
+			this.instalmentButton.addActionListener(new ActionListener()
+			{
+				public void actionPerformed(ActionEvent e)
+				{
+					setupInstalment();
+				}
+			});
 		}
 	}
 
@@ -335,6 +419,7 @@ public class LimitOrderForm extends JPanel implements IPriceSpinnerSite
 	{
 		this.bidButton.updatePrice();
 		this.askButton.updatePrice();
+		if(this.instalmentForm != null) this.instalmentForm.updatePrice();
 	}
 
 	private void fillIsBuyChoice()
@@ -517,6 +602,7 @@ public class LimitOrderForm extends JPanel implements IPriceSpinnerSite
 		boolean isBuy = this.getIsBuy();
 		this.changeColor(isBuy);
 		//this.checkOpenClose( (isBuyPrevious && isBuy == isBuyPrevious) ? false : true);
+		this.updataInstalmentStatus(isBuy);
 
 		if (o.getClass() == MakeOneCancelOtherOrder.class
 			|| o.getClass() == MakeLimitStopOrder.class) //SetLimitStop
@@ -892,7 +978,7 @@ public class LimitOrderForm extends JPanel implements IPriceSpinnerSite
 		}
 		else
 		{
-			return AppToolkit.getDefaultLot(this._instrument, isOpen, tradePolicyDetail, account);
+			return AppToolkit.getDefaultLot(this._instrument, isOpen, tradePolicyDetail, this._makeOrderAccount);
 		}
 	}
 
@@ -1546,7 +1632,7 @@ public class LimitOrderForm extends JPanel implements IPriceSpinnerSite
 		}
 		TradePolicyDetail tradePolicyDetail = this._settingsManager.getTradePolicyDetail(this._makeOrderAccount.get_Account().get_TradePolicyId(),
 			this._instrument.get_Id());
-		BigDecimal lot2 = AppToolkit.fixLot(lot, isOpen, tradePolicyDetail, this._makeOrderAccount.get_Account());
+		BigDecimal lot2 = AppToolkit.fixLot(lot, isOpen, tradePolicyDetail, this._makeOrderAccount);
 		String formattedLot = AppToolkit.getFormatLot(lot2, this._makeOrderAccount.get_Account(), this._instrument);
 		if (StringHelper.isNullOrEmpty(formattedLot))
 		{
@@ -1587,7 +1673,7 @@ public class LimitOrderForm extends JPanel implements IPriceSpinnerSite
 
 		TradePolicyDetail tradePolicyDetail = this._settingsManager.getTradePolicyDetail(this._makeOrderAccount.get_Account().get_TradePolicyId(),
 			this._instrument.get_Id());
-		accountLot = AppToolkit.fixLot(accountLot, false, tradePolicyDetail, this._makeOrderAccount.get_Account());
+		accountLot = AppToolkit.fixLot(accountLot, false, tradePolicyDetail, this._makeOrderAccount);
 
 		BigDecimal currentLot = AppToolkit.convertStringToBigDecimal(this.totalLotTextField.getText());
 		BigDecimal accountLot2 = accountLot;
@@ -1636,7 +1722,7 @@ public class LimitOrderForm extends JPanel implements IPriceSpinnerSite
 		{
 			TradePolicyDetail tradePolicyDetail = this._settingsManager.getTradePolicyDetail(this._makeOrderAccount.get_Account().get_TradePolicyId(),
 				this._instrument.get_Id());
-			totalCloseLot = AppToolkit.fixLot(totalCloseLot, false, tradePolicyDetail, this._makeOrderAccount.get_Account());
+			totalCloseLot = AppToolkit.fixLot(totalCloseLot, false, tradePolicyDetail, this._makeOrderAccount);
 		}
 
 		if (totalCloseLot.compareTo(BigDecimal.ZERO) <= 0)
@@ -1729,6 +1815,12 @@ public class LimitOrderForm extends JPanel implements IPriceSpinnerSite
 		{
 			return this._owner.isMakeLimitOrder();
 		}
+
+		public boolean isDelivery()
+		{
+			return false;
+		}
+
 
 		public void addPlaceOrderTypeChangedListener(IPlaceOrderTypeChangedListener placeOrderTypeChangedListener)
 		{
@@ -1930,7 +2022,7 @@ public class LimitOrderForm extends JPanel implements IPriceSpinnerSite
 
 					TradePolicyDetail tradePolicyDetail = this._settingsManager.getTradePolicyDetail(this._makeOrderAccount.get_Account().get_TradePolicyId(),
 						this._instrument.get_Id());
-					liqLots = AppToolkit.fixLot(liqLots, false, tradePolicyDetail, this._makeOrderAccount.get_Account());
+					liqLots = AppToolkit.fixLot(liqLots, false, tradePolicyDetail, this._makeOrderAccount);
 					this.totalLotTextField.setText(AppToolkit.getFormatLot(liqLots, this._makeOrderAccount.get_Account(), this._instrument));
 				}
 				return false;
@@ -2235,7 +2327,7 @@ public class LimitOrderForm extends JPanel implements IPriceSpinnerSite
 		}
 		BigDecimal lot2 = lot;
 		BigDecimal liqLots2 = liqLots;
-		result = MakeOrder.isAcceptEntrance(this._settingsManager, this._makeOrderAccount.get_Account(), this._instrument, this.getOrderType(), isBuy,
+		result = MakeOrder.isAcceptEntrance(this._settingsManager, this._makeOrderAccount, this._instrument, this.getOrderType(), isBuy,
 											lot2, liqLots2, setPrice, setPrice2, false);
 		if (! ( (Boolean)result[0]))
 		{
@@ -2526,6 +2618,14 @@ public class LimitOrderForm extends JPanel implements IPriceSpinnerSite
 		this._makeOrderAccount.set_SellSetPrice2( (isBuy) ? null : setPrice2);
 		this._makeOrderAccount.set_BuySellType( (isBuy) ? BuySellType.Buy : BuySellType.Sell);
 		this._makeOrderAccount.set_IsBuyForCurrent(isBuy);
+		if(isBuy && this.instalmentCheckBox.isSelected())
+		{
+			this._makeOrderAccount.set_InstalmentInfo(this.instalmentInfo);
+		}
+		else
+		{
+			this._makeOrderAccount.set_InstalmentInfo(null);
+		}
 
 		if (o.getClass() == MakeLimitStopOrder.class && !this.limitCheckBox.isSelected() && this.stopCheckBox.isSelected())
 		{
@@ -2752,10 +2852,12 @@ public class LimitOrderForm extends JPanel implements IPriceSpinnerSite
 		setPriceStaticText.setFont(font);
 		totalLotStaticText.setText("Lot");
 		totalLotStaticText.setFont(font);
+		instrumentQuoteDescription.setFont(font);
 		closeLotStaticText.setFont(font);
 		expireTimeStaticText.setText("Expire Time");
 		expireTimeStaticText.setFont(font);
 		totalLotTextField.setText("Numeric1");
+		this.instalmentCheckBox.setFont(font);
 		totalLotTextField.addFocusListener(new LimitOrderForm_lotNumeric_focusAdapter(this));
 		KeyListener keyListener = new KeyListener()
 		{
@@ -2854,6 +2956,8 @@ public class LimitOrderForm extends JPanel implements IPriceSpinnerSite
 		stopCheckBox.setVisible(false);
 		ocoCheckBox.setText(Language.OCOPrompt);
 		ifDoneCheckBox.setText(Language.IfDonePrompt);
+		instalmentCheckBox.setText(InstalmentLanguage.Instalment);
+		instalmentButton.setText(InstalmentLanguage.Setup);
 
 		actionListener = new ActionListener()
 		{
@@ -2909,27 +3013,38 @@ public class LimitOrderForm extends JPanel implements IPriceSpinnerSite
 			this.add(askButton, new GridBagConstraints2(5, 0, 3, 1, 0.0, 0.0,
 				GridBagConstraints.EAST, GridBagConstraints.HORIZONTAL, new Insets(5, 2, 0, 0), 80, 55));
 		}
+		this.add(this.instrumentQuoteDescription, new GridBagConstraints2(0, 3, 8, 1, 0.0, 0.0,
+				GridBagConstraints.SOUTHWEST, GridBagConstraints.HORIZONTAL, new Insets(0, 5, 0, 0), 0, 20));
+
+		if(!StringHelper.isNullOrEmpty(this._instrument.get_QuoteDescription()))
+		{
+			this.instrumentQuoteDescription.setText(this._instrument.get_QuoteDescription());
+		}
+		else
+		{
+			this.instrumentQuoteDescription.setVisible(false);
+		}
 
 		/*this.add(plStaticText, new GridBagConstraints2(0, 0, 8, 1, 0.0, 0.0,
 		 GridBagConstraints.CENTER, GridBagConstraints.NONE, new Insets(8, 5, 5, 5), 0, 0));*/
-		this.add(totalLotStaticText, new GridBagConstraints(0, 5, 5, 1, 0.0, 0.0
+		this.add(totalLotStaticText, new GridBagConstraints(0, 7, 5, 1, 0.0, 0.0
 			, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(1, 5, 1, 5), 0, 0));
-		this.add(closeLotStaticText, new GridBagConstraints(0, 9, 5, 1, 0.0, 0.0
-			, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(1, 5, 1, 5), 0, 0));
-		this.add(setPriceStaticText, new GridBagConstraints(0, 6, 5, 1, 0.0, 0.0
+		this.add(closeLotStaticText, new GridBagConstraints(0, 11, 5, 1, 0.0, 0.0
+			, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(0, 5, 1, 5), 0, 0));
+		this.add(setPriceStaticText, new GridBagConstraints(0, 8, 5, 1, 0.0, 0.0
 			, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(1, 5, 1, 10), 0, 0));
-		this.add(isBuyStaticText, new GridBagConstraints(0, 4, 5, 1, 0.0, 0.0
+		this.add(isBuyStaticText, new GridBagConstraints(0, 6, 5, 1, 0.0, 0.0
 			, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(1, 5, 1, 5), 0, 0));
-		this.add(accountStaticText, new GridBagConstraints(0, 3, 5, 1, 0.0, 0.0
+		this.add(accountStaticText, new GridBagConstraints(0, 5, 5, 1, 0.0, 0.0
 			, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(1, 5, 1, 5), 40, 0));
-		this.add(orderTypeStaticText, new GridBagConstraints(0, 2, 5, 1, 0.0, 0.0
+		this.add(orderTypeStaticText, new GridBagConstraints(0, 4, 5, 1, 0.0, 0.0
 			, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(5, 5, 1, 5), 0, 0));
 		/*this.add(imstrumentDesciptionStaticText, new GridBagConstraints(0, 1, 4, 1, 0.0, 0.0
 		 , GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(8, 5, 5, 5), 0, 0));*/
 
 		scrollPane = new JScrollPane(outstandingOrderTable);
 		outstandingOrderTable.enableRowStripe();
-		this.add(expireTimeStaticText, new GridBagConstraints(0, 10, 5, 2, 0.0, 0.0
+		this.add(expireTimeStaticText, new GridBagConstraints(0, 12, 5, 1, 0.0, 0.0
 			, GridBagConstraints.NORTHWEST, GridBagConstraints.NONE, new Insets(5, 5, 5, 5), 0, 0));
 
 		ifLimitDonePanel.setLayout(new GridBagLayout());
@@ -2992,12 +3107,12 @@ public class LimitOrderForm extends JPanel implements IPriceSpinnerSite
 
 		if (this._instrument.isFromBursa())
 		{
-			this.add(scrollPane, new GridBagConstraints(8, 2, 4, 10, 1.0, 1.0
+			this.add(scrollPane, new GridBagConstraints(8, 2, 4, 15, 1.0, 1.0
 				, GridBagConstraints.CENTER, GridBagConstraints.BOTH, new Insets(5, 10, 0, 5), 0, 0));
 
 			JPanel panel = new JPanel();
 			panel.setBackground(null);
-			this.add(panel, new GridBagConstraints(8, 2, 4, 10, 1.0, 1.0
+			this.add(panel, new GridBagConstraints(8, 2, 4, 15, 1.0, 1.0
 				, GridBagConstraints.CENTER, GridBagConstraints.BOTH, new Insets(5, 10, 0, 5), 0, 0));
 
 			panel.setLayout(new GridBagLayout());
@@ -3008,13 +3123,13 @@ public class LimitOrderForm extends JPanel implements IPriceSpinnerSite
 		}
 		else
 		{
-			this.add(scrollPane, new GridBagConstraints(8, 0, 4, 11, 1.0, 1.0
+			this.add(scrollPane, new GridBagConstraints(8, 0, 4, 15, 1.0, 1.0
 				, GridBagConstraints.CENTER, GridBagConstraints.BOTH, new Insets(5, 10, 0, 5), 220, 0));
 
 			JPanel panel = new JPanel();
 			panel.setBackground(null);
-			this.add(panel, new GridBagConstraints(8, 0, 4, 11, 1.0, 1.0
-				, GridBagConstraints.CENTER, GridBagConstraints.BOTH, new Insets(5, 10, 0, 5), 0, 0));
+			this.add(panel, new GridBagConstraints(8, 0, 4, 15, 1.0, 1.0
+				, GridBagConstraints.CENTER, GridBagConstraints.BOTH, new Insets(5, 10, 0, 5), 40, 0));
 
 			panel.setLayout(new GridBagLayout());
 			panel.add(ifLimitDonePanel, new GridBagConstraints(0, 0, 1, 1, 1.0, 0.5
@@ -3025,19 +3140,22 @@ public class LimitOrderForm extends JPanel implements IPriceSpinnerSite
 		ifLimitDonePanel.setVisible(false);
 		ifStopDonePanel.setVisible(false);
 
-		this.add(submitButton, new GridBagConstraints(0, 12, 8, 1, 0.0, 0.0
-			, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, new Insets(5, 10, 10, 0), 0, 0));
-		this.add(resetButton, new GridBagConstraints(8, 12, 1, 1, 0.0, 0.0
-			, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(5, 8, 10, 0), 0, 0));
-		this.add(closeAllButton, new GridBagConstraints(9, 12, 1, 1, 0.0, 0.0
-			, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(5, 1, 10, 0), 0, 0));
-		this.add(exitButton, new GridBagConstraints(11, 12, 1, 1, 0.0, 0.0
-			, GridBagConstraints.EAST, GridBagConstraints.NONE, new Insets(5, 1, 10, 5), 0, 0));
+		instalmentCheckBox.setBackground(null);
+		/*this.add(this.instalmentCheckBox, new GridBagConstraints(0, 7, 1, 1, 0.0, 0.0
+			, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, new Insets(5, 6, 10, 0), 0, 0));*/
+		this.add(this.instalmentCheckBox, new GridBagConstraints(0, 14, 5, 1, 0.0, 0.0
+			, GridBagConstraints.SOUTHWEST, GridBagConstraints.HORIZONTAL, new Insets(2, 2, 0, 0), 0, 0));
+		this.add(this.instalmentButton, new GridBagConstraints(5, 14, 3, 1, 0.0, 0.0
+			, GridBagConstraints.SOUTHWEST, GridBagConstraints.HORIZONTAL, new Insets(0, 0, 0, 0), 0, 0));
 
-		this.add(stopCheckBox, new GridBagConstraints(5, 7, 1, 1, 0.0, 0.0
-			, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(1, -4, 1, 0), 0, 0));
-		this.add(stopPriceEdit, new GridBagConstraints(6, 7, 2, 1, 1.0, 0.0
-			, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, new Insets(1, 0, 1, 2), 30, 0));
+		this.add(submitButton, new GridBagConstraints(0, 15, 8, 1, 0.0, 0.0
+			, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, new Insets(5, 6, 10, 0), 0, 0));
+		this.add(resetButton, new GridBagConstraints(8, 15, 1, 1, 0.0, 0.0
+			, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(5, 8, 10, 0), 0, 0));
+		this.add(closeAllButton, new GridBagConstraints(9, 15, 1, 1, 0.0, 0.0
+			, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(5, 1, 10, 0), 0, 0));
+		this.add(exitButton, new GridBagConstraints(11, 15, 1, 1, 0.0, 0.0
+			, GridBagConstraints.EAST, GridBagConstraints.NONE, new Insets(5, 1, 10, 5), 0, 0));
 
 		stopPriceEdit.getDocument().addDocumentListener(new DocumentListener()
 		{
@@ -3057,28 +3175,29 @@ public class LimitOrderForm extends JPanel implements IPriceSpinnerSite
 			}
 		});
 
-		this.add(ocoCheckBox, new GridBagConstraints(5, 8, 2, 1, 0.0, 0.0
-			, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, new Insets(1, -4, 1, 0), 0, 0));
+		this.add(ocoCheckBox, new GridBagConstraints(5, 10, 2, 1, 0.5, 0.0
+			, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(0, -4, 1, 0), 0, 0));
 
-		this.add(ifDoneCheckBox, new GridBagConstraints(7, 8, 1, 1, 0.0, 0.0
-			, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, new Insets(1, -4, 1, 0), 0, 0));
+		this.add(ifDoneCheckBox, new GridBagConstraints(7, 10, 1, 1, 0.5, 0.0
+			, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(0, -4, 1, 0), 0, 0));
 
-		this.add(orderTypeChoice, new GridBagConstraints(5, 2, 3, 1, 0.0, 0.0
+		this.add(orderTypeChoice, new GridBagConstraints(5, 4, 3, 1, 0.0, 0.0
 			, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, new Insets(5, 0, 1, 0), 0, 5));
-		this.add(accountChoice, new GridBagConstraints(5, 3, 3, 1, 0.0, 0.0
+		this.add(accountChoice, new GridBagConstraints(5, 5, 3, 1, 0.0, 0.0
 			, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, new Insets(1, 0, 1, 0), 0, 5));
-		this.add(isBuyChoice, new GridBagConstraints(5, 4, 3, 1, 0.0, 0.0
+		this.add(isBuyChoice, new GridBagConstraints(5, 6, 3, 1, 0.0, 0.0
 			, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, new Insets(1, 0, 1, 0), 0, 5));
 
-		this.add(expireTimeDate, new GridBagConstraints(5, 11, 3, 1, 0.0, 0.0
-			, GridBagConstraints.NORTHWEST, GridBagConstraints.NONE, new Insets(1, 0, 3, 0), 0, 5));
-		this.add(expireTimeChoice, new GridBagConstraints(5, 10, 3, 1, 0.0, 0.0
+		this.add(expireTimeChoice, new GridBagConstraints(5, 12, 3, 1, 0.0, 0.0
 			, GridBagConstraints.NORTHWEST, GridBagConstraints.HORIZONTAL, new Insets(1, 0, 1, 0), 0, 5));
-		this.add(totalLotTextField, new GridBagConstraints(5, 5, 3, 1, 0.0, 0.0
+		this.add(expireTimeDate, new GridBagConstraints(5, 13, 3, 1, 0.0, 0.0
+			, GridBagConstraints.NORTHWEST, GridBagConstraints.HORIZONTAL, new Insets(1, 0, 0, 0), 0, 5));
+
+		this.add(totalLotTextField, new GridBagConstraints(5, 7, 3, 1, 0.0, 0.0
 			, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, new Insets(1, 0, 1, 0), 0, 0));
 
-		this.add(closeLotTextField, new GridBagConstraints(5, 9, 3, 1, 0.0, 0.0
-			, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, new Insets(1, 0, 1, 0), 0, 0));
+		this.add(closeLotTextField, new GridBagConstraints(5, 11, 3, 1, 0.0, 0.0
+			, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, new Insets(0, 0, 1, 0), 0, 0));
 		closeLotTextField.getDocument().addDocumentListener(new DocumentListener()
 		{
 			public void insertUpdate(DocumentEvent e)
@@ -3097,11 +3216,17 @@ public class LimitOrderForm extends JPanel implements IPriceSpinnerSite
 			}
 		});
 
-		this.add(limitCheckBox, new GridBagConstraints(5, 6, 1, 1, 0.0, 0.0
+		this.add(limitCheckBox, new GridBagConstraints(5, 8, 1, 1, 0.0, 0.0
 			, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(1, -4, 1, 0), 0, 0));
 
-		this.add(priceEdit, new GridBagConstraints(6, 6, 2, 1, 1.0, 0.0
-			, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, new Insets(1, 0, 1, 2), 30, 0));
+		this.add(priceEdit, new GridBagConstraints(6, 8, 2, 1, 1.0, 0.0
+			, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, new Insets(1, 0, 1, 2), 58, 0));
+
+		this.add(stopCheckBox, new GridBagConstraints(5, 9, 1, 1, 0.0, 0.0
+			, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(1, -4, 1, 0), 0, 0));
+		this.add(stopPriceEdit, new GridBagConstraints(6, 9, 2, 1, 1.0, 0.0
+			, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, new Insets(1, 0, 1, 2), 58, 0));
+
 		priceEdit.getDocument().addDocumentListener(new DocumentListener()
 		{
 			public void insertUpdate(DocumentEvent e)
@@ -3121,8 +3246,8 @@ public class LimitOrderForm extends JPanel implements IPriceSpinnerSite
 		});
 		/*this.add(tradeOption1StaticText, new GridBagConstraints(7, 5, 1, 1, 0.0, 0.0
 		 , GridBagConstraints.EAST, GridBagConstraints.NONE, new Insets(1, 0, 1, 0), 0, 0));*/
-		this.add(stopSetPriceStaticText, new GridBagConstraints(0, 7, 5, 1, 0.0, 0.0
-			, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, new Insets(1, 5, 1, 10), 0, 0));
+		this.add(stopSetPriceStaticText, new GridBagConstraints(0, 9, 5, 1, 0.0, 0.0
+			, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(1, 5, 1, 10), 0, 0));
 
 		this.tradeOption1StaticText.setVisible(false);
 		this.tradeOption2StaticText.setVisible(false);
@@ -3142,12 +3267,15 @@ public class LimitOrderForm extends JPanel implements IPriceSpinnerSite
 	JAdvancedComboBox isBuyChoice = new JAdvancedComboBox();
 	PriceSpinner priceEdit;
 	JScrollPane scrollPane;
-	JFormattedTextField totalLotTextField = new JFormattedTextField(new DecimalFormat());
-	JFormattedTextField closeLotTextField = new JFormattedTextField(new DecimalFormat());
+	JFormattedTextFieldEx totalLotTextField = new JFormattedTextFieldEx(new DecimalFormat(), true);
+	JFormattedTextFieldEx closeLotTextField = new JFormattedTextFieldEx(new DecimalFormat(), true);
 	PVStaticText2 totalCloseLot = new PVStaticText2();
 	PVStaticText2 totalCloseLotTitle = new PVStaticText2();
 	JAdvancedComboBox expireTimeChoice = new JAdvancedComboBox();
 	DataGrid outstandingOrderTable = new DataGrid("OutstandingOrderGrid");
+
+	//MultiTextArea instrumentNarrative = new MultiTextArea();
+	NoneResizeableTextField instrumentQuoteDescription = new NoneResizeableTextField();
 
 	DataGrid bestBuyTable;
 	DataGrid bestSellTable;
@@ -3190,6 +3318,11 @@ public class LimitOrderForm extends JPanel implements IPriceSpinnerSite
 	PriceSpinner stopPriceEditForIfStopDone;
 	JCheckBox limitCheckBoxForIfStopDone = new JCheckBox();
 	JCheckBox stopCheckBoxForIfStopDone = new JCheckBox();
+
+	JCheckBox instalmentCheckBox = new JCheckBox();
+	PVButton2 instalmentButton = new PVButton2();
+	InstalmentForm instalmentForm = null;
+	InstalmentInfo instalmentInfo = null;
 
 	private boolean _isOcoCheckBoxChangedManully = false;
 

@@ -27,6 +27,8 @@ import javax.swing.event.TreeSelectionListener;
 import javax.swing.event.TreeSelectionEvent;
 import framework.diagnostics.TraceType;
 import java.math.BigDecimal;
+import tradingConsole.physical.PendingInventoryManager;
+import tradingConsole.physical.InventoryManager;
 
 public class InstrumentSelectionForm extends JDialog//Frame
 {
@@ -440,6 +442,9 @@ public class InstrumentSelectionForm extends JDialog//Frame
 	//</InstrumentSetting>
 	private void submit()
 	{
+		boolean oldHasMarginInstrument = this._settingsManager.hasInstrumentOf(InstrumentCategory.Margin);
+		boolean oldHasPhysicalInstrument =this._settingsManager.hasInstrumentOf(InstrumentCategory.Physical);
+
 		TreeSet<InstrumentSelection> arrayList = new TreeSet<InstrumentSelection> ();
 		int sequence = 1;
 		int size = this._bindingSource.getRowCount();
@@ -500,10 +505,28 @@ public class InstrumentSelectionForm extends JDialog//Frame
 			this._tradingConsole.sortForTradingPanel();
 			this._tradingConsole.sortForSummaryPanel();
 			this._tradingConsole.get_MainForm().changeChartInstrumentList();
+
+			boolean hasMarginInstrument = this._settingsManager.hasInstrumentOf(InstrumentCategory.Margin);
+			boolean hasPhysicalInstrument =this._settingsManager.hasInstrumentOf(InstrumentCategory.Physical);
+
+			if(oldHasMarginInstrument != hasMarginInstrument || oldHasPhysicalInstrument != hasPhysicalInstrument)
+			{
+				this._tradingConsole.resetLayout(true);
+				this._tradingConsole.reConnect(false);
+			}
 		}
 		else
 		{
 			this._tradingConsole.updateData2(result);
+			boolean hasMarginInstrument = this._settingsManager.hasInstrumentOf(InstrumentCategory.Margin);
+			boolean hasPhysicalInstrument =this._settingsManager.hasInstrumentOf(InstrumentCategory.Physical);
+
+			if(oldHasMarginInstrument != hasMarginInstrument || oldHasPhysicalInstrument != hasPhysicalInstrument)
+			{
+				this._tradingConsole.resetLayout(true);
+				this._tradingConsole.reConnect(false);
+			}
+
 			int size2 = this._bindingSource.getRowCount();
 			for (int row = 0; row < size2; row++)
 			{
@@ -600,31 +623,53 @@ public class InstrumentSelectionForm extends JDialog//Frame
 	private boolean canDeselect(InstrumentSelection instrumentSelection)
 	{
 		Instrument instrument = this._settingsManager.getInstrument(instrumentSelection.get_Id());
-		if (instrument != null && instrument.get_Transactions() != null)
+		if (instrument != null)
 		{
-			int valuedTransactionCount = 0;
-			int executedTransactionCount = 0;
-			for(Transaction transaction : instrument.get_Transactions().values())
+			if(instrument.get_Category().equals(InstrumentCategory.Margin))
 			{
-				if(transaction.get_Phase() != Phase.Cancelled && transaction.get_Phase() != Phase.Deleted)
+				if(instrument.get_Transactions() == null || instrument.get_Transactions().size() == 0) return true;
+
+				int valuedTransactionCount = 0;
+				int executedTransactionCount = 0;
+				for (Transaction transaction : instrument.get_Transactions().values())
 				{
-					valuedTransactionCount++;
-					if(transaction.get_Phase() == Phase.Executed || transaction.get_Phase() == Phase.Completed) executedTransactionCount++;
+					if (transaction.get_Phase() != Phase.Cancelled && transaction.get_Phase() != Phase.Deleted)
+					{
+						valuedTransactionCount++;
+						if (transaction.get_Phase() == Phase.Executed || transaction.get_Phase() == Phase.Completed)
+							executedTransactionCount++;
+					}
+				}
+				if (executedTransactionCount == valuedTransactionCount)
+				{
+					return instrument.get_BuyLots().compareTo(BigDecimal.ZERO) == 0
+						&& instrument.get_SellLots().compareTo(BigDecimal.ZERO) == 0;
+				}
+				else
+				{
+					return valuedTransactionCount <= 0;
 				}
 			}
-			if(executedTransactionCount == valuedTransactionCount)
+			else if(instrument.get_Category().equals(InstrumentCategory.Physical))
 			{
-				return instrument.get_BuyLots().compareTo(BigDecimal.ZERO) == 0
-					&& instrument.get_SellLots().compareTo(BigDecimal.ZERO) == 0;
+				if(PendingInventoryManager.instance.hasInventoryOf(instrument)
+				   || InventoryManager.instance.hasInventoryOf(instrument))
+				{
+					return false;
+				}
+				else
+				{
+					return true;
+				}
 			}
 			else
 			{
-				return valuedTransactionCount <= 0;
+				return false;
 			}
 		}
 		else
 		{
-			return true;
+			return false;
 		}
 	}
 

@@ -11,9 +11,11 @@ import framework.*;
 import framework.DateTime;
 import framework.data.*;
 import framework.diagnostics.*;
+import framework.xml.*;
 import tradingConsole.*;
 import tradingConsole.Currency;
 import tradingConsole.enumDefine.*;
+import tradingConsole.physical.*;
 import tradingConsole.service.*;
 import tradingConsole.ui.*;
 import Packet.GuidMapping;
@@ -46,6 +48,9 @@ public class SettingsManager
 	private HashMap<Guid, News> _newses;
 	private HashMap<Guid, OpenContractForm> _openContractForms = new HashMap<Guid, OpenContractForm>();
 	private HashMap<Guid, VolumeNecessary> _volumeNecessaries;
+	private HashMap<Guid, ScrapInstrument> _scrapInstruments;
+	private HashMap<Guid, DeliveryCharge> _deliveryCharges;
+	private HashMap<Guid, InstalmentPolicy> _instalmentPolicys;
 
 	private boolean _isGotMessage = false;
 	private boolean _isGotNews = false;
@@ -120,7 +125,10 @@ public class SettingsManager
 		for (Iterator<Instrument> iterator = this._instruments.values().iterator(); iterator.hasNext(); )
 		{
 			Instrument instrument = iterator.next();
-			instrument.calculateSummary();
+			if(instrument.get_Category().equals(InstrumentCategory.Margin))
+			{
+				instrument.calculateSummary();
+			}
 		}
 		Instrument.updateSubtotalSummary();
 		this._tradingConsole.rebindSummary();
@@ -191,6 +199,9 @@ public class SettingsManager
 		this._tradePolicyDetails = new HashMap<CompositeKey2<Guid, Guid>, TradePolicyDetail> ();
 		this._dealingPolicyDetails = new HashMap<CompositeKey2<Guid,Guid>,DealingPolicyDetail>();
 		this._volumeNecessaries = new HashMap<Guid,VolumeNecessary>();
+		this._scrapInstruments = new HashMap<Guid,ScrapInstrument>();
+		this._deliveryCharges = new HashMap<Guid,DeliveryCharge>();
+		this._instalmentPolicys = new HashMap<Guid,InstalmentPolicy>();
 		this._quotePolicyDetails = new HashMap<CompositeKey2<Guid,Guid>,QuotePolicyDetail>();
 		this._uiSettings = new HashMap<String, UISetting> ();
 		this._makeOrderWindows = new HashMap<Guid, MakeOrderWindow> ();
@@ -216,6 +227,9 @@ public class SettingsManager
 		this._accountCurrencies.clear();
 		this._instruments.clear();
 		this._tradePolicies.clear();
+		this._scrapInstruments.clear();
+		this._deliveryCharges.clear();
+		this._instalmentPolicys.clear();
 		this._volumeNecessaries.clear();
 		this._tradePolicyDetails.clear();
 		this._uiSettings.clear();
@@ -582,7 +596,7 @@ public class SettingsManager
 		for (Iterator<Account> iterator = this._accounts.values().iterator(); iterator.hasNext(); )
 		{
 			Account account = iterator.next();
-			if (account.get_Code().equals(accountCode))
+			if (account.get_Code().compareToIgnoreCase(accountCode) == 0)
 			{
 				return account;
 			}
@@ -614,8 +628,15 @@ public class SettingsManager
 
 	public ArrayList<Instrument> getInstrumentsForSummary()
 	{
-		ArrayList list = new ArrayList(this._instruments.values());
-		list.add(Instrument.SubtotalInstrument);
+		ArrayList list = new ArrayList();
+		for(Instrument instrument : this._instruments.values())
+		{
+			if(instrument.get_Category().equals(InstrumentCategory.Margin))
+			{
+				list.add(instrument);
+			}
+		}
+		if(list.size() > 0)	list.add(Instrument.SubtotalInstrument);
 		return list;
 	}
 
@@ -717,6 +738,12 @@ public class SettingsManager
 		DataRowCollection dataRowCollection;
 		DataRow dataRow;
 
+		dataTable = tables.get_Item("DeliveryHolidays");
+		if (dataTable != null)
+		{
+			DeliveryHoliday.instance.initailize(dataTable);
+		}
+
 		dataTable = tables.get_Item("Instrument");
 		if (dataTable != null)
 		{
@@ -776,32 +803,33 @@ public class SettingsManager
 		}
 
 		dataTable = tables.get_Item("BursaSystemParameter");
-		if(dataTable != null)
+		if (dataTable != null)
 		{
 			dataRow = dataTable.get_Rows().get_Item(0);
-			if(dataRow != null) this._bursaSystemParameter.setValue(dataRow);
+			if (dataRow != null)
+				this._bursaSystemParameter.setValue(dataRow);
 		}
 
 		/*//use local setting
-		 dataTable = tables.get_Item("Settings");
-		 if (dataTable != null)
+		dataTable = tables.get_Item("Settings");
+		if (dataTable != null)
+		{
+		 dataRowCollection = dataTable.get_Rows();
+		 for (int rowIndex = 0; rowIndex < dataRowCollection.get_Count(); rowIndex++)
 		 {
-		  dataRowCollection = dataTable.get_Rows();
-		  for (int rowIndex = 0; rowIndex < dataRowCollection.get_Count(); rowIndex++)
-		  {
-		   dataRow = dataRowCollection.get_Item(rowIndex);
+		  dataRow = dataRowCollection.get_Item(rowIndex);
 
-		   String objectId = dataRow.get_Item("ObjectID").toString();
-		   if (this._uiSettings.containsKey(objectId))
-		   {
-			this.getUISetting(objectId).replace(dataRow);
-		   }
-		   else
-		   {
-			this._uiSettings.put(objectId, new UISetting(dataRow));
-		   }
+		  String objectId = dataRow.get_Item("ObjectID").toString();
+		  if (this._uiSettings.containsKey(objectId))
+		  {
+		this.getUISetting(objectId).replace(dataRow);
+		  }
+		  else
+		  {
+		this._uiSettings.put(objectId, new UISetting(dataRow));
 		  }
 		 }
+		}
 		*/
 
 	   dataTable = tables.get_Item("Currency");
@@ -812,7 +840,7 @@ public class SettingsManager
 			{
 				dataRow = dataRowCollection.get_Item(rowIndex);
 
-				Guid id = (Guid) dataRow.get_Item("ID");
+				Guid id = (Guid)dataRow.get_Item("ID");
 				if (this._currencies.containsKey(id))
 				{
 					this.getCurrency(id).replace(dataRow);
@@ -833,7 +861,7 @@ public class SettingsManager
 				dataRow = dataRowCollection.get_Item(rowIndex);
 
 				CompositeKey2<Guid, Guid> compositeKey =
-					new CompositeKey2<Guid, Guid> ( (Guid) dataRow.get_Item("SourceCurrencyID"), (Guid) dataRow.get_Item("TargetCurrencyID"));
+					new CompositeKey2<Guid, Guid> ( (Guid)dataRow.get_Item("SourceCurrencyID"), (Guid)dataRow.get_Item("TargetCurrencyID"));
 				if (this._currencyRates.containsKey(compositeKey))
 				{
 					( (CurrencyRate)this._currencyRates.get(compositeKey)).replace(dataRow);
@@ -873,7 +901,7 @@ public class SettingsManager
 			{
 				dataRow = dataRowCollection.get_Item(rowIndex);
 
-				Guid id = (Guid) dataRow.get_Item("ID");
+				Guid id = (Guid)dataRow.get_Item("ID");
 				Account account;
 				if (this._accounts.containsKey(id))
 				{
@@ -919,7 +947,8 @@ public class SettingsManager
 
 				CompositeKey3<Guid, Guid, DateTime> compositeKey =
 					new CompositeKey3<Guid, Guid,
-					DateTime> ( (Guid) dataRow.get_Item("AccountID"), (Guid) dataRow.get_Item("AgentAccountID"), (DateTime) dataRow.get_Item("AgentBeginTime"));
+									  DateTime> ( (Guid)dataRow.get_Item("AccountID"), (Guid)dataRow.get_Item("AgentAccountID"),
+												 (DateTime)dataRow.get_Item("AgentBeginTime"));
 				if (this._accountAgentHistories.containsKey(compositeKey))
 				{
 					( (AccountAgentHistory)this._accountAgentHistories.get(compositeKey)).replace(dataRow);
@@ -941,7 +970,7 @@ public class SettingsManager
 
 				AccountCurrency accountCurrency = null;
 				CompositeKey2<Guid, Guid> compositeKey =
-					new CompositeKey2<Guid, Guid> ( (Guid) dataRow.get_Item("AccountID"), (Guid) dataRow.get_Item("CurrencyID"));
+					new CompositeKey2<Guid, Guid> ( (Guid)dataRow.get_Item("AccountID"), (Guid)dataRow.get_Item("CurrencyID"));
 				if (this._accountCurrencies.containsKey(compositeKey))
 				{
 					accountCurrency = (AccountCurrency)this._accountCurrencies.get(compositeKey);
@@ -985,7 +1014,7 @@ public class SettingsManager
 					Guid id = (Guid)dataRow.get_Item("ID");
 					Account account = (Account)this._accounts.get(id);
 					account.addNode();
-					if(rowIndex == 0)
+					if (rowIndex == 0)
 					{
 						this._tradingConsole.setCurrentAccount(account);
 					}
@@ -994,13 +1023,13 @@ public class SettingsManager
 			}
 
 			/*
-			for (Iterator<Account> iterator = this._accounts.values().iterator(); iterator.hasNext(); )
-			{
-				Account account = iterator.next();
-				account.addNode();
-			}
-			*/
-		   TradingConsole.traceSource.trace(TraceType.Information, "accountCurrency.addNode");
+				for (Iterator<Account> iterator = this._accounts.values().iterator(); iterator.hasNext(); )
+				{
+			 Account account = iterator.next();
+			 account.addNode();
+				}
+			 */
+			TradingConsole.traceSource.trace(TraceType.Information, "accountCurrency.addNode");
 			for (Iterator<AccountCurrency> iterator = this._accountCurrencies.values().iterator(); iterator.hasNext(); )
 			{
 				AccountCurrency accountCurrency = iterator.next();
@@ -1019,7 +1048,7 @@ public class SettingsManager
 				dataRow = dataRowCollection.get_Item(rowIndex);
 
 				CompositeKey2<Guid, Guid> compositeKey =
-					new CompositeKey2<Guid, Guid> ( (Guid) dataRow.get_Item("TradePolicyID"), (Guid) dataRow.get_Item("InstrumentID"));
+					new CompositeKey2<Guid, Guid> ( (Guid)dataRow.get_Item("TradePolicyID"), (Guid)dataRow.get_Item("InstrumentID"));
 				if (this._tradePolicyDetails.containsKey(compositeKey))
 				{
 					( (TradePolicyDetail)this._tradePolicyDetails.get(compositeKey)).replace(dataRow);
@@ -1030,6 +1059,57 @@ public class SettingsManager
 				}
 			}
 		}
+
+		dataTable = tables.get_Item("ScrapInstrument");
+		if (dataTable != null)
+		{
+			dataRowCollection = dataTable.get_Rows();
+			for (int rowIndex = 0; rowIndex < dataRowCollection.get_Count(); rowIndex++)
+			{
+				dataRow = dataRowCollection.get_Item(rowIndex);
+				ScrapInstrument scrapInstrument = new ScrapInstrument(dataRow);
+				this._scrapInstruments.put(scrapInstrument.get_Id(), scrapInstrument);
+			}
+		}
+
+		dataTable = tables.get_Item("DeliveryCharge");
+		if (dataTable != null)
+		{
+			dataRowCollection = dataTable.get_Rows();
+			for (int rowIndex = 0; rowIndex < dataRowCollection.get_Count(); rowIndex++)
+			{
+				dataRow = dataRowCollection.get_Item(rowIndex);
+				DeliveryCharge deliveryCharge = DeliveryCharge.create(dataRow);
+				this._deliveryCharges.put(deliveryCharge.get_Id(), deliveryCharge);
+			}
+		}
+
+		dataTable = tables.get_Item("InstalmentPolicy");
+		if (dataTable != null)
+		{
+			dataRowCollection = dataTable.get_Rows();
+			for (int rowIndex = 0; rowIndex < dataRowCollection.get_Count(); rowIndex++)
+			{
+				dataRow = dataRowCollection.get_Item(rowIndex);
+				InstalmentPolicy instalmentPolicy = new InstalmentPolicy(dataRow);
+				this._instalmentPolicys.put(instalmentPolicy.get_Id(), instalmentPolicy);
+			}
+		}
+
+		dataTable = tables.get_Item("InstalmentPolicyDetail");
+		if(dataTable != null)
+		{
+			dataRowCollection = dataTable.get_Rows();
+			for (int rowIndex = 0; rowIndex < dataRowCollection.get_Count(); rowIndex++)
+			{
+				dataRow = dataRowCollection.get_Item(rowIndex);
+				InstalmentPolicyDetail detail = new InstalmentPolicyDetail(dataRow);
+				InstalmentPolicy instalmentPolicy = this._instalmentPolicys.get(detail.get_InstalmentPolicyId());
+				instalmentPolicy.add(detail);
+			}
+		}
+
+
 
 		dataTable = tables.get_Item("VolumeNecessary");
 		if(dataTable != null)
@@ -1197,6 +1277,15 @@ public class SettingsManager
 			}
 		}
 		this._isGotMessage = true;
+	}
+
+	public boolean hasInstrumentOf(InstrumentCategory category)
+	{
+		for(Instrument instrument : this._instruments.values())
+		{
+			if(instrument.get_Category().equals(category)) return true;
+		}
+		return false;
 	}
 
 	public void accountAlert()
@@ -1589,6 +1678,31 @@ public class SettingsManager
 		return this._currencies.values();
 	}
 
+	public ScrapInstrument getScrapInstrument(Guid scrapInstrumentId)
+	{
+		return this._scrapInstruments.get(scrapInstrumentId);
+	}
+
+	public InstalmentPolicy getInstalmentPolicy(Guid instalmentPolicyId)
+	{
+		return this._instalmentPolicys.containsKey(instalmentPolicyId) ? this._instalmentPolicys.get(instalmentPolicyId) : null;
+	}
+
+	public boolean containsDeliveryCharge(Guid deliveryChargeId)
+	{
+		return this._deliveryCharges.containsKey(deliveryChargeId);
+	}
+
+	public boolean containsInstalmentPolicy(Guid instalmentPolicyId)
+	{
+		return this._instalmentPolicys.containsKey(instalmentPolicyId);
+	}
+
+	public DeliveryCharge getDeliveryCharge(Guid deliveryChargeId)
+	{
+		return this._deliveryCharges.get(deliveryChargeId);
+	}
+
 	public void replaceDealingPolicyDetails(DataTable dataTable)
 	{
 		this._dealingPolicyDetails.clear();
@@ -1614,6 +1728,50 @@ public class SettingsManager
 	public void addVolumeNecessary(VolumeNecessary volumeNecessary)
 	{
 		this._volumeNecessaries.put(volumeNecessary.get_Id(), volumeNecessary);
+	}
+
+	public void addDeliveryCharge(DeliveryCharge deliveryCharge)
+	{
+		this._deliveryCharges.put(deliveryCharge.get_Id(), deliveryCharge);
+	}
+
+	public void updateInstalmentPolicy(XmlNode xmlNode, String updateType)
+	{
+		if (updateType.equals("Modify"))
+		{
+			XmlAttributeCollection attributes = xmlNode.get_Attributes();
+			Guid instalmentPolicyId = new Guid(attributes.get_ItemOf("Id").get_Value());
+			if(this._instalmentPolicys.containsKey(instalmentPolicyId))
+			{
+				InstalmentPolicy instalmentPolicy = this._instalmentPolicys.get(instalmentPolicyId);
+				instalmentPolicy.update(xmlNode);
+			}
+		}
+	}
+
+	public void updateInstalmentPolicyDetail(XmlNode xmlNode, String updateType)
+	{
+		if (updateType.equals("Add"))
+		{
+			InstalmentPolicyDetail instalmentPolicyDetail = new InstalmentPolicyDetail(xmlNode);
+			if(this._instalmentPolicys.containsKey(instalmentPolicyDetail.get_InstalmentPolicyId()))
+			{
+				InstalmentPolicy instalmentPolicy
+					= this._instalmentPolicys.get(instalmentPolicyDetail.get_InstalmentPolicyId());
+				instalmentPolicy.add(instalmentPolicyDetail);
+			}
+		}
+		else if (updateType.equals("Modify"))
+		{
+			XmlAttributeCollection attributes = xmlNode.get_Attributes();
+			Guid instalmentPolicyId = new Guid(attributes.get_ItemOf("InstalmentPolicyId").get_Value());
+			int period = Integer.parseInt(attributes.get_ItemOf("Period").get_Value());
+			if(this._instalmentPolicys.containsKey(instalmentPolicyId))
+			{
+				InstalmentPolicy instalmentPolicy = this._instalmentPolicys.get(instalmentPolicyId);
+				instalmentPolicy.get_InstalmentPolicyDetail(period).update(xmlNode);
+			}
+		}
 	}
 
 	//Remarked by Michael on 2008-04-09

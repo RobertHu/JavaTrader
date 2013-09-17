@@ -207,7 +207,7 @@ public class PropertyDescriptor
 		}
 		catch (Exception exception)
 		{
-			throw new FrameworkException(exception);
+			throw new FrameworkException("Method Name = " + this._getMethod.getName() + "; object type = " + object.getClass().toString() + "; Exception = " + exception.toString());
 		}
 	}
 

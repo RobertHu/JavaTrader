@@ -583,11 +583,20 @@ public class BindingSource extends DefaultStyleTableModel implements IView, Hier
 
 	public void removeAll()
 	{
-		int rowCount = this._indexer.size();
-		for (int index = rowCount - 1; index >= 0; index--)
-		{
-			this.remove(this.getObject(index));
-		}
+		try
+			{
+				if (this._indexer == null || this._indexer.size() == 0)
+					return;
+				int rowCount = this._indexer.size();
+				for (int index = rowCount - 1; index >= 0; index--)
+				{
+					this.remove(this.getObject(index));
+				}
+			}
+			catch(Throwable t)
+				{
+
+			}
 	}
 
 	public void setHeader(int alignment, int height, Color foreground, Color background, Font font)

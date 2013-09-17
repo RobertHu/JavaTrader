@@ -11,4 +11,8 @@ public final class GridNames
 	public static final String LogGrid = "LogGrid";
 	public static final String NewsGrid = "NewsGrid";
 	public static final String MessageGrid = "MessageGrid";
+	public static final String PhysicalInventory = "PhysicalInventoryGrid";
+	public static final String PhysicalPendingInventory = "PhysicalPendingInventoryGrid";
+	public static final String PhysicalShotSell = "PhysicalShotSellGrid";
 }
+

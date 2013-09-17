@@ -14,6 +14,7 @@ public class ColorSettings
 	public static Color AccountStatusFrameBackground = defaultBackground;
 	public static Color PositionSummaryFrameBackground = defaultBackground;
 	public static Color WorkingOrderListFrameBackground = defaultBackground;
+	public static Color PhysicalFrameBackground = defaultBackground;
 	public static Color OpenOrderListFrameBackground = defaultBackground;
 	public static Color LogFrameBackground = defaultBackground;
 	public static Color MessageFrameBackground = defaultBackground;

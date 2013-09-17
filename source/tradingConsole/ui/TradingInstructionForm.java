@@ -221,6 +221,7 @@ public class TradingInstructionForm extends JDialog implements IPriceSpinnerSite
 	{
 		String[] columns = new String[]{"Name", "Value"};
 		int rowCount = this._order.get_Transaction().get_Type() == TransactionType.OneCancelOther ? 18 : 17;
+		if(this._order.get_InstalmentPolicyId() != null) rowCount+= 4;
 		String[][] data = new String[rowCount][2];
 
 		int row = 0;
@@ -372,6 +373,25 @@ public class TradingInstructionForm extends JDialog implements IPriceSpinnerSite
 		data[row][0] = Language.UnconfirmedInstructionlblPeerOrderCodesA;
 		data[row][1] = this._order.getRelationString();
 		row++;
+
+		if(this._order.get_InstalmentPolicyId() != null)
+		{
+			data[row][0] = InstalmentLanguage.InstalmentType;
+			data[row][1] = this._order.get_PhysicalInstalmentType().toLocalString();
+			row++;
+
+			data[row][0] = InstalmentLanguage.Period;
+			data[row][1] = Integer.toString(this._order.get_Period());
+			row++;
+
+			data[row][0] = InstalmentLanguage.DownPayment;
+			data[row][1] = AppToolkit.format(this._order.get_DownPayment(), 2);
+			row++;
+
+			data[row][0] = InstalmentLanguage.RecalculateRateType;
+			data[row][1] = this._order.get_RecalculateRateType().toLocalString();
+			row++;
+		}
 
 		DefaultStyleTableModel tableModel = new DefaultStyleTableModel(data, columns);
 		tableModel.setCellStyleOn(true);

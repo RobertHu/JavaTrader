@@ -83,6 +83,7 @@ public class HierarchicalOpenOrderTableComponentFactory implements com.jidesoft.
 				model.useBlackAsBackground();
 			}
 			childTable.setOpaque(true);
+			childTable.setAutoResizeMode(JTable.AUTO_RESIZE_LAST_COLUMN);
 
 			TreeLikeHierarchicalPanel treeLikeHierarchicalPanel = new TreeLikeHierarchicalPanel(new FitScrollPane(childTable));
 			treeLikeHierarchicalPanel.setBackground(childTable.getMarginBackground());

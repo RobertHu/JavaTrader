@@ -106,6 +106,11 @@ public class Price
 		return new Price(normalizedPrice.get_PriceString(), normalizedPrice.get_PriceValue(), numeratorUnit, denominator);
 	}
 
+	public static Price create(double value, Instrument instrument)
+	{
+		return Price.create(value, instrument.get_NumeratorUnit(), instrument.get_Denominator());
+	}
+
 	public static Price create(double value, int numeratorUnit, int denominator)
 	{
 		return create(Convert.toString(value), numeratorUnit, denominator);

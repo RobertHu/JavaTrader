@@ -16,10 +16,12 @@ public class BindingManager
 {
 	private BindingSource _bindingSource;
 	private Customer _customer;
+	private tradingConsole.ui.accountList.BindingManager _accountListBindingManager;
 
 	public BindingManager(Customer customer)
 	{
 		this._customer = customer;
+		this._accountListBindingManager = new tradingConsole.ui.accountList.BindingManager(customer);
 
 		HierarchicalTableModel hierarchicalTableModel = new HierarchicalTableModel()
 		{
@@ -74,6 +76,11 @@ public class BindingManager
 		return this._bindingSource;
 	}
 
+	public BindingSource get_AccountListBindingSource()
+	{
+		return this._accountListBindingManager.get_BindingSource();
+	}
+
 	public void add(tradingConsole.Account account)
 	{
 		Account account2 = this.getAccount(account.get_Id());
@@ -81,6 +88,8 @@ public class BindingManager
 		{
 			account2 = new Account(account);
 			this._bindingSource.add(account2);
+
+			this.get_AccountListBindingSource().add(new tradingConsole.ui.accountList.Account(account));
 		}
 		else
 		{
@@ -91,6 +100,7 @@ public class BindingManager
 	public boolean remove(tradingConsole.Account account)
 	{
 		Account account2 = this.getAccount(account.get_Id());
+		this._accountListBindingManager.remove(account);
 
 		if(account2 == null)
 		{
@@ -111,15 +121,22 @@ public class BindingManager
 	public void update(tradingConsole.Account account, boolean includeCurrencies)
 	{
 		Account account2 = this.getAccount(account.get_Id());
-		account2.updateDetails();
-		this._bindingSource.update(account2);
-		if(includeCurrencies) account2.updateCurrencies();
+		if(account2 != null)
+		{
+			account2.updateDetails();
+			this._bindingSource.update(account2);
+			if (includeCurrencies)
+				account2.updateCurrencies();
+		}
+		this._accountListBindingManager.update(account, includeCurrencies);
 	}
 
 	public void add(tradingConsole.AccountCurrency accountCurrency)
 	{
 		Account account2 = this.getAccount(accountCurrency.get_Account().get_Id());
 		account2.add(accountCurrency);
+
+		this._accountListBindingManager.add(accountCurrency);
 	}
 
 	public void update(tradingConsole.AccountCurrency accountCurrency)
@@ -127,6 +144,8 @@ public class BindingManager
 		Account account2 = this.getAccount(accountCurrency.get_Account().get_Id());
 		this._bindingSource.update(account2);
 		account2.update(accountCurrency);
+
+		this._accountListBindingManager.update(accountCurrency);
 	}
 
 	private Account getAccount(Guid accountId)
@@ -150,6 +169,8 @@ public class BindingManager
 			account2.updateDetails();
 			this._bindingSource.update(account2);
 		}
+
+		this._accountListBindingManager.updateCurrencyCode();
 	}
 
 	public void setAccountIcon(tradingConsole.Account account, Icon icon)
@@ -168,5 +189,7 @@ public class BindingManager
 	{
 		TradingConsole.traceSource.trace(TraceType.Information, "Account.BindingManager clear");
 		this._bindingSource.removeAll();
+
+		this._accountListBindingManager.clear();
 	}
 }

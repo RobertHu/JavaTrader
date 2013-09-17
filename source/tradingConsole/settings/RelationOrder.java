@@ -36,8 +36,9 @@ public class RelationOrder
 	private BigDecimal _liqLot = BigDecimal.ZERO;
 	private BigDecimal _closeLot = null;
 	private boolean _isSelected;
-	private boolean _isPlacingSpotTrade;
+	private Boolean _isPlacingSpotTrade;
 	private Boolean _isMakeLimitOrder;
+	private boolean _isDelivery = false;
 
 	private Order _owner;
 	private Order _openOrder;
@@ -56,10 +57,10 @@ public class RelationOrder
 
 	public RelationOrder(TradingConsole tradingConsole, SettingsManager settingsManager, Order openOrder)
 	{
-		this(tradingConsole, settingsManager, openOrder, false, null);
+		this(tradingConsole, settingsManager, openOrder, false, null, false);
 	}
 
-	public RelationOrder(TradingConsole tradingConsole, SettingsManager settingsManager, Order openOrder, boolean isPlacingSpotTrade, Boolean isMakeLimitOrder)
+	public RelationOrder(TradingConsole tradingConsole, SettingsManager settingsManager, Order openOrder, Boolean isPlacingSpotTrade, Boolean isMakeLimitOrder, boolean isDelivery)
 	{
 		this._tradingConsole = tradingConsole;
 		this._settingsManager = settingsManager;
@@ -68,12 +69,13 @@ public class RelationOrder
 		this._openOrder = openOrder;
 		this._isPlacingSpotTrade = isPlacingSpotTrade;
 		this._isMakeLimitOrder = isMakeLimitOrder;
-		this._liqLot = this._openOrder.getAvailableLotBanlance(this._isPlacingSpotTrade, this._isMakeLimitOrder);
+		this._isDelivery = isDelivery;
+		this._liqLot = this._isDelivery ? this._openOrder.getAvailableDeliveryLot() : this._openOrder.getAvailableLotBanlance(this._isPlacingSpotTrade, this._isMakeLimitOrder);
 	}
 
 	public void resetLiqLot()
 	{
-		this._liqLot = this._closeLot != null ? this._closeLot : this._openOrder.getAvailableLotBanlance(this._isPlacingSpotTrade, this._isMakeLimitOrder);
+		this._liqLot = this._closeLot != null ? this._closeLot : (this._isDelivery ? this._openOrder.getAvailableDeliveryLot() : this._openOrder.getAvailableLotBanlance(this._isPlacingSpotTrade, this._isMakeLimitOrder));
 	}
 
 	public static OrderStateReceiver get_OrderStateReceiver()
@@ -83,12 +85,12 @@ public class RelationOrder
 
 	public BigDecimal getAvailableCloseLot()
 	{
-		return this._openOrder.getAvailableLotBanlance(this._isPlacingSpotTrade, this._isMakeLimitOrder);
+		return this._isDelivery ? this._openOrder.getAvailableDeliveryLot() : this._openOrder.getAvailableLotBanlance(this._isPlacingSpotTrade, this._isMakeLimitOrder);
 	}
 
 	public void set_IsPlacingSpotTrade(boolean isPlacingSpotTrade)
 	{
-		if(isPlacingSpotTrade != this._isPlacingSpotTrade)
+		if(this._isPlacingSpotTrade == null || isPlacingSpotTrade != this._isPlacingSpotTrade)
 		{
 			this._isPlacingSpotTrade = isPlacingSpotTrade;
 			this._liqLot = this._openOrder.getAvailableLotBanlance(this._isPlacingSpotTrade, this._isMakeLimitOrder);
@@ -168,9 +170,55 @@ public class RelationOrder
 		}
 	}
 
+	public BigDecimal get_Weight()
+	{
+		if(this._openOrder.get_Transaction().get_Instrument().get_Category().equals(InstrumentCategory.Physical)
+			&& this._liqLot != null)
+		{
+			BigDecimal lot = this._liqLot;
+			return lot.multiply(this._openOrder.get_Transaction().get_ContractSize());
+		}
+		else
+		{
+			return BigDecimal.ZERO;
+		}
+	}
+
+	public String get_WeightString()
+	{
+		BigDecimal weight = this.get_Weight();
+		if(weight.compareTo(BigDecimal.ZERO) > 0)
+		{
+			return AppToolkit.format(weight.doubleValue(), this._openOrder.get_Transaction().get_Instrument().get_Decimal());
+		}
+		else
+		{
+			return "";
+		}
+	}
+
+	public String get_CloseLotString()
+	{
+		if(this._openOrder.get_Instrument().get_Category().equals(InstrumentCategory.Physical))
+		{
+			return AppToolkit.format(this._closeLot, this._openOrder.get_Instrument().get_PhysicalLotDecimal());
+		}
+		else
+		{
+			return AppToolkit.getFormatLot(this._closeLot, this._openOrder.get_Account(), this._openOrder.get_Instrument());
+		}
+	}
+
 	public String get_LiqLotString()
 	{
-		return AppToolkit.getFormatLot(this._liqLot, this._openOrder.get_Account(), this._openOrder.get_Instrument());
+		if(this._openOrder.get_Instrument().get_Category().equals(InstrumentCategory.Physical))
+		{
+			return AppToolkit.format(this._liqLot, this._openOrder.get_Instrument().get_PhysicalLotDecimal());
+		}
+		else
+		{
+			return AppToolkit.getFormatLot(this._liqLot, this._openOrder.get_Account(), this._openOrder.get_Instrument());
+		}
 	}
 
 	public void set_LiqLotString(String value)
@@ -210,7 +258,7 @@ public class RelationOrder
 
 	public String get_OpenOrderSummary()
 	{
-		return this._openOrder.get_Summary();
+		return this._openOrder.get_Summary(this._isDelivery);
 	}
 
 	public static PropertyDescriptor[] getPropertyDescriptorsForOutstanding(boolean isMakeOrder2, BuySellType buySellType)
@@ -220,11 +268,16 @@ public class RelationOrder
 
 	public static PropertyDescriptor[] getPropertyDescriptorsForOutstanding(boolean isMakeOrder2, BuySellType buySellType, boolean allowChangeLiqLot)
 	{
+		return RelationOrder.getPropertyDescriptorsForOutstanding(isMakeOrder2, buySellType, allowChangeLiqLot, false);
+	}
+
+	public static PropertyDescriptor[] getPropertyDescriptorsForOutstanding(boolean isMakeOrder2, BuySellType buySellType, boolean allowChangeLiqLot, boolean isDelivery)
+	{
 		PropertyDescriptor[] propertyDescriptors = new PropertyDescriptor[buySellType == BuySellType.Both ? 4 : 3];
 		int i = -1;
 
 		PropertyDescriptor propertyDescriptor = PropertyDescriptor.create(RelationOrder.class, OutstandingOrderColKey.IsSelected, false, null,
-			OutstandingOrderLanguage.IsSelected, 50, SwingConstants.LEFT, null, null, new BooleanCheckBoxCellEditor(), new BooleanCheckBoxCellRenderer());
+			isDelivery ? OutstandingOrderLanguage.Delivery : OutstandingOrderLanguage.IsSelected, 50, SwingConstants.LEFT, null, null, new BooleanCheckBoxCellEditor(), new BooleanCheckBoxCellRenderer());
 		propertyDescriptors[++i] = propertyDescriptor;
 
 		if(buySellType == BuySellType.Both)
@@ -253,7 +306,7 @@ public class RelationOrder
 		grid.setForeground(GridBackColor.relationOrder);
 		//grid.setSelectionBackground(SelectionBackground.relationOrder);
 
-		TradingConsole.bindingManager.bind(dataSourceKey, dataSource, bindingSource, RelationOrder.getPropertyDescriptorsForOutstanding(isMakeOrder2, buySellType, openCloseRelationSite.allowChangeCloseLot()));
+		TradingConsole.bindingManager.bind(dataSourceKey, dataSource, bindingSource, RelationOrder.getPropertyDescriptorsForOutstanding(isMakeOrder2, buySellType, openCloseRelationSite.allowChangeCloseLot(), openCloseRelationSite.isDelivery()));
 		grid.setModel(bindingSource);
 		TradingConsole.bindingManager.setHeader(dataSourceKey, SwingConstants.CENTER, 25, GridFixedForeColor.relationOrder, Color.white,
 												HeaderFont.relationOrder);
@@ -530,9 +583,14 @@ public class RelationOrder
 	{
 		if(site.getTotalLotEditor() != site.getCloseLotEditor())
 		{
-			CloseLotDocumentListener closeLotDocumentListener
+			/*CloseLotDocumentListener closeLotDocumentListener
 				= RelationOrder._relationBindingManager.getRelationBinding(site)._closeLotDocumentListener;
-			site.getCloseLotEditor().getDocument().removeDocumentListener(closeLotDocumentListener);
+			site.getCloseLotEditor().getDocument().removeDocumentListener(closeLotDocumentListener);*/
+
+			CloseLotFocusListener closeLotFocusListener
+				= RelationOrder._relationBindingManager.getRelationBinding(site)._closeLotFocusListener;
+			site.getCloseLotEditor().removeFocusListener(closeLotFocusListener);
+
 			try
 			{
 				site.getCloseLotEditor().setText(text);
@@ -544,7 +602,8 @@ public class RelationOrder
 			}
 			finally
 			{
-				site.getCloseLotEditor().getDocument().addDocumentListener(closeLotDocumentListener);
+				//site.getCloseLotEditor().getDocument().addDocumentListener(closeLotDocumentListener);
+				site.getCloseLotEditor().addFocusListener(closeLotFocusListener);
 			}
 		}
 	}
@@ -552,6 +611,23 @@ public class RelationOrder
 	public void set_Origin(RelationOrder origin)
 	{
 		this._origin = origin;
+	}
+
+	public boolean isFullClose()
+	{
+		if(this._isSelected && this._liqLot != null)
+		{
+			BigDecimal avalibleCloseLot =
+				this._isDelivery ? this._openOrder.getAvailableDeliveryLot() : this._openOrder.getAvailableLotBanlance(this._isPlacingSpotTrade, this._isMakeLimitOrder);
+			return this._liqLot.compareTo(avalibleCloseLot) == 0;
+		}
+
+		return false;
+	}
+
+	public boolean get_IsDelivery()
+	{
+		return this._isDelivery;
 	}
 
 	public static class ComparatorForAdjustingLot implements Comparator<RelationOrder>
@@ -621,7 +697,8 @@ public class RelationOrder
 
 		private OrderTypeChangedListener _orderTypeChangedListener = new OrderTypeChangedListener();
 		private RelationGridSelectedRowChangedListener _relationGridSelectedRowChangedListener = new RelationGridSelectedRowChangedListener();
-		private CloseLotDocumentListener _closeLotDocumentListener = new CloseLotDocumentListener();
+		//private CloseLotDocumentListener _closeLotDocumentListener = new CloseLotDocumentListener();
+		private CloseLotFocusListener _closeLotFocusListener = new CloseLotFocusListener();
 
 		protected RelationBinding(String dataSourceKey, DataGrid grid, BindingSource bindingSource, IOpenCloseRelationBaseSite site)
 		{
@@ -656,7 +733,14 @@ public class RelationOrder
 			for(int index = 0; index < this._bindingSource.getRowCount(); index++)
 			{
 				RelationOrder relationOrder = (RelationOrder) (this._bindingSource.getObject(index));
-				relationOrder.set_IsPlacingSpotTrade(this._site.getOrderType().isSpot());
+				if(this._site.isDelivery())
+				{
+					relationOrder._liqLot = relationOrder._openOrder.getAvailableDeliveryLot();
+				}
+				else
+				{
+					relationOrder.set_IsPlacingSpotTrade(this._site.getOrderType().isSpot());
+				}
 				TradingConsole.bindingManager.update(this._dataSourceKey, relationOrder);
 			}
 
@@ -669,8 +753,12 @@ public class RelationOrder
 				this._relationGridSelectedRowChangedListener.initialize(this._site);
 				this._grid.addSelectedRowChangedListener(this._relationGridSelectedRowChangedListener);
 
-				this._closeLotDocumentListener.initialize(this._grid, this._site.getCloseLotEditor());
-				this._site.getCloseLotEditor().getDocument().addDocumentListener(this._closeLotDocumentListener);
+				//this._closeLotDocumentListener.initialize(this._grid, this._site.getCloseLotEditor());
+				//this._site.getCloseLotEditor().getDocument().addDocumentListener(this._closeLotDocumentListener);
+				this._site.getCloseLotEditor().addFocusListener(this._closeLotFocusListener);
+
+				this._closeLotFocusListener.initialize(this._grid, this._site.getCloseLotEditor());
+				this._site.getCloseLotEditor().addFocusListener(this._closeLotFocusListener);
 			}
 		}
 
@@ -682,7 +770,8 @@ public class RelationOrder
 
 				if (this._site.getCloseLotEditor() != null)
 				{
-					this._site.getCloseLotEditor().getDocument().removeDocumentListener(this._closeLotDocumentListener);
+					//this._site.getCloseLotEditor().getDocument().removeDocumentListener(this._closeLotDocumentListener);
+					this._site.getCloseLotEditor().removeFocusListener(this._closeLotFocusListener);
 				}
 			}
 
@@ -935,6 +1024,104 @@ public class RelationOrder
 					this._relationSnapshot.get(makeOrderAccount).add(relationOrder);
 				}
 			}
+		}
+	}
+
+	private static class CloseLotFocusListener implements FocusListener
+	{
+		private DataGrid _grid;
+		private JTextField _owner;
+		private String _oldText;
+
+		public void initialize(DataGrid grid, JTextField owner)
+		{
+			this._grid = grid;
+			this._owner = owner;
+			this._oldText = null;
+		}
+
+		public void focusGained(FocusEvent e)
+		{
+		}
+
+		public void focusLost(FocusEvent e)
+		{
+			this.handle(e);
+		}
+
+		private void handle(FocusEvent e)
+		{
+			//if(e.getType() == DocumentEvent.EventType.CHANGE)
+			{
+				String text = this._owner.getText();
+				if(text.startsWith(".")) return;
+				if(text.endsWith(".")) text = text + "0";
+
+				int row = this._grid.getSelectedRow();
+				if(row == -1) return;
+				/*if(row == -1 && this._grid.getRowCount() == 1)
+				{
+					//this._grid.changeSelection(0, 0, true, true);
+					row = 0;
+				}*/
+
+				if (!StringHelper.isNullOrEmpty(text) && row != -1 /* && this._grid.getRowCount() > 1*/)
+				{
+					RelationOrder relationOrder = (RelationOrder)this._grid.getObject(row);
+					boolean selected = relationOrder._isSelected;
+					Object value = this._grid.getValueAt(row, this.getLotStringColumn());
+					BigDecimal oldCloseLot = new BigDecimal(value == null || value.toString().length() == 0 ? "0" : value.toString());
+					BigDecimal newCloseLot = BigDecimal.ZERO;
+					try
+					{
+						newCloseLot = new BigDecimal(text);
+					}
+					catch(NumberFormatException ex)
+					{
+						return;
+					}
+
+					if(selected && oldCloseLot.compareTo(newCloseLot) != 0)
+					{
+						SwingUtilities.invokeLater(new LiqueLotUpdater(this._grid, text, row, this.getLotStringColumn()));
+					}
+				}
+			}
+		}
+
+		private static class LiqueLotUpdater implements Runnable
+		{
+			private DataGrid _grid;
+			private String _text;
+			private int _row;
+			private int _column;
+
+			public LiqueLotUpdater(DataGrid grid, String text, int row, int column)
+			{
+				this._grid = grid;
+				this._text = text;
+				this._row = row;
+				this._column = column;
+			}
+
+			public void run()
+			{
+				this._grid.setValueAt(this._text, this._row, this._column);
+			}
+		}
+
+		private int getLotStringColumn()
+		{
+			TableColumnModel columnModel = this._grid.getColumnModel();
+			for(int column = 0; column < columnModel.getColumnCount(); column++)
+			{
+				Object identifier = columnModel.getColumn(column).getIdentifier();
+				if(identifier.equals(OutstandingOrderColKey.LiqLotString) || identifier.equals(MakeOrderLiquidationGridColKey.LiqLotString))
+				{
+					return column;
+				}
+			}
+			return -1;
 		}
 	}
 
@@ -1353,21 +1540,49 @@ class RelationOrderPropertyChangingListener implements IPropertyChangingListener
 					e.set_Cancel(true);
 					return;
 				}
-				//???
-				BigDecimal newValue2 = AppToolkit.convertStringToBigDecimal(AppToolkit.getFormatLot(newValue,
-					this._openCloseRelationSite.getMakeOrderAccount().get_Account(),
-					this._openCloseRelationSite.getMakeOrderAccount().get_Instrument()));
-				if (/*newValue2.compareTo(BigDecimal.ZERO) == 0 ||*/ newValue2.compareTo(newValue) != 0)
+
+				BigDecimal avaiableCloseLot = relationOrder.get_IsDelivery() ? order.getAvailableDeliveryLot() : order.getAvailableLotBanlance(relationOrder.get_IsPlacingSpotTrade(), relationOrder.get_IsMakeLimitOrder());
+				if(relationOrder.get_IsDelivery() || avaiableCloseLot.compareTo(newValue) != 0)
 				{
-					if(this._openCloseRelationSite.getCloseLotEditor() != null)
+					Account account = this._openCloseRelationSite.getMakeOrderAccount().get_Account();
+					Instrument instrument = this._openCloseRelationSite.getMakeOrderAccount().get_Instrument();
+					TradePolicyDetail tradePolicyDetail =
+						account.get_TradingConsole().get_SettingsManager().getTradePolicyDetail(account.get_TradePolicyId(), instrument.get_Id());
+
+					BigDecimal closeLot = AppToolkit.fixCloseLot(newValue, avaiableCloseLot, tradePolicyDetail, account);
+					if (closeLot.compareTo(newValue) != 0)
 					{
-						if(!this._openCloseRelationSite.getCloseLotEditor().getText().equals(oldValue.toString()))
+						newValue = closeLot;
+						String formatLot = AppToolkit.getFormatLot(newValue, account, instrument);
+						e.set_NewValue(formatLot);
+						if (this._openCloseRelationSite.getCloseLotEditor() != null)
 						{
-							this._openCloseRelationSite.getCloseLotEditor().setText(oldValue.toString());
+							if (!this._openCloseRelationSite.getCloseLotEditor().getText().equals(formatLot))
+							{
+								this._openCloseRelationSite.getCloseLotEditor().setText(formatLot);
+							}
+							else
+							{
+								e.set_Cancel(true);
+								return;
+							}
 						}
 					}
-					e.set_Cancel(true);
-					return;
+
+					//???
+					BigDecimal newValue2 = AppToolkit.convertStringToBigDecimal(AppToolkit.getFormatLot(newValue,account,instrument));
+					if (newValue2.compareTo(newValue) != 0)
+					{
+						if (this._openCloseRelationSite.getCloseLotEditor() != null)
+						{
+							if (!this._openCloseRelationSite.getCloseLotEditor().getText().equals(oldValue.toString()))
+							{
+								this._openCloseRelationSite.getCloseLotEditor().setText(oldValue.toString());
+							}
+						}
+						e.set_Cancel(true);
+						return;
+					}
 				}
 
 				//new value can not > order.lotBalance
@@ -1378,7 +1593,7 @@ class RelationOrderPropertyChangingListener implements IPropertyChangingListener
 					e.set_Cancel(true);
 					return;
 				}*/
-		        BigDecimal avaiableCloseLot = order.getAvailableLotBanlance(relationOrder.get_IsPlacingSpotTrade(), relationOrder.get_IsMakeLimitOrder());
+
 				if (newValue.compareTo(avaiableCloseLot) > 0)
 				{
 					e.set_NewValue(AppToolkit.getFormatLot(avaiableCloseLot,

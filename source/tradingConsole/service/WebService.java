@@ -372,6 +372,11 @@ public class WebService extends SoapHttpClientProtocol
 		return ( (XmlNode) (results[0]));
 	}
 
+	public Object[] getOrderInstalment(Guid orderId)
+	{
+		Object[] results = this.invoke("GetOrderInstalment",ServiceTimeoutSetting.getAccounts, new Object[]{orderId});
+		return (results);
+	}
 
 	/// <remarks/>
 	public Object[] getAccountForCut(/*ref*/DateTime lastAlertTime, Guid accountId, boolean includeTransactions)
@@ -671,6 +676,12 @@ public class WebService extends SoapHttpClientProtocol
 	{
 		Object[] results = this.invoke("GetTimeSyncSettings", ServiceTimeoutSetting.getTimeSyncSettings, new Object[0]);
 		return ( (TimeSyncSettings) (results[0]));
+	}
+
+	public Object[] applyDelivery(XmlNode deliveryRequire)
+	{
+		Object[] results = this.invoke("ApplyDelivery", ServiceTimeoutSetting.place, new Object[]{deliveryRequire});
+		return results;
 	}
 
 	/// <remarks/>
@@ -1231,10 +1242,11 @@ public class WebService extends SoapHttpClientProtocol
 	}
 
 	/// <remarks/>
-	public Guid accountSummaryForJava2(String tradeDay, String IDs, String reportxml)
+	public Guid accountSummaryForJava2(String fromDay, String toDay, String IDs, String reportxml)
 	{
 		Object[] results = this.invoke("AccountSummaryForJava2", ServiceTimeoutSetting.getCommands, new Object[]
-					{tradeDay,
+					{fromDay,
+					toDay,
 					IDs,
 					reportxml});
 		return ( (Guid) (results[0]));
@@ -2148,6 +2160,21 @@ public class WebService extends SoapHttpClientProtocol
 			TradingConsole.performaceTraceSource.trace(TraceType.Information, info);
 		}
 		return result;
+	}
+
+	public String[] getDeliveryAddress(Guid deliveryPointAddressGroupId)
+	{
+		try
+		{
+			Object[] result = this.invoke("GetDeliveryAddress", ServiceTimeoutSetting.ThirtySeconds,
+						new Object[]{deliveryPointAddressGroupId});
+			return ((String[])result[0]);
+		}
+		catch (Throwable throwable)
+		{
+			TradingConsole.traceSource.trace(TraceType.Error, throwable);
+			return null;
+		}
 	}
 
 	public boolean modifyTelephoneIdentificationCode(Guid accountId, String oldCode, String newCode)

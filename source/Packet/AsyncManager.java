@@ -42,9 +42,7 @@ public class AsyncManager implements Runnable
 
 	public  void add(byte[] result)
 	{
-		if(result==null){
-			return;
-		}
+		if(result==null) return;
 		try
 		{
 			this.queue.put(result);

@@ -17,6 +17,8 @@ import tradingConsole.ui.fontHelper.*;
 import tradingConsole.ui.grid.*;
 import tradingConsole.ui.language.*;
 import javax.swing.table.TableModel;
+import com.jidesoft.swing.JideSwingUtilities;
+import tradingConsole.enumDefine.physical.PhysicalTradeSide;
 
 public class OpenContractForm extends JDialog
 {
@@ -36,6 +38,64 @@ public class OpenContractForm extends JDialog
 		this.orderCodeStaticText.setText(order.get_Code());
 		this.limitStopButton.setText(Language.SetLMTStopCaption);
 		this.liquidationButton.setText(Language.OpenContractbtnLiquidation);
+
+		this.deliveryButton.setVisible(false);
+		if(this._order.canDelivery())
+		{
+			TradePolicyDetail tradePolicyDetail
+				= this._settingsManager.getTradePolicyDetail(this._order.get_Account().get_TradePolicyId(), this._order.get_Instrument().get_Id());
+			boolean canDelivery = tradePolicyDetail.isAllowed(PhysicalTradeSide.Delivery);
+			if(canDelivery)
+			{
+				Guid deliveryChargeId = tradePolicyDetail.get_DeliveryChargeId();
+				if(deliveryChargeId != null)
+				{
+					Instrument instrument = this._order.get_Instrument();
+					DeliveryCharge deliveryCharge = tradingConsole.get_SettingsManager().getDeliveryCharge(deliveryChargeId);
+					if (deliveryCharge.get_PriceType().equals(MarketValuePriceType.DayOpenPrice))
+					{
+						if (instrument.get_LastQuotation() == null || instrument.get_LastQuotation().get_Open() == null)
+							canDelivery = false;
+					}
+					else
+					{
+						if (instrument.get_Quotation() == null || instrument.get_Quotation().get_Timestamp().before(instrument.get_OpenTime()))
+							canDelivery = false;
+					}
+				}
+			}
+
+
+			if(canDelivery)
+			{
+				this.deliveryButton.setVisible(true);
+				this.deliveryButton.setText(Language.deliveryFormTitle);
+				this.deliveryButton.addActionListener(new ActionListener()
+				{
+					public void actionPerformed(ActionEvent e)
+					{
+						delivery();
+					}
+				});
+			}
+		}
+
+		if(this._order.get_InstalmentPolicyId() != null)
+		{
+			this.instalmentButton.setVisible(true);
+			this.instalmentButton.setText(InstalmentLanguage.Instalment);
+			this.instalmentButton.addActionListener(new ActionListener()
+			{
+				public void actionPerformed(ActionEvent e)
+				{
+					showInstalment();
+				}
+			});
+		}
+		else
+		{
+			this.instalmentButton.setVisible(false);
+		}
 
 		if (this._order.get_Transaction().get_Account().get_Type() == AccountType.Agent
 			|| this._order.get_Transaction().get_Account().get_Type() == AccountType.Transit)
@@ -253,6 +313,21 @@ public class OpenContractForm extends JDialog
 		return false;
 	}
 
+	private void showInstalment()
+	{
+		InstalmentForm instalmentForm = new InstalmentForm(this, this._order);
+		JideSwingUtilities.centerWindow(instalmentForm);
+		instalmentForm.show();
+	}
+
+	private void delivery()
+	{
+		DeliveryDialog dialog
+			= new DeliveryDialog(this, this._tradingConsole, this._order.get_Instrument(), this._order.get_Account(), this._order, false);
+		JideSwingUtilities.centerWindow(dialog);
+		dialog.show();
+	}
+
 	private void liquidation()
 	{
 		Object[] result = MakeOrder.isAllowMakeLiquidationOrder(this._tradingConsole, this._settingsManager, this._order);
@@ -346,13 +421,18 @@ public class OpenContractForm extends JDialog
 		this.getContentPane().add(limitStopButton, new GridBagConstraints(0, 2, 1, 1, 0.0, 0.0
 			, GridBagConstraints.NORTHEAST, GridBagConstraints.NONE, new Insets(0, 10, 10, 0), 10, 0));
 		JScrollPane scrollPane = new JScrollPane(openContractTable);
-		this.getContentPane().add(scrollPane, new GridBagConstraints(0, 1, 4, 1, 1.0, 1.0
+		this.getContentPane().add(scrollPane, new GridBagConstraints(0, 1, 5, 1, 1.0, 1.0
 			, GridBagConstraints.NORTH, GridBagConstraints.BOTH, new Insets(0, 10, 10, 10), 0, 0));
-		this.getContentPane().add(assignButton, new GridBagConstraints(2, 2, 1, 1, 0.0, 0.0
+		this.getContentPane().add(assignButton, new GridBagConstraints(3, 2, 1, 1, 0.0, 0.0
 			, GridBagConstraints.NORTHEAST, GridBagConstraints.NONE, new Insets(0, 1, 10, 0), 15, 0));
 		this.getContentPane().add(liquidationButton, new GridBagConstraints(1, 2, 1, 1, 0.0, 0.0
 			, GridBagConstraints.NORTHEAST, GridBagConstraints.NONE, new Insets(0, 1, 10, 0), 0, 0));
-		this.getContentPane().add(exitButton, new GridBagConstraints(3, 2, 1, 1, 0.0, 0.0
+		this.getContentPane().add(deliveryButton, new GridBagConstraints(2, 2, 1, 1, 0.0, 0.0
+			, GridBagConstraints.NORTHEAST, GridBagConstraints.NONE, new Insets(0, 1, 10, 0), 0, 0));
+		this.getContentPane().add(instalmentButton, new GridBagConstraints(3, 2, 1, 1, 0.0, 0.0
+			, GridBagConstraints.NORTHEAST, GridBagConstraints.NONE, new Insets(0, 1, 10, 0), 0, 0));
+
+		this.getContentPane().add(exitButton, new GridBagConstraints(4, 2, 1, 1, 0.0, 0.0
 			, GridBagConstraints.NORTHEAST, GridBagConstraints.NONE, new Insets(0, 0, 10, 10), 20, 0));
 
 		this.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
@@ -369,6 +449,9 @@ public class OpenContractForm extends JDialog
 	PVButton2 liquidationButton = new PVButton2();
 	PVButton2 exitButton = new PVButton2();
 	PVButton2 assignButton = new PVButton2();
+	PVButton2 deliveryButton = new PVButton2();
+	PVButton2 instalmentButton = new PVButton2();
+
 	private GridBagLayout gridBagLayout1 = new GridBagLayout();
 
 	public void limitStopButton_actionPerformed(ActionEvent e)

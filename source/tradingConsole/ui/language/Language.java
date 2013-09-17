@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import tradingConsole.framework.ResourceHelper;
 import java.util.Locale;
 import Packet.ReformMessage;
+import tradingConsole.physical.PhysicalInventoryLanguage;
 //import java.io.File;
 
 public class Language
@@ -28,6 +29,7 @@ public class Language
 	public static String executePriceCaption = "Exec Price";
 
 	public static String complainSuccessfully="Complaint is sent successfully";
+	public static String shortSellWarning="Short selling may occurred for {0}, please click CONFIRM to proceed";
 
 	public static String today = "Today";
 	public static String thisWeek = "This week";
@@ -57,6 +59,8 @@ public class Language
 	public static String alertDialogFormTitle = "Warning";
 	public static String assignOrderFormTitle = "Assign Order";
 	public static String limitOrderFormTitle = "Pending Order";
+	public static String deliveryFormTitle = "Delivery";
+	public static String getDeliveryAddressFailed = "Falied to get delivery address, please try later";
 	public static String matchingOrderFormTitle = "Matching";
 	public static String makeOrderFormTitle = "Trading Instruction";
 	public static String instrumentSelectionFormTitle = "Instrument Selection";
@@ -117,6 +121,8 @@ public class Language
 	public static String optionFormUserId = "Username:";
 	public static String optionFormPassword = "Password:";
 	public static String optionFormEnableDocking = "Enable docking";
+
+	public static String searchFor = "Search for:";
 
 	public static String LoggedInAt = "logged in at";
 	public static String LoggedOutAt = "logged out at";
@@ -243,6 +249,10 @@ public class Language
 	public static String SettingInstrumentGrid = "Trading Panel";
 	public static String SettingOpenOrderGrid = "Open Order List";
 	public static String SettingOrderGrid = "Working Order List";
+	public static String PhysicalStok = "Physical Stock";
+	public static String PhysicalInventory = "Inventory";
+	public static String PhysicalPendingInventory = "Pending Inventory";
+	public static String PhysicalShortSell = "Short Sell";
 	public static String btnOKCaption = "Apply";
 	public static String btnCancelCaption = "Exit";
 	public static String MakeOrderNotAllowLiqudate = "The order is not allow liqudate.";
@@ -343,6 +353,7 @@ public class Language
 	public static String InstrumentViewPrompt = "Trading Panel List";
 	public static String InstrumentView2Prompt = "Trading Panel Grid";
 	public static String AccountStatusPrompt = "Account status";
+	public static String AccountListPrompt = "Account List";
 	public static String SummaryPrompt = "Position Summary";
 	public static String LogPrompt = "Log";
 	public static String SingleDQBuyPrompt = "BUYING";
@@ -350,9 +361,12 @@ public class Language
 	public static String ReportTypeStatement = "Statement";
 	public static String ReportTypeLedger = "Ledger";
 	public static String ReportTypeAccountSummary = "Account Summary";
+	public static String ReportTypePhysicalDeliveryLedger = "Physical Delivery";
+	public static String ReportTypePhysicalLedger = "Physical Ledger";
 	public static String Reports = "Reports";
 	public static String ReportType = "Report Type";
 	public static String ReportAccountCode = "Account";
+	public static String ReportDeliveryBillCode = "Delivery bill";
 	public static String OldTelephoneIdentificationCode = "Old Code";
 	public static String NewTelephoneIdentificationCode = "New Code";
 	public static String ReconfirmTelephoneIdentificationCode= "Reconfirm Code";
@@ -418,6 +432,8 @@ public class Language
 	public static String AlertLevelPrompt2 = "Account is in critical situation, your immediate attention is much needed.";
 	public static String AlertLevelPrompt3 = "Please ignore this message if appropriate action has been taken to avoid further loses.";
 	public static String RiskMonitorDelete = "The system has deleted the order. If you find query, please contact our Customer Service!";
+	public static String ExceedMaxPhysicalValue = "The order is cancled for the account will exceed max allowed physical value";
+	public static String BalanceOrEquityIsShort = "Balance/Equity is short";
 	public static String AccountResetFailed =
 		"The system has failed to prepare the account for coming trade day. Please contact the system administrator";
 	public static String DealerCanceled = "The order has been cancelled by the Trading Desk!";
@@ -435,7 +451,12 @@ public class Language
 	public static String InvalidPrice = "Price is not in a valid format, please try later!";
 
 	public static String PriceIsOutOfDate = "Pirce is out of date, please try again!";
+	public static String ShortSellNotAllowed = "Short sell is not allowed";
 	public static String TraderVersionError = "Please install the new version and try again!";
+	public static String InvalidInstalmentTrade = "Instalment is not allowed";
+	public static String PrepaymentIsNotAllowed = "Prepayment is not allowed";
+	public static String HitIsReseted = "The order is reset hit";
+	public static String ExistPendingLimitCloseOrder = "There is a Limit/Stop close order pending for execution";
 
 	public static String LastDay = "Last Days";
 	public static String Query = "Qurey";
@@ -619,6 +640,11 @@ public class Language
 	public static String OrderLMTlblIsBuyA = "B/S";
 	public static String OrderLMTlblSetPriceA = "Price";
 	public static String OrderLMTlblLot = "Lot";
+	public static String DeliveryLot = "Delivery Lot";
+	public static String DeliveryTime = "Delivery Time";
+	public static String DeliveryAddress = "Delivery Address";
+	public static String DeliveryCharge = "Delivery charge";
+	public static String DeliveryWeight = "Delivery weight";
 	public static String OrderLMTlblBalanceA = "Balance";
 	public static String OrderLMTlblEquityA = "Equity";
 	public static String OrderLMTbtnSetOCO = "O C O";
@@ -708,6 +734,8 @@ public class Language
 	public static String PriceIsDisabled = "The insturment is suspended for trading for the time being, please try later";
 	public static String PriceChangedSincePlace = "Price changed, order canceled!";
 	public static String FailedToModifyOrder = "Failed to modify order";
+	public static String BalanceOrEquityIsShortForApplyDelivery = "Account balance {0} or usalbe margin {1} is short, please pay attention";
+	public static String FailedToDelivery = "Delivery apply failed";
 	public static String TheOrderNotModified = "The order is not modified";
 	public static String OpenOrderIsClosed = "Open order changed, close quantity is not valid, close order is canceled by the system";
 	public static String InvalidSetPrice = "Set price is invalid, please modify the price";
@@ -833,6 +861,7 @@ public class Language
 	public static String DeleteBankAccountSuccessed = "The delete application is submitted, waiting for approve";
 	public static String FailedToDeleteBankAccount = "Failed to delete the bank account";
 
+	public static String FailedToGetOrderInstalment = "Failed to get instalment information for the order";
 
 	public static void setValue(Class languageClass, XmlNode xmlNode)
 	{
@@ -847,19 +876,7 @@ public class Language
 			{
 				languageClass.getField(nodeName).set(nodeName, nodeValue);
 			}
-			catch (SecurityException ex)
-			{
-				continue;
-			}
-			catch (NoSuchFieldException ex)
-			{
-				continue;
-			}
-			catch (IllegalAccessException ex)
-			{
-				continue;
-			}
-			catch (IllegalArgumentException exception)
+			catch (Exception ex)
 			{
 				continue;
 			}
@@ -905,6 +922,14 @@ public class Language
 			Language.setValue(BestLimitLanguage.class, xmlNode.get_Item("BestLimitLanguage"));
 			Language.setValue(TimeAndSaleLanguage.class, xmlNode.get_Item("TimeAndSaleLanguage"));
 			Language.setValue(ReformMessage.class,xmlNode.get_Item("ReformMessage"));
+
+			Language.setValue(PhysicalInventoryLanguage.class, xmlNode.get_Item("PhysicalInventoryLanguage"));
+			Language.setValue(ScrapDepositStatusLanguage.class, xmlNode.get_Item("ScrapDepositStatusLanguage"));
+			Language.setValue(DeliveryStatusLanguage.class, xmlNode.get_Item("DeliveryStatusLanguage"));
+			Language.setValue(InstalmentTypeLanguage.class, xmlNode.get_Item("InstalmentTypeLanguage"));
+			Language.setValue(RecalculateRateTypeLanguage.class, xmlNode.get_Item("RecalculateRateTypeLanguage"));
+			Language.setValue(ContractTerminateTypeLanguage.class, xmlNode.get_Item("ContractTerminateTypeLanguage"));
+			Language.setValue(InstalmentLanguage.class, xmlNode.get_Item("InstalmentLanguage"));
 
 			Locale.setDefault(PublicParametersManager.getLocal());
 		}

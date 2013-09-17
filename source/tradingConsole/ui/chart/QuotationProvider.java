@@ -133,7 +133,7 @@ public class QuotationProvider implements IQuotationProvider
 			{instrumentCode, from, to}));
 
 		Guid instrumentId = new Guid(instrumentCode);
-		/*this._asyncResultId = this._tradingConsole.get_TradingConsoleServer().asyncGetTickByTickHistoryDatas2(instrumentId,
+		this._asyncResultId = this._tradingConsole.get_TradingConsoleServer().asyncGetTickByTickHistoryDatas2(instrumentId,
 			DateTime.fromDate(from), DateTime.fromDate(to));
 
 		if (this._asyncResultId.compareTo(Guid.empty) == 0)
@@ -148,13 +148,14 @@ public class QuotationProvider implements IQuotationProvider
 		{
 			TradingConsole.traceSource.trace(TraceType.Information, "[QuotationProvider.getTickByTickQuotations] Wait for reply from server");
 			this.waitWithTimeout(90);
-		}*/
-		DataSet dataSet = this._tradingConsole.get_TradingConsoleServer().GetTickByTickHistoryData(instrumentId,DateTime.fromDate(from), DateTime.fromDate(to));
-		/*if (this._charDataStatus.value() == CharDataStatus.Ready.value() && !this._failed)
+		}
+		DataSet dataSet =null;
+		//	this._tradingConsole.get_TradingConsoleServer().GetTickByTickHistoryData(instrumentId,DateTime.fromDate(from), DateTime.fromDate(to));
+		if (this._charDataStatus.value() == CharDataStatus.Ready.value() && !this._failed)
 		{
 			TradingConsole.traceSource.trace(TraceType.Information, "[QuotationProvider.getTickByTickQuotations] To get data from server: " + this._readyAsyncResultId.toString());
 			dataSet = this._tradingConsole.get_TradingConsoleServer().getChartData(this._readyAsyncResultId);
-		}*/
+		}
 		return this.getQuotationList(dataSet, true);
 	}
 

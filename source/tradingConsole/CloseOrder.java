@@ -12,6 +12,7 @@ import tradingConsole.ui.language.OrderLanguage;
 import tradingConsole.settings.SettingsManager;
 import framework.DateTime;
 import tradingConsole.ui.language.Language;
+import tradingConsole.enumDefine.InstrumentCategory;
 
 public class CloseOrder
 {
@@ -131,7 +132,14 @@ public class CloseOrder
 
 	public String get_CloseLotString()
 	{
-		return AppToolkit.getFormatLot(this._closeLot, this._order.get_Account(), this._order.get_Instrument());
+		if(this._order.get_Instrument().get_Category().equals(InstrumentCategory.Physical))
+		{
+			return AppToolkit.format(this._closeLot, this._order.get_Instrument().get_PhysicalLotDecimal());
+		}
+		else
+		{
+			return AppToolkit.getFormatLot(this._closeLot, this._order.get_Account(), this._order.get_Instrument());
+		}
 	}
 
 	public String get_IsOpenString()

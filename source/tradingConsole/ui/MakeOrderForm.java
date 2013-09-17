@@ -1246,7 +1246,7 @@ public class MakeOrderForm extends FrameBase2
 			boolean isOpen = this._makeOrderAccount.getSumLiqLots(true).compareTo(BigDecimal.ZERO) <= 0
 				&& this._makeOrderAccount.getSumLiqLots(false).compareTo(BigDecimal.ZERO) <= 0;
 
-			return AppToolkit.getDefaultLot(this._instrument, isOpen, tradePolicyDetail, account);
+			return AppToolkit.getDefaultLot(this._instrument, isOpen, tradePolicyDetail, this._makeOrderAccount);
 		}
 	}
 
@@ -1921,7 +1921,7 @@ public class MakeOrderForm extends FrameBase2
 				&& this._makeOrderAccount.getSumLiqLots(false).compareTo(BigDecimal.ZERO) <= 0;
 			TradePolicyDetail tradePolicyDetail = this._settingsManager.getTradePolicyDetail(this._makeOrderAccount.get_Account().get_TradePolicyId(),
 				this._instrument.get_Id());
-			BigDecimal lot2 = AppToolkit.fixLot(lot, isOpen, tradePolicyDetail, this._makeOrderAccount.get_Account());
+			BigDecimal lot2 = AppToolkit.fixLot(lot, isOpen, tradePolicyDetail, this._makeOrderAccount);
 			if (lot.compareTo(lot2) != 0)
 			{
 				String formattedLot = AppToolkit.getFormatLot(lot2, this._makeOrderAccount.get_Account(), this._instrument);
@@ -1989,7 +1989,7 @@ public class MakeOrderForm extends FrameBase2
 				&& this._makeOrderAccount.getSumLiqLots(false).compareTo(BigDecimal.ZERO) <= 0;
 			TradePolicyDetail tradePolicyDetail = this._settingsManager.getTradePolicyDetail(this._makeOrderAccount.get_Account().get_TradePolicyId(),
 				this._instrument.get_Id());
-			lot = AppToolkit.fixLot(lot, isOpen, tradePolicyDetail, this._makeOrderAccount.get_Account());
+			lot = AppToolkit.fixLot(lot, isOpen, tradePolicyDetail, this._makeOrderAccount);
 			this.totalLotTextField.setText(AppToolkit.getFormatLot(lot, this._makeOrderAccount.get_Account(), this._instrument));
 		}
 
@@ -2168,6 +2168,11 @@ public class MakeOrderForm extends FrameBase2
 		public Boolean isMakeLimitOrder()
 		{
 			return this._owner.isMakeLimitOrder();
+		}
+
+		public boolean isDelivery()
+		{
+			return false;
 		}
 
 		public void addPlaceOrderTypeChangedListener(IPlaceOrderTypeChangedListener placeOrderTypeChangedListener)
@@ -2507,7 +2512,7 @@ public class MakeOrderForm extends FrameBase2
 
 					TradePolicyDetail tradePolicyDetail = this._settingsManager.getTradePolicyDetail(this._makeOrderAccount.get_Account().get_TradePolicyId(),
 						this._instrument.get_Id());
-					liqLots = AppToolkit.fixLot(liqLots, false, tradePolicyDetail, this._makeOrderAccount.get_Account());
+					liqLots = AppToolkit.fixLot(liqLots, false, tradePolicyDetail, this._makeOrderAccount);
 					this.totalLotTextField.setText(AppToolkit.getFormatLot(liqLots, this._makeOrderAccount.get_Account(), this._instrument));
 				}
 				return false;
@@ -2563,7 +2568,7 @@ public class MakeOrderForm extends FrameBase2
 
 					TradePolicyDetail tradePolicyDetail = this._settingsManager.getTradePolicyDetail(this._makeOrderAccount.get_Account().get_TradePolicyId(),
 						this._instrument.get_Id());
-					liqLots = AppToolkit.fixLot(liqLots, false, tradePolicyDetail, this._makeOrderAccount.get_Account());
+					liqLots = AppToolkit.fixLot(liqLots, false, tradePolicyDetail, this._makeOrderAccount);
 					this.totalLotTextField.setText(AppToolkit.getFormatLot(liqLots, this._makeOrderAccount.get_Account(), this._instrument));
 				}
 				return isValidOrder;
@@ -2741,7 +2746,7 @@ public class MakeOrderForm extends FrameBase2
 				{
 					AlertDialogForm.showDialog(this, null, true, Language.OrderLMTPageorderValidAlert7);
 
-					liqLots = AppToolkit.fixLot(liqLots, false, tradePolicyDetail, this._makeOrderAccount.get_Account());
+					liqLots = AppToolkit.fixLot(liqLots, false, tradePolicyDetail, this._makeOrderAccount);
 					this.totalLotTextField.setText(AppToolkit.getFormatLot(liqLots, this._makeOrderAccount.get_Account(), this._instrument));
 				}
 				return isValidOrder;
@@ -2785,7 +2790,7 @@ public class MakeOrderForm extends FrameBase2
 		}
 		BigDecimal lot2 = lot;
 		BigDecimal liqLots2 = liqLots;
-		result = MakeOrder.isAcceptEntrance(this._settingsManager, this._makeOrderAccount.get_Account(), this._instrument, this.getOrderType(), isBuy,
+		result = MakeOrder.isAcceptEntrance(this._settingsManager, this._makeOrderAccount, this._instrument, this.getOrderType(), isBuy,
 											lot2,
 											liqLots2, setPrice, setPrice2, false);
 		if (! ( (Boolean)result[0]))
@@ -3407,8 +3412,8 @@ public class MakeOrderForm extends FrameBase2
 	JAdvancedComboBox accountChoice = new JAdvancedComboBox();
 	JAdvancedComboBox isBuyChoice = new JAdvancedComboBox();
 	JTextField setPriceEdit = new JTextField();
-	JFormattedTextField totalLotTextField = new JFormattedTextField(new DecimalFormat());
-	JFormattedTextField closeLotTextField = new JFormattedTextField(new DecimalFormat());
+	JFormattedTextFieldEx totalLotTextField = new JFormattedTextFieldEx(new DecimalFormat(), true);
+	JFormattedTextFieldEx closeLotTextField = new JFormattedTextFieldEx(new DecimalFormat(), true);
 	JAdvancedComboBox expireTimeChoice = new JAdvancedComboBox();
 	DataGrid outstandingOrderTable = new DataGrid("OutstandingOrderTable");
 	PVButton2 submitButton = new PVButton2();
@@ -3607,7 +3612,7 @@ public class MakeOrderForm extends FrameBase2
 		{
 			TradePolicyDetail tradePolicyDetail = this._settingsManager.getTradePolicyDetail(this._makeOrderAccount.get_Account().get_TradePolicyId(),
 				this._instrument.get_Id());
-			accountLot = AppToolkit.fixLot(accountLot, false, tradePolicyDetail, this._makeOrderAccount.get_Account());
+			accountLot = AppToolkit.fixLot(accountLot, false, tradePolicyDetail, this._makeOrderAccount);
 		}
 
 		this.updateOcoCheckBoxStatus();

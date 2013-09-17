@@ -27,6 +27,8 @@ import framework.DateTime;
 import tradingConsole.Quotation;
 import tradingConsole.TradePolicyDetail;
 import tradingConsole.ui.columnKey.MakeOrderLiquidationGridColKey;
+import tradingConsole.physical.InventoryManager;
+import tradingConsole.physical.Inventory;
 
 public class MakeLiquidationOrder extends MakeSpotTradeOrder
 {
@@ -171,10 +173,9 @@ public class MakeLiquidationOrder extends MakeSpotTradeOrder
 
 	public static Order getFirstOpenOrderHasClosed(TradingConsole tradingConsole, Order currentOrder)
 	{
-		Order order = null;
 		for (Iterator<Order> iterator = tradingConsole.get_OpenOrders().values().iterator(); iterator.hasNext(); )
 		{
-			order = iterator.next();
+			Order order = iterator.next();
 
 			if (order.get_Close())
 			{
@@ -255,7 +256,8 @@ public class MakeLiquidationOrder extends MakeSpotTradeOrder
 				TradePolicyDetail tradePolicyDetail
 					= this._settingsManager.getTradePolicyDetail(account.get_TradePolicyId(), relationOrder.get_OpenOrder().get_Transaction().get_Instrument().get_Id());
 				BigDecimal lot = relationOrder.get_LiqLot();
-				lot = AppToolkit.fixLot(lot, false, tradePolicyDetail, account);
+				lot = AppToolkit.fixCloseLot(lot, lot, tradePolicyDetail, account);
+				//lot = AppToolkit.fixLot(lot, false, tradePolicyDetail, account);
 				relationOrder.set_LiqLot(lot);
 			}
 			relationOrder.updateLiquidation(this._liquidationKey);
@@ -289,8 +291,8 @@ public class MakeLiquidationOrder extends MakeSpotTradeOrder
 		}
 		TradePolicyDetail tradePolicyDetail
 					= this._settingsManager.getTradePolicyDetail(account.get_TradePolicyId(), instrument.get_Id());
-		totalLiqLotOfBuyOrder = AppToolkit.fixLot(totalLiqLotOfBuyOrder, false, tradePolicyDetail, account);
-		totalLiqLotOfSellOrder = AppToolkit.fixLot(totalLiqLotOfSellOrder, false, tradePolicyDetail, account);
+		//totalLiqLotOfBuyOrder = AppToolkit.fixLot(totalLiqLotOfBuyOrder, false, tradePolicyDetail, account);
+		//totalLiqLotOfSellOrder = AppToolkit.fixLot(totalLiqLotOfSellOrder, false, tradePolicyDetail, account);
 		for (Iterator<RelationOrder> iterator = this._dataSourceForLiquidations.values().iterator(); iterator.hasNext(); )
 		{
 			RelationOrder relationOrder = iterator.next();

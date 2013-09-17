@@ -35,6 +35,7 @@ import tradingConsole.ui.colorHelper.*;
 import tradingConsole.ui.grid.*;
 import tradingConsole.ui.language.*;
 import tradingConsole.service.ServiceTimeoutSetting;
+import tradingConsole.ui.account.HierarchicalTableComponentFactory;
 
 public class MainFormBase extends DefaultDockableBarDockableHolder implements MouseListener, MouseMotionListener //DefaultDockableHolder implements MouseListener, MouseMotionListener
 {
@@ -44,6 +45,7 @@ public class MainFormBase extends DefaultDockableBarDockableHolder implements Mo
 	private DockableFrame _tradingPanelListFrame;
 	private DockableFrame _tradingPanelGridFrame;
 	private DockableFrame _accountStatusFrame;
+	private DockableFrame _accountListFrame;
 	private DockableFrame _positionSummaryFrame;
 	private DockableFrame _newsFrame;
 	private DockableFrame _messageFrame;
@@ -51,6 +53,9 @@ public class MainFormBase extends DefaultDockableBarDockableHolder implements Mo
 	private DockableFrame _workingOrderListFrame;
 	private DockableFrame _openOrderListFrame;
 	private DockableFrame _orderQueryFrame;
+
+	private DockableFrame _physicalFrame;
+	private MainForm_physicalInvetoryTable_AdjustmentListener _physicalInventoryTableActionListener;
 
 	protected boolean _floatingChildFrames = true;
 	protected HashMap<String, AioChartPanel> _chartPanels;
@@ -83,6 +88,11 @@ public class MainFormBase extends DefaultDockableBarDockableHolder implements Mo
 		return this._positionSummaryFrame;
 	}
 
+	public IActionListener get_PhysicalInventoryTableActionListener()
+	{
+		return this._physicalInventoryTableActionListener;
+	}
+
 	private StatusBar createStatusBar()
 	{
 		// setup status bar
@@ -103,6 +113,7 @@ public class MainFormBase extends DefaultDockableBarDockableHolder implements Mo
 		this._owner = owner;
 		this._settingsManager = settingsManager;
 		queryPanel = new OrderQueryPanel(this._owner);
+		this._physicalInventoryTableActionListener = new MainForm_physicalInvetoryTable_AdjustmentListener(this);
 
 		try
 		{
@@ -113,6 +124,13 @@ public class MainFormBase extends DefaultDockableBarDockableHolder implements Mo
 				accountStatusTable.setBackground(ColorSettings.AccountStatusGridBackground);
 				accountStatusTable.setGridColor(ColorSettings.AccountStatusGridBackground);
 			}
+			accountListTable = new DataGrid("AccountListGrid");
+			if(ColorSettings.useBlackAsBackground)
+			{
+				accountListTable.setBackground(ColorSettings.AccountStatusGridBackground);
+				accountListTable.setGridColor(ColorSettings.AccountStatusGridBackground);
+			}
+
 			/*{
 				@Override
 				public void paint(Graphics g)
@@ -232,6 +250,7 @@ public class MainFormBase extends DefaultDockableBarDockableHolder implements Mo
 			this.createInstrumentGridPanel();
 			this.createInstrumentSpanGridPanel();
 			this.createAccountStatusPanel();
+			this.createAccountListPanel();
 			this.createPositionSummaryPanel();
 			this.createWorkingOrderListPanel();
 			this.createOrderQueryPanel();
@@ -239,15 +258,18 @@ public class MainFormBase extends DefaultDockableBarDockableHolder implements Mo
 			this.createLogPanel();
 			this.createMessagePanel();
 			this.createNewsPanel();
+			this.createPhysicalPanel();
 
 			if(ColorSettings.useBlackAsBackground)
 			{
 				this.setScrollPaneBackground(this._tradingPanelListFrame.getContentPane(), ColorSettings.TradingPanelListFrameBackground);
 				this.setScrollPaneBackground(this._tradingPanelGridFrame.getContentPane(), ColorSettings.TradingPanelGridFrameBackground);
 				this.setScrollPaneBackground(this._accountStatusFrame.getContentPane(), ColorSettings.AccountStatusFrameBackground);
+				this.setScrollPaneBackground(this._accountListFrame.getContentPane(), ColorSettings.AccountStatusFrameBackground);
 				this.setScrollPaneBackground(this._positionSummaryFrame.getContentPane(), ColorSettings.PositionSummaryFrameBackground);
 				this.setScrollPaneBackground(this._workingOrderListFrame.getContentPane(), ColorSettings.WorkingOrderListFrameBackground);
 				this.setScrollPaneBackground(this._openOrderListFrame.getContentPane(), ColorSettings.OpenOrderListFrameBackground);
+				this.setScrollPaneBackground(this._physicalFrame.getContentPane(), ColorSettings.PhysicalFrameBackground);
 				this.setScrollPaneBackground(this._logFrame.getContentPane(), ColorSettings.LogFrameBackground);
 				this.setScrollPaneBackground(this._messageFrame.getContentPane(), ColorSettings.MessageFrameBackground);
 				this.setScrollPaneBackground(this._newsFrame.getContentPane(), ColorSettings.NewsFrameBackground);
@@ -256,10 +278,45 @@ public class MainFormBase extends DefaultDockableBarDockableHolder implements Mo
 			dockingManager.addFrame(this._tradingPanelListFrame);
 			dockingManager.addFrame(this._tradingPanelGridFrame);
 			dockingManager.addFrame(this._accountStatusFrame);
-			dockingManager.addFrame(this._positionSummaryFrame);
+			if(this._settingsManager.get_Accounts().size() > 1)
+			{
+				dockingManager.addFrame(this._accountListFrame);
+
+				FloatingSearchHelper.SearchHandler searchHandler = new FloatingSearchHelper.SearchHandler()
+				{
+					public void doSearch(String searchStr)
+					{
+						searchInAccountList(searchStr);
+					}
+				};
+
+				FloatingSearchHelper.register(this.accountListTable, this, searchHandler);
+				FloatingSearchHelper.register(this._accountListFrame, this, searchHandler);
+
+				searchHandler = new FloatingSearchHelper.SearchHandler()
+				{
+					public void doSearch(String searchStr)
+					{
+						searchInAccountTree(searchStr);
+					}
+				};
+				FloatingSearchHelper.register(this.accountStatusTable, this, searchHandler);
+				FloatingSearchHelper.register(this._accountStatusFrame, this, searchHandler);
+			}
+			if(this._settingsManager.hasInstrumentOf(InstrumentCategory.Margin))
+			{
+				dockingManager.addFrame(this._positionSummaryFrame);
+			}
 			dockingManager.addFrame(this._workingOrderListFrame);
-			dockingManager.addFrame(this._openOrderListFrame);
+			if(this._settingsManager.hasInstrumentOf(InstrumentCategory.Margin))
+			{
+				dockingManager.addFrame(this._openOrderListFrame);
+			}
 			dockingManager.addFrame(this._orderQueryFrame);
+			if(this._settingsManager.hasInstrumentOf(InstrumentCategory.Physical))
+			{
+				dockingManager.addFrame(this._physicalFrame);
+			}
 			this._owner.initializeQueryOrderList();
 			boolean needShowLog = this._settingsManager.get_Customer().get_ShowLog();
 			if (needShowLog)
@@ -273,6 +330,69 @@ public class MainFormBase extends DefaultDockableBarDockableHolder implements Mo
 		catch (Throwable exception)
 		{
 			exception.printStackTrace();
+		}
+	}
+
+	private void searchInAccountTree(String searchStr)
+	{
+		int row = -1;
+		searchStr = searchStr.toLowerCase();
+		for(int index = 0; index < this.accountStatusTable.getRowCount(); index++)
+		{
+			Object obj = this.accountStatusTable.getObject(index);
+			if(obj instanceof tradingConsole.ui.account.Account)
+			{
+				tradingConsole.ui.account.Account item = (tradingConsole.ui.account.Account)obj;
+				String code = item.get_Code().toLowerCase();
+				if(code.startsWith(searchStr))
+				{
+					row = index;
+					break;
+				}
+			}
+		}
+
+		if(row > -1)
+		{
+			this.accountStatusTable.scrollToVisible(row, 0);
+
+			this.accountStatusTable.setSelectionMode(ListSelectionModel.SINGLE_INTERVAL_SELECTION);
+			this.accountStatusTable.setCellSelectionEnabled(true);
+
+			this.accountStatusTable.changeSelection(row, 0, false, false);
+		}
+	}
+
+	private void searchInAccountList(String searchStr)
+	{
+		int row = -1;
+		searchStr = searchStr.toLowerCase();
+		for (int index = 0; index < this.accountListTable.getRowCount(); index++)
+		{
+			Object obj = this.accountListTable.getObject(index);
+			if (obj instanceof tradingConsole.ui.accountList.Account)
+			{
+				tradingConsole.ui.accountList.Account item = (tradingConsole.ui.accountList.Account)obj;
+				String code = item.get_Code().toLowerCase();
+				if (code.startsWith(searchStr))
+				{
+					row = index;
+					break;
+				}
+			}
+		}
+
+		if(row > -1)
+		{
+			this.accountListTable.scrollToVisible(row, 0);
+
+			this.accountListTable.setSelectionMode(ListSelectionModel.SINGLE_INTERVAL_SELECTION);
+			this.accountListTable.setCellSelectionEnabled(true);
+
+			for(int index = 1; index < this.accountListTable.getColumnCount(); index++)
+			{
+				this.accountListTable.changeSelection(row, index, false, index > 1);
+			}
 		}
 	}
 
@@ -296,16 +416,17 @@ public class MainFormBase extends DefaultDockableBarDockableHolder implements Mo
 		{
 			return new Rectangle(location.x + (int) (screenSize.width * 0.6) + 22, location.y + 85, (int) (screenSize.width * 0.4), (int) (screenSize.height * 0.4) + 32);
 		}
-		else if (key.equalsIgnoreCase("PositionSummaryFrame"))
+		else if (key.equalsIgnoreCase("PositionSummaryFrame") || key.equalsIgnoreCase("AccountStatusFrame"))
 		{
-			return new Rectangle(location.x + 8, location.y + (int) (screenSize.height * 0.4) + 130, (int) (screenSize.width * 0.3), (int) (screenSize.height * 0.6));
+			return new Rectangle(location.x + 8, location.y + (int) (screenSize.height * 0.4) + 130, (int) (screenSize.width * 0.3), (int) (screenSize.height * 0.5) + 42);
 		}
-		else if (key.equalsIgnoreCase("OpenOrderListFrame") || key.equalsIgnoreCase("QueryOrderListFrame"))
+		else if (key.equalsIgnoreCase("OpenOrderListFrame") || key.equalsIgnoreCase("QueryOrderListFrame")
+			|| key.equalsIgnoreCase("PhysicalStokFrame"))
 		{
 			if(this._settingsManager.get_IsForRSZQ())
 			{
-				return new Rectangle(location.x + (int) (screenSize.width * 0.3) + 22, location.y + (int) (screenSize.height * 0.6) + 211,
-									 (int) (screenSize.width * 0.7), (int) (screenSize.height * 0.3));
+				return new Rectangle(location.x + (int) (screenSize.width * 0.3) + 22, location.y + (int) (screenSize.height * 0.6) + 181,
+									 (int) (screenSize.width * 0.7), (int) (screenSize.height * 0.285));
 			}
 			else
 			{
@@ -843,6 +964,32 @@ public class MainFormBase extends DefaultDockableBarDockableHolder implements Mo
 		this._tradingPanelGridFrame.getContext().setInitIndex(2);
 	}
 
+	private void createAccountListPanel()
+	{
+		this._accountListFrame = new DockableFrame(Language.AccountListPrompt, this.getAsIcon("AccountStatus.ico"));
+		this.accountListTable.setBorder(BorderFactory.createEmptyBorder());
+		//this.accountListTable.setRowSelectionAllowed(false);
+		this.accountListTable.setColumnSelectionAllowed(false);
+		JScrollPane scrollPanel = new JScrollPane(this.accountListTable);
+		this.accountListTable.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
+		//this.accountListTable.setRowAutoResizes(true);
+		this._accountListFrame.getContentPane().add(scrollPanel);
+
+		//ID
+		this._accountListFrame.setKey("AccountListFrame");
+
+		//Titles
+		this._accountListFrame.setTabTitle(Language.AccountListPrompt);
+		this._accountListFrame.setTitle(Language.AccountListPrompt);
+		this._accountListFrame.setSideTitle(Language.AccountListPrompt);
+
+		//Initial Layout
+		this._accountListFrame.getContext().setInitMode(DockContext.STATE_FRAMEDOCKED);
+		this._accountListFrame.getContext().setFloatable(true);
+		this._accountListFrame.getContext().setInitSide(DockContext.DOCK_SIDE_WEST);
+		this._accountListFrame.getContext().setInitIndex(3);
+	}
+
 	private void createAccountStatusPanel()
 	{
 		this._accountStatusFrame = new DockableFrame(Language.AccountStatusPrompt, this.getAsIcon("AccountStatus.ico"));
@@ -871,20 +1018,22 @@ public class MainFormBase extends DefaultDockableBarDockableHolder implements Mo
 	private void createPositionSummaryPanel()
 	{
 		this._positionSummaryFrame = this.summaryTable.get_DockableFrame();
+		if(this._settingsManager.hasInstrumentOf(InstrumentCategory.Margin))
+		{
+			//ID
+			this._positionSummaryFrame.setKey("PositionSummaryFrame");
 
-		//ID
-		this._positionSummaryFrame.setKey("PositionSummaryFrame");
+			//Titles
+			this._positionSummaryFrame.setTabTitle(Language.SummaryPrompt);
+			this._positionSummaryFrame.setTitle(Language.SummaryPrompt);
+			this._positionSummaryFrame.setSideTitle(Language.SummaryPrompt);
 
-		//Titles
-		this._positionSummaryFrame.setTabTitle(Language.SummaryPrompt);
-		this._positionSummaryFrame.setTitle(Language.SummaryPrompt);
-		this._positionSummaryFrame.setSideTitle(Language.SummaryPrompt);
-
-		//Initial Layout
-		this._positionSummaryFrame.getContext().setInitMode(DockContext.STATE_FRAMEDOCKED);
-		this._positionSummaryFrame.getContext().setFloatable(true);
-		this._positionSummaryFrame.getContext().setInitSide(DockContext.DOCK_SIDE_WEST);
-		this._positionSummaryFrame.getContext().setInitIndex(3);
+			//Initial Layout
+			this._positionSummaryFrame.getContext().setInitMode(DockContext.STATE_FRAMEDOCKED);
+			this._positionSummaryFrame.getContext().setFloatable(true);
+			this._positionSummaryFrame.getContext().setInitSide(DockContext.DOCK_SIDE_WEST);
+			this._positionSummaryFrame.getContext().setInitIndex(3);
+		}
 	}
 
 	private void createLogPanel()
@@ -1033,6 +1182,116 @@ public class MainFormBase extends DefaultDockableBarDockableHolder implements Mo
 		this._orderQueryFrame.getContext().setInitIndex(this._settingsManager.get_IsForRSZQ() ? 5 : 4);
 	}
 
+	JRadioButton inventoryButton = new JRadioButton(Language.PhysicalInventory);
+	JRadioButton pendingInventoryButton = new JRadioButton(Language.PhysicalPendingInventory);
+	JRadioButton shortSellButton = new JRadioButton(Language.PhysicalShortSell);
+	Font unselectedFont = new Font("SansSerif", Font.PLAIN, 12);
+	Font selectedFont = new Font("SansSerif", Font.BOLD, 12);
+	JScrollPane inventoryScrollPane = null, pendingInventoryScrollPane = null, shortSellScrollPane = null;
+	private void handleRadioButtonStateChangedEventInPhysicalPanel()
+	{
+		if(inventoryButton.isSelected())
+		{
+			inventoryButton.setFont(selectedFont);
+			this.inventoryScrollPane.setVisible(true);
+
+			pendingInventoryButton.setFont(unselectedFont);
+			this.pendingInventoryScrollPane.setVisible(false);
+
+			shortSellButton.setFont(unselectedFont);
+			this.shortSellScrollPane.setVisible(false);
+		}
+		else if (pendingInventoryButton.isSelected())
+		{
+			inventoryButton.setFont(unselectedFont);
+			this.inventoryScrollPane.setVisible(false);
+
+			pendingInventoryButton.setFont(selectedFont);
+			this.pendingInventoryScrollPane.setVisible(true);
+
+			shortSellButton.setFont(unselectedFont);
+			this.shortSellScrollPane.setVisible(false);
+		}
+		else if (shortSellButton.isSelected())
+		{
+			inventoryButton.setFont(unselectedFont);
+			this.inventoryScrollPane.setVisible(false);
+
+			pendingInventoryButton.setFont(unselectedFont);
+			this.pendingInventoryScrollPane.setVisible(false);
+
+			shortSellButton.setFont(selectedFont);
+			this.shortSellScrollPane.setVisible(true);
+		}
+	}
+
+	private void createPhysicalPanel()
+	{
+		this._physicalFrame = new DockableFrame(Language.PhysicalStok, this.getAsIcon("PhysicalStok.ico"));
+		this._physicalFrame.getContentPane().setLayout(new GridBagLayout());
+		//JPanel panel = new JPanel();
+		//panel.setLayout(new GridBagLayout());
+		JPanel buttonPanel = new JPanel();
+		buttonPanel.setLayout(new GridBagLayout());
+
+		ButtonGroup group = new ButtonGroup();
+		group.add(inventoryButton);
+		group.add(pendingInventoryButton);
+		group.add(shortSellButton);
+		ItemListener itemListener = new ItemListener()
+		{
+			public void itemStateChanged(ItemEvent e)
+			{
+				handleRadioButtonStateChangedEventInPhysicalPanel();
+			}
+		};
+		inventoryButton.addItemListener(itemListener);
+		pendingInventoryButton.addItemListener(itemListener);
+		shortSellButton.addItemListener(itemListener);
+
+		buttonPanel.add(inventoryButton, new GridBagConstraints2(0, 0, 1, 1, 0.0, 0.0,
+				GridBagConstraints.NORTHWEST, GridBagConstraints.NONE, new Insets(0, 2, 0, 0), 60, 0));
+		buttonPanel.add(pendingInventoryButton, new GridBagConstraints2(1, 0, 1, 1, 0.0, 0.0,
+				GridBagConstraints.NORTHWEST, GridBagConstraints.NONE, new Insets(0, 1, 0, 0), 60, 0));
+		buttonPanel.add(shortSellButton, new GridBagConstraints2(2, 0, 1, 1, 0.0, 0.0,
+				GridBagConstraints.NORTHWEST, GridBagConstraints.NONE, new Insets(0, 1, 0, 0), 60, 0));
+		buttonPanel.add(new JPanel(), new GridBagConstraints2(3, 0, 1, 1, 1.0, 0.0,
+				GridBagConstraints.NORTHWEST, GridBagConstraints.HORIZONTAL, new Insets(0, 1, 0, 0), 60, 0));
+
+		this._physicalFrame.getContentPane().add(buttonPanel, new GridBagConstraints2(0, 0, 1, 1, 0.0, 0.0,
+				GridBagConstraints.NORTHWEST, GridBagConstraints.HORIZONTAL, new Insets(0, 0, 0, 0), 0, 12));
+
+		this.inventoryScrollPane = new JScrollPane(this.physicalInventoryTable);
+		this.pendingInventoryScrollPane = new JScrollPane(this.physicalPendingInventoryTable);
+		this.shortSellScrollPane = new JScrollPane(this.physicalShotSellTable);
+
+		this._physicalFrame.getContentPane().add(this.inventoryScrollPane, new GridBagConstraints2(0, 1, 1, 1, 1.0, 1.0,
+				GridBagConstraints.NORTHWEST, GridBagConstraints.BOTH, new Insets(0, 0, 0, 0), 0, 0));
+
+		this._physicalFrame.getContentPane().add(this.pendingInventoryScrollPane, new GridBagConstraints2(0, 1, 1, 1, 1.0, 1.0,
+				GridBagConstraints.NORTHWEST, GridBagConstraints.BOTH, new Insets(0, 0, 0, 0), 0, 0));
+
+		this._physicalFrame.getContentPane().add(this.shortSellScrollPane, new GridBagConstraints2(0, 1, 1, 1, 1.0, 1.0,
+				GridBagConstraints.NORTHWEST, GridBagConstraints.BOTH, new Insets(0, 0, 0, 0), 0, 0));
+
+		//this._physicalFrame.getContentPane().add(panel);
+
+		this._physicalFrame.setKey("PhysicalStokFrame");
+
+		//Titles
+		this._physicalFrame.setTabTitle(Language.PhysicalStok);
+		this._physicalFrame.setTitle(Language.PhysicalStok);
+		this._physicalFrame.setSideTitle(Language.PhysicalStok);
+
+		//Initial Layout
+		this._physicalFrame.getContext().setInitMode(DockContext.STATE_FRAMEDOCKED);
+		this._physicalFrame.getContext().setFloatable(true);
+		this._physicalFrame.getContext().setInitSide(DockContext.DOCK_SIDE_EAST);
+		this._physicalFrame.getContext().setInitIndex(this._settingsManager.get_IsForRSZQ() ? 5 : 4);
+
+		inventoryButton.setSelected(true);
+	}
+
 	private void createOpenOrderListPanel()
 	{
 		this._openOrderListFrame = new DockableFrame(Language.SettingOpenOrderGrid, this.getAsIcon("OpenOrderList.ico"));
@@ -1152,8 +1411,41 @@ public class MainFormBase extends DefaultDockableBarDockableHolder implements Mo
 		}
 		this.orderTable.setEditable(false);
 		this.orderTable.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
-		this.orderTable.enableChooseColumn();
+		this.orderTable.enalbeHierarchicalTableMainViewport();
 		this.orderTable.enableColumnUIPersistent();
+
+		this.physicalInventoryTable = new tradingConsole.ui.grid.DataGrid(GridNames.PhysicalInventory);
+		this.physicalInventoryTable.setBorder(BorderFactory.createEmptyBorder());
+		this.physicalInventoryTable.setRowSelectionAllowed(false);
+		this.physicalInventoryTable.setColumnSelectionAllowed(false);
+		this.physicalInventoryTable.setEditable(false);
+		//this.physicalInventoryTable.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
+		this.physicalInventoryTable.setRowAutoResizes(true);
+		//this.physicalInventoryTable.enableChooseColumn();
+		this.physicalInventoryTable.setOptimized(true);
+
+		this.physicalPendingInventoryTable = new tradingConsole.ui.grid.DataGrid(GridNames.PhysicalPendingInventory);
+		this.physicalShotSellTable = new tradingConsole.ui.grid.DataGrid(GridNames.PhysicalShotSell);
+		if(ColorSettings.useBlackAsBackground)
+		{
+			this.physicalInventoryTable.setBackground(ColorSettings.PhysicalFrameBackground);
+			this.physicalInventoryTable.setGridColor(ColorSettings.PhysicalFrameBackground);
+			this.physicalInventoryTable.enableRowStripe(ColorSettings.GridStripeColors);
+
+			this.physicalPendingInventoryTable.setBackground(ColorSettings.PhysicalFrameBackground);
+			this.physicalPendingInventoryTable.setGridColor(ColorSettings.PhysicalFrameBackground);
+			this.physicalPendingInventoryTable.enableRowStripe(ColorSettings.GridStripeColors);
+
+			this.physicalShotSellTable.setBackground(ColorSettings.PhysicalFrameBackground);
+			this.physicalShotSellTable.setGridColor(ColorSettings.PhysicalFrameBackground);
+			this.physicalShotSellTable.enableRowStripe(ColorSettings.GridStripeColors);
+		}
+		else
+		{
+			this.physicalInventoryTable.enableRowStripe();
+			this.physicalPendingInventoryTable.enableRowStripe();
+			this.physicalShotSellTable.enableRowStripe();
+		}
 
 		this.openOrderTable = new tradingConsole.ui.grid.DataGrid(GridNames.OpenOrderGrid);
 		this.openOrderTable.setEditable(true);
@@ -1239,10 +1531,12 @@ public class MainFormBase extends DefaultDockableBarDockableHolder implements Mo
 
 		if(ColorSettings.useBlackAsBackground)
 		{
+			this.accountListTable.enableRowStripe(ColorSettings.GridStripeColors);
 			this.accountStatusTable.enableRowStripe(ColorSettings.GridStripeColors);
 		}
 		else
 		{
+			this.accountListTable.enableRowStripe();
 			this.accountStatusTable.enableRowStripe();
 		}
 
@@ -1260,6 +1554,14 @@ public class MainFormBase extends DefaultDockableBarDockableHolder implements Mo
 		this.orderTable.addActionListener(new MainForm_orderTable_actionAdapter(this));
 		this.openOrderTable.addActionListener(new MainForm_openOrderTable_actionAdapter(this));
 		this.queryPanel.get_NotConfirmedPendingOrderTable().addActionListener(new MainForm_queryOrderTable_actionAdapter(this));
+		this.physicalInventoryTable.addActionListener(this._physicalInventoryTableActionListener);
+		this.physicalShotSellTable.addActionListener(new IActionListener()
+		{
+			public void actionPerformed(tradingConsole.ui.grid.ActionEvent e)
+			{
+				processPhysicalShortSellTable(e);
+			}
+		});
 	}
 
 	private void eventSetting()
@@ -1318,6 +1620,7 @@ public class MainFormBase extends DefaultDockableBarDockableHolder implements Mo
 	protected tradingConsole.ui.grid.DockableTable newsTable;
 	protected tradingConsole.ui.grid.DockableTable messageTable;
 	protected DataGrid accountStatusTable;
+	protected DataGrid accountListTable;
 
 	protected tradingConsole.ui.grid.DockableTable instrumentTable;
 	protected InstrumentSpanGrid instrument2Table;
@@ -1328,6 +1631,10 @@ public class MainFormBase extends DefaultDockableBarDockableHolder implements Mo
 	protected PVStaticText2 loginInformationStaticText;
 	protected PVStaticText2 statusStaticText;
 	protected PVButton2 logoButton;
+
+	protected tradingConsole.ui.grid.DataGrid physicalInventoryTable;
+	protected tradingConsole.ui.grid.DataGrid physicalPendingInventoryTable;
+	protected tradingConsole.ui.grid.DataGrid physicalShotSellTable;
 
 	protected CommandBar commandBar;
 	protected JideToggleButton connectButton2;
@@ -1450,6 +1757,10 @@ public class MainFormBase extends DefaultDockableBarDockableHolder implements Mo
 
 	protected void processOrderTable(tradingConsole.ui.grid.ActionEvent e)
 	{}
+
+	protected void processPhysicalInventoryTable(tradingConsole.ui.grid.ActionEvent e){}
+
+	protected void processPhysicalShortSellTable(tradingConsole.ui.grid.ActionEvent e){}
 
 	protected void processOpenOrderTable(tradingConsole.ui.grid.ActionEvent e)
 	{}
@@ -2514,5 +2825,20 @@ class MainForm_instrument2Table_AdjustmentListener implements AdjustmentListener
 	public void adjustmentValueChanged(AdjustmentEvent e)
 	{
 		adaptee.instrument2Table_adjustmentValueChanged(e);
+	}
+}
+
+class MainForm_physicalInvetoryTable_AdjustmentListener implements  IActionListener
+{
+	private MainFormBase adaptee;
+
+	MainForm_physicalInvetoryTable_AdjustmentListener(MainFormBase adaptee)
+	{
+		this.adaptee = adaptee;
+	}
+
+	public void actionPerformed(tradingConsole.ui.grid.ActionEvent e)
+	{
+		this.adaptee.processPhysicalInventoryTable(e);
 	}
 }

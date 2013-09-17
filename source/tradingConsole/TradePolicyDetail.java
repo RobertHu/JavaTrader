@@ -9,12 +9,14 @@ import tradingConsole.settings.SettingsManager;
 import framework.xml.XmlAttributeCollection;
 import framework.StringHelper;
 import framework.DBNull;
+import tradingConsole.enumDefine.physical.PhysicalTradeSide;
 
 public class TradePolicyDetail
 {
 	private Guid _tradePolicyId;
 	private Guid _instrumentId;
 	private Guid _volumeNecessaryId;
+	private Guid _instalmentPolicyId;
 	private BigDecimal _contractSize;
 	private boolean _isTradeActive;
 	private BigDecimal _commissionCloseD;
@@ -42,6 +44,8 @@ public class TradePolicyDetail
 	private BigDecimal _interestRateBuy;
 	private BigDecimal _interestRateSell;
 
+	private Guid _deliveryChargeId;
+
 	private int _dQMaxMove = 0;
 	private BigDecimal _pairRelationFactor;
 
@@ -54,6 +58,12 @@ public class TradePolicyDetail
 	private boolean _multipleCloseAllowed = false;
 	private boolean _canPlaceMatchOrder = false;
 	private boolean _allowNewOCO = false;
+
+	private int _allowedPhysicalTradeSides;
+	private BigDecimal _discountOfOdd;
+	private BigDecimal _valueDiscountAsMargin;
+	private BigDecimal _physicalMinDeliveryQuantity;
+	private BigDecimal _physicalDeliveryIncremental;
 
 	public boolean get_GoodTillDate()
 	{
@@ -198,6 +208,11 @@ public class TradePolicyDetail
 		return this._volumeNecessaryId;
 	}
 
+	public Guid get_InstalmentPolicyId()
+	{
+		return this._instalmentPolicyId;
+	}
+
 	public BigDecimal get_CommissionCloseD()
 	{
 		return this._commissionCloseD;
@@ -216,6 +231,11 @@ public class TradePolicyDetail
 	public Guid get_InterestRateId()
 	{
 		return this._interestRateId;
+	}
+
+	public Guid get_DeliveryChargeId()
+	{
+		return this._deliveryChargeId;
 	}
 
 	public BigDecimal get_InterestRateBuy()
@@ -253,6 +273,32 @@ public class TradePolicyDetail
 		return this._canPlaceMatchOrder;
 	}
 
+	public boolean isAllowed(PhysicalTradeSide physicalTradeSide)
+	{
+		return (physicalTradeSide.value() & this._allowedPhysicalTradeSides) == physicalTradeSide.value();
+	}
+
+	public BigDecimal get_DiscountOfOdd()
+	{
+		return this._discountOfOdd;
+	}
+
+	public BigDecimal get_ValueDiscountAsMargin()
+	{
+		return this._valueDiscountAsMargin;
+	}
+
+	public BigDecimal get_PhysicalMinDeliveryQuantity()
+	{
+		return this._physicalMinDeliveryQuantity;
+	}
+
+	public BigDecimal get_PhysicalDeliveryIncremental()
+	{
+		return this._physicalDeliveryIncremental;
+	}
+
+
 	public TradePolicyDetail(Guid tradePolicyId, Guid instrumentId)
 	{
 		this._tradePolicyId = tradePolicyId;
@@ -275,6 +321,7 @@ public class TradePolicyDetail
 	{
 		this._contractSize = AppToolkit.convertDBValueToBigDecimal(dataRow.get_Item("ContractSize"), 0.0);
 		this._volumeNecessaryId = dataRow.get_Item("VolumeNecessaryId").equals(DBNull.value) ? null : (Guid) (dataRow.get_Item("VolumeNecessaryId"));
+		this._instalmentPolicyId = dataRow.get_Item("InstalmentPolicyId").equals(DBNull.value) ? null : (Guid) (dataRow.get_Item("InstalmentPolicyId"));
 		this._isTradeActive = (Boolean) dataRow.get_Item("IsTradeActive");
 		this._commissionCloseD = AppToolkit.convertDBValueToBigDecimal(dataRow.get_Item("CommissionCloseD"),0.0);
 		this._commissionCloseO = AppToolkit.convertDBValueToBigDecimal(dataRow.get_Item("CommissionCloseO"),0.0);
@@ -298,6 +345,8 @@ public class TradePolicyDetail
 		this._multipleCloseAllowed = (Boolean) dataRow.get_Item("MultipleCloseAllowed");
 		this._allowIfDone = (Boolean) dataRow.get_Item("AllowIfDone");
 
+		this._deliveryChargeId = AppToolkit.isDBNull(dataRow.get_Item("DeliveryChargeID")) ? null : (Guid) dataRow.get_Item("DeliveryChargeID");
+
 		this._interestRateId = AppToolkit.isDBNull(dataRow.get_Item("InterestRateID")) ? null : (Guid) dataRow.get_Item("InterestRateID");
 		this._interestRateBuy = (AppToolkit.isDBNull(dataRow.get_Item("InterestRateBuy")) ? null : (BigDecimal) (dataRow.get_Item("InterestRateBuy")));
 		this._interestRateSell = (AppToolkit.isDBNull(dataRow.get_Item("InterestRateSell")) ? null : (BigDecimal) (dataRow.get_Item("InterestRateSell")));
@@ -316,6 +365,14 @@ public class TradePolicyDetail
 		this._goodTillMonthGTF = (Boolean) dataRow.get_Item("GoodTillMonthGTF");
 		this._canPlaceMatchOrder = (Boolean) dataRow.get_Item("CanPlaceMatchOrder");
 		this._allowNewOCO = (Boolean) dataRow.get_Item("AllowNewOCO");
+
+		this._allowedPhysicalTradeSides = (Integer)dataRow.get_Item("AllowedPhysicalTradeSides");
+		this._discountOfOdd = (BigDecimal) dataRow.get_Item("DiscountOfOdd");
+		this._valueDiscountAsMargin = (BigDecimal) dataRow.get_Item("ValueDiscountAsMargin");
+		this._physicalMinDeliveryQuantity = (BigDecimal) dataRow.get_Item("PhysicalMinDeliveryQuantity");
+		this._physicalDeliveryIncremental = (BigDecimal) dataRow.get_Item("PhysicalDeliveryIncremental");
+
+
 	}
 
 	private void setValue(XmlAttributeCollection tradePolicyDetailCollection)
@@ -328,13 +385,17 @@ public class TradePolicyDetail
 			{
 				this._tradePolicyId = new Guid(nodeValue);
 			}
-			if (nodeName.equals("InstrumentID"))
+			else if (nodeName.equals("InstrumentID"))
 			{
 				this._instrumentId = new Guid(nodeValue);
 			}
-			if (nodeName.equals("VolumeNecessaryId"))
+			else if (nodeName.equals("VolumeNecessaryId"))
 			{
 				this._volumeNecessaryId = StringHelper.isNullOrEmpty(nodeValue) ? null : new Guid(nodeValue);
+			}
+			else if (nodeName.equals("InstalmentPolicyId"))
+			{
+				this._instalmentPolicyId = StringHelper.isNullOrEmpty(nodeValue) ? null : new Guid(nodeValue);
 			}
 			else if (nodeName.equals("ContractSize"))
 			{
@@ -432,6 +493,17 @@ public class TradePolicyDetail
 			{
 				this._interestRateId = new Guid(nodeValue);
 			}
+			else if (nodeName.equalsIgnoreCase("DeliveryChargeId"))
+			{
+				if(StringHelper.isNullOrEmpty(nodeValue))
+				{
+					this._deliveryChargeId = null;
+				}
+				else
+				{
+					this._deliveryChargeId = new Guid(nodeValue);
+				}
+			}
 			else if (nodeName.equalsIgnoreCase("InterestRateBuy"))
 			{
 				this._interestRateBuy = AppToolkit.isDBNull(nodeValue) ? null : new BigDecimal(nodeValue);
@@ -467,6 +539,26 @@ public class TradePolicyDetail
 			else if (nodeName.equals("GoodTillMonthGTF"))
 			{
 				this._goodTillMonthGTF = Boolean.valueOf(nodeValue);
+			}
+			else if (nodeName.equals("AllowedPhysicalTradeSides"))
+			{
+				this._allowedPhysicalTradeSides = Integer.parseInt(nodeValue);
+			}
+			else if (nodeName.equals("DiscountOfOdd"))
+			{
+				this._discountOfOdd = new BigDecimal(nodeValue);
+			}
+			else if (nodeName.equals("ValueDiscountAsMargin"))
+			{
+				this._valueDiscountAsMargin = new BigDecimal(nodeValue);
+			}
+			else if (nodeName.equals("PhysicalMinDeliveryQuantity"))
+			{
+				this._physicalMinDeliveryQuantity = new BigDecimal(nodeValue);
+			}
+			else if (nodeName.equals("PhysicalDeliveryIncremental"))
+			{
+				this._physicalDeliveryIncremental = new BigDecimal(nodeValue);
 			}
 			else if (nodeName.equals("CanPlaceMatchOrder"))
 			{
@@ -509,6 +601,18 @@ public class TradePolicyDetail
 			if (tradePolicyDetail != null)
 			{
 				tradePolicyDetail.setValue(tradePolicyDetailCollection);
+
+				if(tradePolicyDetail.get_DeliveryChargeId() != null
+				   && !settingsManager.containsDeliveryCharge(tradePolicyDetail.get_DeliveryChargeId()))
+				{
+					tradingConsole.get_MainForm().refreshSystem();
+				}
+				if(tradePolicyDetail.get_InstalmentPolicyId() != null
+				   && !settingsManager.containsInstalmentPolicy(tradePolicyDetail.get_InstalmentPolicyId()))
+				{
+					tradingConsole.get_MainForm().refreshSystem();
+				}
+
 			}
 			else
 			{

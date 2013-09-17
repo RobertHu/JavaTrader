@@ -88,14 +88,15 @@ public class MatchingOrderForm extends JPanel implements IBuySellProvider
 	PVStaticText2 setPriceStaticText = new PVStaticText2();
 	PVStaticText2 totalLotStaticText = new PVStaticText2();
 	PVStaticText2 closeLotStaticText = new PVStaticText2();
+	NoneResizeableTextField instrumentQuoteDescription = new NoneResizeableTextField();
 	PVStaticText2 expireTimeStaticText = new PVStaticText2();
 	JAdvancedComboBox accountChoice = new JAdvancedComboBox();
 	JAdvancedComboBox isBuyChoice = new JAdvancedComboBox();
 	//JTextField priceEdit = new JTextField();
 	JSpinner priceEdit = new JSpinner();
 	JScrollPane scrollPane;
-	JFormattedTextField totalLotTextField = new JFormattedTextField(new DecimalFormat());
-	JFormattedTextField closeLotTextField = new JFormattedTextField(new DecimalFormat());
+	JFormattedTextFieldEx totalLotTextField = new JFormattedTextFieldEx(new DecimalFormat(), true);
+	JFormattedTextFieldEx closeLotTextField = new JFormattedTextFieldEx(new DecimalFormat(), true);
 	PVStaticText2 totalCloseLot = new PVStaticText2();
 	PVStaticText2 totalCloseLotTitle = new PVStaticText2();
 	JAdvancedComboBox expireTimeChoice = new JAdvancedComboBox();
@@ -179,6 +180,7 @@ public class MatchingOrderForm extends JPanel implements IBuySellProvider
 		totalLotStaticText.setText("Lot");
 		totalLotStaticText.setFont(font);
 		closeLotStaticText.setFont(font);
+		instrumentQuoteDescription.setFont(font);
 		expireTimeStaticText.setText("Expire Time");
 		expireTimeStaticText.setFont(font);
 		totalLotTextField.setText("Numeric1");
@@ -357,50 +359,61 @@ public class MatchingOrderForm extends JPanel implements IBuySellProvider
 
 		scrollPane = new JScrollPane(outstandingOrderTable);
 		outstandingOrderTable.enableRowStripe();
-		this.add(scrollPane, new GridBagConstraints(4, 2, 4, 7, 0.0, 1.0
+		this.add(scrollPane, new GridBagConstraints(4, 2, 4, 8, 0.0, 1.0
 			, GridBagConstraints.NORTHWEST, GridBagConstraints.BOTH, new Insets(5, 10, 5, 2), 0, 5));
 
-		this.add(accountStaticText, new GridBagConstraints(0, 2, 2, 1, 0.0, 0.0
+		this.add(accountStaticText, new GridBagConstraints(0, 3, 2, 1, 0.0, 0.0
 			, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(6, 5, 1, 5), 40, 0));
-		this.add(accountChoice, new GridBagConstraints(2, 2, 2, 1, 0.0, 0.0
+		this.add(accountChoice, new GridBagConstraints(2, 3, 2, 1, 0.0, 0.0
 			, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, new Insets(6, 2, 1, 0), 0, 5));
 
-		this.add(isBuyStaticText, new GridBagConstraints(0, 3, 2, 1, 0.0, 0.0
+		this.add(isBuyStaticText, new GridBagConstraints(0, 4, 2, 1, 0.0, 0.0
 			, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(1, 5, 1, 5), 0, 0));
-		this.add(isBuyChoice, new GridBagConstraints(2, 3, 2, 1, 0.0, 0.0
+		this.add(isBuyChoice, new GridBagConstraints(2, 4, 2, 1, 0.0, 0.0
 			, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, new Insets(1, 2, 1, 0), 0, 5));
 
-		this.add(setPriceStaticText, new GridBagConstraints(0, 4, 2, 1, 0.0, 0.0
+		this.add(setPriceStaticText, new GridBagConstraints(0, 5, 2, 1, 0.0, 0.0
 			, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(1, 5, 1, 10), 0, 0));
-		this.add(priceEdit, new GridBagConstraints(2, 4, 2, 1, 1.0, 0.0
+		this.add(priceEdit, new GridBagConstraints(2, 5, 2, 1, 1.0, 0.0
 			, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, new Insets(1, 2, 1, 2), 30, 0));
 
-		this.add(totalLotStaticText, new GridBagConstraints(0, 5, 2, 1, 0.0, 0.0
+		this.add(totalLotStaticText, new GridBagConstraints(0, 6, 2, 1, 0.0, 0.0
 			, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(1, 5, 1, 5), 0, 0));
-		this.add(totalLotTextField, new GridBagConstraints(2, 5, 2, 1, 0.0, 0.0
+		this.add(totalLotTextField, new GridBagConstraints(2, 6, 2, 1, 0.0, 0.0
 			, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, new Insets(1, 2, 1, 2), 0, 0));
 
-		this.add(closeLotStaticText, new GridBagConstraints(0, 6, 2, 1, 0.0, 0.0
+		this.add(closeLotStaticText, new GridBagConstraints(0, 7, 2, 1, 0.0, 0.0
 			, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(1, 5, 1, 5), 0, 0));
-		this.add(closeLotTextField, new GridBagConstraints(2, 6, 2, 1, 0.0, 0.0
+		this.add(closeLotTextField, new GridBagConstraints(2, 7, 2, 1, 0.0, 0.0
 			, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, new Insets(1, 2, 1, 2), 0, 0));
 
-		this.add(expireTimeStaticText, new GridBagConstraints(0, 7, 2, 2, 0.0, 0.0
+		this.add(this.instrumentQuoteDescription, new GridBagConstraints(0, 2, 4, 1, 0.0, 0.0
+			, GridBagConstraints.SOUTHWEST, GridBagConstraints.HORIZONTAL, new Insets(0, 8, 0, 0), 0, 20));
+		if(!StringHelper.isNullOrEmpty(this._instrument.get_QuoteDescription()))
+		{
+			this.instrumentQuoteDescription.setText(this._instrument.get_QuoteDescription());
+		}
+		else
+		{
+			this.instrumentQuoteDescription.setVisible(false);
+		}
+
+		this.add(expireTimeStaticText, new GridBagConstraints(0, 8, 2, 2, 0.0, 0.0
 			, GridBagConstraints.NORTHWEST, GridBagConstraints.NONE, new Insets(5, 5, 5, 5), 0, 0));
-		this.add(expireTimeChoice, new GridBagConstraints(2, 7, 2, 1, 0.0, 0.0
+		this.add(expireTimeChoice, new GridBagConstraints(2, 8, 2, 1, 0.0, 0.0
 			, GridBagConstraints.NORTHWEST, GridBagConstraints.HORIZONTAL, new Insets(1, 2, 1, 2), 0, 5));
 
-		this.add(expireTimeDate, new GridBagConstraints(2, 8, 2, 1, 0.0, 0.0
+		this.add(expireTimeDate, new GridBagConstraints(2, 9, 2, 1, 0.0, 0.0
 			, GridBagConstraints.NORTHWEST, GridBagConstraints.HORIZONTAL, new Insets(1, 2, 1, 2), 0, 5));
 
-		this.add(submitButton, new GridBagConstraints(0, 9, 4, 1, 0.0, 0.0
+		this.add(submitButton, new GridBagConstraints(0, 10, 4, 1, 0.0, 0.0
 			, GridBagConstraints.SOUTHWEST, GridBagConstraints.HORIZONTAL, new Insets(0, 6, 10, 0), 10, 0));
 
-		this.add(resetButton, new GridBagConstraints(4, 9, 2, 1, 0.0, 0.0
+		this.add(resetButton, new GridBagConstraints(4, 10, 2, 1, 0.0, 0.0
 			, GridBagConstraints.SOUTHWEST, GridBagConstraints.NONE, new Insets(5, 10, 10, 0), 10, 0));
-		this.add(closeAllButton, new GridBagConstraints(6, 9, 1, 1, 0.0, 0.0
+		this.add(closeAllButton, new GridBagConstraints(6, 10, 1, 1, 0.0, 0.0
 			, GridBagConstraints.SOUTHWEST, GridBagConstraints.NONE, new Insets(5, 1, 10, 5), 10, 0));
-		this.add(exitButton, new GridBagConstraints(7, 9, 1, 1, 0.0, 0.0
+		this.add(exitButton, new GridBagConstraints(7, 10, 1, 1, 0.0, 0.0
 			, GridBagConstraints.SOUTHEAST, GridBagConstraints.NONE, new Insets(5, 1, 10, 5), 10, 0));
 	}
 
@@ -550,7 +563,7 @@ public class MatchingOrderForm extends JPanel implements IBuySellProvider
 			BigDecimal lot = new BigDecimal(bestPending.get_Quantity());
 			Account account = this._makeOrderAccount.get_Account();
 			TradePolicyDetail tradePolicyDetail = this._settingsManager.getTradePolicyDetail(account.get_TradePolicyId(), this._instrument.get_Id());
-			lot = AppToolkit.fixLot(lot, true, tradePolicyDetail, account);
+			lot = AppToolkit.fixLot(lot, true, tradePolicyDetail, this._makeOrderAccount);
 			String qunatity = AppToolkit.getFormatLot(lot, this._makeOrderAccount.get_Account(), this._instrument);
 			this.totalLotTextField.setText(qunatity);
 		}
@@ -684,7 +697,7 @@ public class MatchingOrderForm extends JPanel implements IBuySellProvider
 		}
 		TradePolicyDetail tradePolicyDetail = this._settingsManager.getTradePolicyDetail(this._makeOrderAccount.get_Account().get_TradePolicyId(),
 			this._instrument.get_Id());
-		BigDecimal lot2 = AppToolkit.fixLot(lot, isOpen, tradePolicyDetail, this._makeOrderAccount.get_Account());
+		BigDecimal lot2 = AppToolkit.fixLot(lot, isOpen, tradePolicyDetail, this._makeOrderAccount);
 		String formattedLot = AppToolkit.getFormatLot(lot2, this._makeOrderAccount.get_Account(), this._instrument);
 		if (StringHelper.isNullOrEmpty(formattedLot))
 		{
@@ -723,7 +736,7 @@ public class MatchingOrderForm extends JPanel implements IBuySellProvider
 		Account account = this._makeOrderAccount.get_Account();
 		TradePolicyDetail tradePolicyDetail = this._settingsManager.getTradePolicyDetail(account.get_TradePolicyId(), this._instrument.get_Id());
 		boolean isOpen = true;
-		return AppToolkit.getDefaultLot(this._instrument, isOpen, tradePolicyDetail, account);
+		return AppToolkit.getDefaultLot(this._instrument, isOpen, tradePolicyDetail, this._makeOrderAccount);
 	}
 
 	private boolean getIsBuy()
@@ -851,7 +864,7 @@ public class MatchingOrderForm extends JPanel implements IBuySellProvider
 
 		TradePolicyDetail tradePolicyDetail = this._settingsManager.getTradePolicyDetail(this._makeOrderAccount.get_Account().get_TradePolicyId(),
 			this._instrument.get_Id());
-		accountLot = AppToolkit.fixLot(accountLot, false, tradePolicyDetail, this._makeOrderAccount.get_Account());
+		accountLot = AppToolkit.fixLot(accountLot, false, tradePolicyDetail, this._makeOrderAccount);
 
 		BigDecimal currentLot = AppToolkit.convertStringToBigDecimal(this.totalLotTextField.getText());
 		BigDecimal accountLot2 = accountLot;
@@ -1003,7 +1016,7 @@ public class MatchingOrderForm extends JPanel implements IBuySellProvider
 		{
 			TradePolicyDetail tradePolicyDetail = this._settingsManager.getTradePolicyDetail(this._makeOrderAccount.get_Account().get_TradePolicyId(),
 				this._instrument.get_Id());
-			totalCloseLot = AppToolkit.fixLot(totalCloseLot, false, tradePolicyDetail, this._makeOrderAccount.get_Account());
+			totalCloseLot = AppToolkit.fixLot(totalCloseLot, false, tradePolicyDetail, this._makeOrderAccount);
 		}
 
 		if (totalCloseLot.compareTo(BigDecimal.ZERO) <= 0)
@@ -1226,7 +1239,7 @@ public class MatchingOrderForm extends JPanel implements IBuySellProvider
 
 					TradePolicyDetail tradePolicyDetail = this._settingsManager.getTradePolicyDetail(this._makeOrderAccount.get_Account().get_TradePolicyId(),
 						this._instrument.get_Id());
-					liqLots = AppToolkit.fixLot(liqLots, false, tradePolicyDetail, this._makeOrderAccount.get_Account());
+					liqLots = AppToolkit.fixLot(liqLots, false, tradePolicyDetail, this._makeOrderAccount);
 					this.totalLotTextField.setText(AppToolkit.getFormatLot(liqLots, this._makeOrderAccount.get_Account(), this._instrument));
 				}
 				return false;
@@ -1272,7 +1285,7 @@ public class MatchingOrderForm extends JPanel implements IBuySellProvider
 
 		BigDecimal lot2 = lot;
 		BigDecimal liqLots2 = liqLots;
-		Object[] result = MakeOrder.isAcceptEntrance(this._settingsManager, this._makeOrderAccount.get_Account(), this._instrument, OrderType.Limit, isBuy,
+		Object[] result = MakeOrder.isAcceptEntrance(this._settingsManager, this._makeOrderAccount, this._instrument, OrderType.Limit, isBuy,
 			lot2, liqLots2, setPrice, null, false);
 		if (! ( (Boolean)result[0]))
 		{
@@ -1472,6 +1485,11 @@ public class MatchingOrderForm extends JPanel implements IBuySellProvider
 		public Boolean isMakeLimitOrder()
 		{
 			return true;
+		}
+
+		public boolean isDelivery()
+		{
+			return false;
 		}
 
 		public void addPlaceOrderTypeChangedListener(IPlaceOrderTypeChangedListener placeOrderTypeChangedListener)

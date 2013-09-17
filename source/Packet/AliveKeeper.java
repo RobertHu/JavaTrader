@@ -10,6 +10,8 @@ import Util.CommandHelper;
 import org.apache.log4j.Logger;
 import tradingConsole.enumDefine.LoginStatus;
 import tradingConsole.LoginInformation;
+import java.io.IOException;
+
 public class AliveKeeper implements Runnable {
 	private Logger logger= Logger.getLogger(AliveKeeper.class);
 	private List<ConnectionObserver> observers= new ArrayList<ConnectionObserver>();
@@ -17,18 +19,11 @@ public class AliveKeeper implements Runnable {
 	private final int MAX_EXCEPTION_COUNT = 3;
 	private int sleepTime = SLEEP_TIME;
 	private int exceptionCount = 0;
-	private final String expectedResult = "1";
 	private volatile boolean isStop = false;
 	private volatile boolean isStart = false;
 	private LoginInformation loginInfo;
 	public AliveKeeper(LoginInformation loginInfo){
 		this.loginInfo = loginInfo;
-	}
-
-	public ComunicationObject buildRequest(){
-	     ComunicationObject target = CommandHelper.buildKeepAliveCommand();
-		 target.setIsKeepAlive(true);
-		 return target;
 	}
 
 	public void stop(){
@@ -45,7 +40,7 @@ public class AliveKeeper implements Runnable {
 			thread.start();
 			this.isStart=true;
 		} catch (Exception e) {
-			e.printStackTrace();
+			logger.error("start error",e);
 		}
 	}
 
@@ -60,31 +55,11 @@ public class AliveKeeper implements Runnable {
 				{
 					break;
 				}
-				TimeUnit.MILLISECONDS.sleep(this.sleepTime);
-				if (!this.loginInfo.get_LoginStatus().equals(LoginStatus.LoginSucceed)
-				    &&
-					!this.loginInfo.get_LoginStatus().equals(LoginStatus.Ready))
-				{
-					System.out.println("not equals login succeed or ready");
-					continue;
-				}
-				SignalObject signalObject = RequestCommandHelper.request(this.buildRequest());
-				if (this.isSessionLost(signalObject))
-				{
-					this.logger.info("session lost");
-					this.fireConnectionBroken();
-					break;
-				}
-				else
-				{
-					sleepTime = SLEEP_TIME;
-					this.exceptionCount = 0;
-				}
-
+				pollIsSessionExist();
 			}
 			catch (Exception e)
 			{
-				logger.error("has exception",e);
+				logger.error("keep alive error",e);
 				if (IsExceedMaxExceptionCount())
 				{
 					this.fireConnectionBroken();
@@ -94,6 +69,33 @@ public class AliveKeeper implements Runnable {
 		}
 		this.logger.info("closed");
 	}
+
+	private void pollIsSessionExist() throws InterruptedException, WaitTimeoutException, IOException
+	{
+		TimeUnit.MILLISECONDS.sleep(this.sleepTime);
+		if (!isLogined())
+		{
+			System.out.println("not equals login succeed or ready");
+			return;
+		}
+		SignalObject signalObject = RequestCommandHelper.request(this.buildRequest());
+		if (this.sessionNotExist(signalObject))
+		{
+			this.logger.info("session lost");
+			this.fireConnectionBroken();
+			return;
+		}
+		sleepTime = SLEEP_TIME;
+		this.exceptionCount = 0;
+	}
+
+	private ComunicationObject buildRequest(){
+		 ComunicationObject target = CommandHelper.buildKeepAliveCommand();
+		 target.setIsKeepAlive(true);
+		 return target;
+	}
+
+
 
 	private boolean IsExceedMaxExceptionCount()
 	{
@@ -108,39 +110,34 @@ public class AliveKeeper implements Runnable {
 	}
 
 
-	private boolean isSessionLost(SignalObject signalObject)
+	private boolean sessionNotExist(SignalObject signalObject)
 	{
-		boolean isLost=false;
 		if (signalObject.getIsError())
 		{
-			if (this.loginInfo.get_LoginStatus().equals(LoginStatus.LoginSucceed)
-				|| this.loginInfo.get_LoginStatus().equals(LoginStatus.Ready))
-			{
-				isLost= true;
-			}
+			return isLogined();
 		}
-		else{
-			if (!signalObject.isKeepAliveSucess()){
-				isLost = true;
-			}
-		}
-		return isLost;
+		return !signalObject.isKeepAliveSucess();
+	}
+
+	private boolean isLogined()
+	{
+		LoginStatus status = loginInfo.get_LoginStatus();
+		return status.equals(LoginStatus.LoginSucceed) ||
+		       status.equals(LoginStatus.Ready);
 	}
 
 
 
 	private synchronized  void fireConnectionBroken(){
 		try{
-			if(this.isStop){
-				return;
-			}
+			if(this.isStop)	return;
 			for (ConnectionObserver observer : this.observers)
 			{
 				observer.connectionBroken();
 			}
 		}
 		catch(Exception e){
-			e.printStackTrace();
+			logger.error("fire connection broken",e);
 		}
 	}
 
@@ -151,8 +148,6 @@ public class AliveKeeper implements Runnable {
 	public synchronized void removeObserver(ConnectionObserver observer){
 		this.observers.remove(observer);
 	}
-
-
 
 }
 

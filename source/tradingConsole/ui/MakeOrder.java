@@ -9,7 +9,6 @@ import tradingConsole.*;
 import tradingConsole.enumDefine.*;
 import tradingConsole.settings.*;
 import tradingConsole.ui.language.*;
-import framework.diagnostics.TraceType;
 
 public class MakeOrder
 {
@@ -264,7 +263,7 @@ public class MakeOrder
 		return result;
 	}
 
-	private static boolean isMultiple(BigDecimal lot, BigDecimal multiplier)
+	public static boolean isMultiple(BigDecimal lot, BigDecimal multiplier)
 	{
 		if (multiplier.compareTo(BigDecimal.ZERO) == 0)
 		{
@@ -281,17 +280,22 @@ public class MakeOrder
 		//return (lot.floatValue() * 10) % (multiplier * 10) == 0;
 	}
 
-	public static Object[] isAcceptEntrance(SettingsManager settingsManager,Account account, Instrument instrument,boolean isOpen, BigDecimal lot, Price price)
+	public static Object[] isAcceptEntrance(SettingsManager settingsManager, MakeOrderAccount account, Instrument instrument,boolean isOpen, BigDecimal lot, Price price)
 	{
 		Object[] result = new Object[]{false,""};
 
 		boolean isAccept = false;
 
-		TradePolicyDetail tradePolicyDetail = settingsManager.getTradePolicyDetail(account.get_TradePolicyId(), instrument.get_Id());
+		TradePolicyDetail tradePolicyDetail = settingsManager.getTradePolicyDetail(account.get_Account().get_TradePolicyId(), instrument.get_Id());
 		if (tradePolicyDetail == null)
 		{
 			result[1] = "Not Exists TradePolicyDetail!";
 			return result;
+		}
+
+		if(!isOpen)
+		{
+			return MakeOrder.isAcceptCloseEntrance(tradePolicyDetail, account, instrument, lot);
 		}
 
 		/*BigDecimal minOpen = tradePolicyDetail.get_MinOpen();
@@ -306,9 +310,9 @@ public class MakeOrder
 		BigDecimal contractSize2 = contractSize;
 
 		BigDecimal minValue = isOpen ? tradePolicyDetail.get_MinOpen() : tradePolicyDetail.get_MinClose();
-		minValue=minValue.multiply(account.get_RateLotMin());
+		minValue=minValue.multiply(account.get_Account().get_RateLotMin());
 		BigDecimal multiplier = isOpen ? tradePolicyDetail.get_OpenMultiplier() : tradePolicyDetail.get_CloseMultiplier();
-		multiplier = multiplier.multiply(account.get_RateLotMultiplier());
+		multiplier = multiplier.multiply(account.get_Account().get_RateLotMultiplier());
 
 		BigDecimal defaultLot = AppToolkit.getDefaultLot(instrument, isOpen, tradePolicyDetail, account);
 
@@ -387,7 +391,46 @@ public class MakeOrder
 		return result;
 	}
 
-	public static Object[] isAcceptEntrance(SettingsManager settingsManager,Account account,Instrument instrument, OrderType orderType,
+	private static Object[] isAcceptCloseEntrance(TradePolicyDetail tradePolicyDetail, MakeOrderAccount account, Instrument instrument, BigDecimal lot)
+	{
+		Object[] result = new Object[]{false,""};
+		boolean isAccept = false;
+
+		BigDecimal minValue = tradePolicyDetail.get_MinClose();
+		minValue=minValue.multiply(account.get_Account().get_RateLotMin());
+		BigDecimal multiplier = tradePolicyDetail.get_CloseMultiplier();
+		multiplier = multiplier.multiply(account.get_Account().get_RateLotMultiplier());
+		BigDecimal defaultLot = AppToolkit.getDefaultLot(instrument, false, tradePolicyDetail, account);
+		if(lot.compareTo(minValue) == 0 || lot.compareTo(defaultLot) == 0)
+		{
+			isAccept = true;
+		}
+		else if(lot.compareTo(minValue) > 0)
+		{
+			if(MakeOrder.isMultiple(lot, multiplier))
+			{
+				isAccept = true;
+			}
+			else
+			{
+				BigDecimal totalCloseLotOfFullClose = account.getTotalCloseLotOfFullClose();
+				if(lot.compareTo(totalCloseLotOfFullClose) == 0
+				   || MakeOrder.isMultiple(lot.subtract(totalCloseLotOfFullClose), multiplier))
+				{
+					isAccept = true;
+				}
+			}
+		}
+
+		if (isAccept == false)
+		{
+			result[1] = Language.EntranceForInput + "\n" + account.get_Code() + "\n" + Language.EntranceForInput2;
+		}
+		result[0] = isAccept;
+		return result;
+	}
+
+	public static Object[] isAcceptEntrance(SettingsManager settingsManager, MakeOrderAccount account,Instrument instrument, OrderType orderType,
 											boolean isBuy, BigDecimal lot, BigDecimal liqLots, Price setPrice,
 											Price setPriceForOneCancelOther, boolean isAssignOrder)
 	{

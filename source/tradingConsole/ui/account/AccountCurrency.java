@@ -43,7 +43,11 @@ public class AccountCurrency
 			case Necessary:
 				return AppToolkit.format(accountCurrency.get_Necessary(), decimals);
 			case TradePLFloat:
-				return AppToolkit.format(TradingItem.sum(accountCurrency.get_FloatTradingItem()), decimals);
+				return AppToolkit.format(TradingItem.sum(accountCurrency.get_FloatTradingItem()) - accountCurrency.get_FloatTradingItem().get_ValueAsMargin(), decimals);
+			case ValueAsMargin:
+				return AppToolkit.format(accountCurrency.get_FloatTradingItem().get_ValueAsMargin(), decimals);
+			case FrozenFund:
+				return AppToolkit.format(accountCurrency.get_FrozenFund(), decimals);
 			case TotalUnrealisedSwap:
 				return AppToolkit.format(accountCurrency.get_NotValuedTradingItem().get_Interest() + accountCurrency.get_NotValuedTradingItem().get_Storage(), decimals);
 			case UnrealisedPL:

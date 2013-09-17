@@ -11,6 +11,7 @@ public interface IOpenCloseRelationBaseSite
 {
 	OrderType getOrderType();
 	Boolean isMakeLimitOrder();
+	boolean isDelivery();
 	boolean allowChangeCloseLot();
 	void addPlaceOrderTypeChangedListener(IPlaceOrderTypeChangedListener placeOrderTypeChangedListener);
 	void removePlaceOrderTypeChangedListener(IPlaceOrderTypeChangedListener placeOrderTypeChangedListener);

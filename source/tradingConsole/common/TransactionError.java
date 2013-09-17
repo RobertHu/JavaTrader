@@ -53,6 +53,11 @@ public class TransactionError extends Enum<TransactionError>
 	public static final TransactionError DatabaseDataIntegralityViolated = new TransactionError("DatabaseDataIntegralityViolated", 50);
 
 	public static final TransactionError PriceIsOutOfDate = new TransactionError("PriceIsOutOfDate", 60);
+	public static final TransactionError ShortSellNotAllowed = new TransactionError("ShortSellNotAllowed", 61);
+	public static final TransactionError InvalidInstalmentTrade = new TransactionError("InvalidInstalmentTrade", 62);
+	public static final TransactionError PrepaymentIsNotAllowed = new TransactionError("PrepaymentIsNotAllowed", 63);
+	public static final TransactionError HitIsReseted = new TransactionError("HitIsReseted", 64);
+	public static final TransactionError ExistPendingLimitCloseOrder = new TransactionError("ExistPendingLimitCloseOrder", 65);
 
 	public static final TransactionError TransactionExpired = new TransactionError("TransactionExpired", 100);
 	public static final TransactionError FillOnMarketCloseNotAllowed = new TransactionError("FillOnMarketCloseNotAllowed", 101);
@@ -67,6 +72,8 @@ public class TransactionError extends Enum<TransactionError>
 	public static final TransactionError PriceChangedSincePlace = new TransactionError("PriceChangedSincePlace", 110);
 	public static final TransactionError ExceedMaxOpenLot = new TransactionError("ExceedMaxOpenLot", 111);
 	public static final TransactionError ReplacedWithMaxLot = new TransactionError("ReplacedWithMaxLot", 112);
+	public static final TransactionError ExceedMaxPhysicalValue = new TransactionError("ExceedMaxPhysicalValue", 113);
+	public static final TransactionError BalanceOrEquityIsShort = new TransactionError("BalanceOrEquityIsShort", 114);
 
 	//define, tradingconsole only
 	public static final TransactionError RiskMonitorDelete = new TransactionError("RiskMonitorDelete", 20000);
@@ -279,6 +286,14 @@ public class TransactionError extends Enum<TransactionError>
 		{
 			message = Language.RiskMonitorDelete;
 		}
+		else if(transactionError.equals(TransactionError.ExceedMaxPhysicalValue))
+		{
+			message = Language.ExceedMaxPhysicalValue;
+		}
+		else if(transactionError.equals(TransactionError.BalanceOrEquityIsShort))
+		{
+			message = Language.BalanceOrEquityIsShort;
+		}
 		else if (transactionError.equals(TransactionError.DealerCanceled))
 		{
 			message = Language.DealerCanceled;
@@ -310,6 +325,26 @@ public class TransactionError extends Enum<TransactionError>
 		else if(transactionError.equals(TransactionError.PriceIsOutOfDate))
 		{
 			message = Language.PriceIsOutOfDate;
+		}
+		else if(transactionError.equals(TransactionError.ShortSellNotAllowed))
+		{
+			message = Language.ShortSellNotAllowed;
+		}
+		else if(transactionError.equals(TransactionError.InvalidInstalmentTrade))
+		{
+			message = Language.InvalidInstalmentTrade;
+		}
+		else if(transactionError.equals(TransactionError.PrepaymentIsNotAllowed))
+		{
+			message = Language.PrepaymentIsNotAllowed;
+		}
+		else if(transactionError.equals(TransactionError.HitIsReseted))
+		{
+			message = Language.HitIsReseted;
+		}
+		else if(transactionError.equals(TransactionError.ExistPendingLimitCloseOrder))
+		{
+			message = Language.ExistPendingLimitCloseOrder;
 		}
 		else
 		{

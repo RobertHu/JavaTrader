@@ -87,6 +87,16 @@ public class SpotTradeOrderForm extends FrameBase2
 
 		this._makeOrderAccount = makeOrderAccount;
 		this._instrument = this._makeSpotTradeOrder.get_Instrument();
+
+		if(!StringHelper.isNullOrEmpty(this._instrument.get_QuoteDescription()))
+		{
+			this.instrumentQuoteDescription.setText(this._instrument.get_QuoteDescription());
+		}
+		else
+		{
+			this.instrumentQuoteDescription.setVisible(false);
+		}
+
 		InstrumentPriceProvider instrumentPriceProvider = new InstrumentPriceProvider(this._instrument);
 		this.bidButton.set_PriceProvider(instrumentPriceProvider);
 		this.askButton.set_PriceProvider(instrumentPriceProvider);
@@ -104,7 +114,35 @@ public class SpotTradeOrderForm extends FrameBase2
 		//this.sellButton.setText(Language.OrderSingleDQbtnSell);
 		this.resetButton.setText(Language.OrderSingleDQbtnReset);
 		this.exitButton.setText(Language.OrderSingleDQbtnExit);
+		this.instalmentCheckBox.setText(InstalmentLanguage.Instalment);
+		this.instalmentButton.setText(InstalmentLanguage.Setup);
 		this.closeAllButton.setText(Language.CloseAll);
+
+		boolean canInstalment = this.canInstalment();
+		this.instalmentButton.setEnabled(false);
+		this.instalmentCheckBox.setVisible(canInstalment);
+		this.instalmentButton.setVisible(canInstalment);
+		if(canInstalment)
+		{
+			this.instalmentCheckBox.addChangeListener(new ChangeListener()
+			{
+				public void stateChanged(ChangeEvent e)
+				{
+					instalmentButton.setEnabled(instalmentCheckBox.isSelected());
+					if(instalmentCheckBox.isSelected() && instalmentInfo == null)
+					{
+						setupInstalment();
+					}
+				}
+			});
+			this.instalmentButton.addActionListener(new ActionListener()
+			{
+				public void actionPerformed(ActionEvent e)
+				{
+					setupInstalment();
+				}
+			});
+		}
 
 		if(allowSpt && this._instrument.get_MaxDQLot().compareTo(BigDecimal.ZERO) > 0)
 		{
@@ -115,6 +153,17 @@ public class SpotTradeOrderForm extends FrameBase2
 			limitOrderForm = new LimitOrderForm(this, this._tradingConsole, this._settingsManager, this._instrument, null, null, true, true, closeAllSell, makeOrderAccount);
 			this.tabbedPane.addTab(Language.limitOrderFormTitle, limitOrderForm);
 		}
+
+		boolean showDeliveryForm = makeOrderAccount == null ?
+			TradingConsole.DeliveryHelper.getDeliveryAccounts(this._tradingConsole, this._instrument).size() > 0 :
+			(TradingConsole.DeliveryHelper.isDeliveryAccount(makeOrderAccount.get_Account(), this._instrument) && TradingConsole.DeliveryHelper.hasInventory(this._tradingConsole, makeOrderAccount.get_Account(), this._instrument));
+		if(showDeliveryForm)
+		{
+			deliveryForm
+				= new DeliveryForm(this, this._tradingConsole, this._instrument, null, null, closeAllSell);
+			this.tabbedPane.addTab(Language.deliveryFormTitle, deliveryForm);
+		}
+
 		boolean allowMatchingOrder = MakeOrder.canMatchingOrder(this._settingsManager, this._instrument, null);
 		if(allowMatchingOrder && this._instrument.get_MaxOtherLot().compareTo(BigDecimal.ZERO) > 0)
 		{
@@ -162,7 +211,7 @@ public class SpotTradeOrderForm extends FrameBase2
 			}
 		}
 		//this.dQMaxMoveNumeric.setInputVerifier(new NumberTextFieldVerifier(0, tradePolicyDetail.get_DQMaxMove()));
-		this.instrumentDescriptionStaticText.setText(this._instrument.get_Description());
+		this.instrumentDescriptionStaticText.setText(this._instrument.get_DescriptionForTrading());
 		this.refreshPrice();
 		this.accountEdit.setText(this._makeOrderAccount.get_Account().get_Code());
 		BigDecimal defaultLot = this.getDefaultLot();
@@ -198,7 +247,7 @@ public class SpotTradeOrderForm extends FrameBase2
 
 		this.totalLotTextField.requestFocus();
 		this.totalLotTextField.select(0, this.totalLotTextField.getText().length());
-		this.setTitle(this._instrument.get_Description());
+		this.setTitle(this._instrument.get_DescriptionForTrading());
 
 		this.tabbedPane.setHideOneTab(true);
 
@@ -257,6 +306,40 @@ public class SpotTradeOrderForm extends FrameBase2
 		if(closeAllSell != null)
 		{
 			this.closeAll();
+		}
+	}
+
+	private boolean canInstalment()
+	{
+		if(this._instrument.get_Category().equals(InstrumentCategory.Physical))
+		{
+			TradePolicyDetail tradePolicyDetail
+				= this._settingsManager.getTradePolicyDetail(this._makeOrderAccount.get_Account().get_TradePolicyId(), this._instrument.get_Id());
+			return tradePolicyDetail.get_InstalmentPolicyId() != null;
+		}
+		else
+		{
+			return false;
+		}
+	}
+
+	private void setupInstalment()
+	{
+		BigDecimal lot = AppToolkit.convertStringToBigDecimal(this.totalLotTextField.getText());
+		this.instalmentForm
+			= new InstalmentForm(this, this._makeOrderAccount.get_Account(), lot, this._instrument, this._settingsManager, null, null, this.instalmentInfo);
+		JideSwingUtilities.centerWindow(instalmentForm);
+		this.instalmentForm.show();
+		this.instalmentForm.toFront();
+
+		if(this.instalmentForm.get_IsConfirmed())
+		{
+			this.instalmentInfo = this.instalmentForm.get_InstalmentInfoList().get(this._makeOrderAccount.get_Account().get_Id());
+			this.instalmentCheckBox.setSelected(true);
+		}
+		else
+		{
+			this.instalmentCheckBox.setSelected(this.instalmentInfo != null);
 		}
 	}
 
@@ -343,6 +426,7 @@ public class SpotTradeOrderForm extends FrameBase2
 
 			this.bidButton.updatePrice();
 			this.askButton.updatePrice();
+			if(this.instalmentForm != null) this.instalmentForm.updatePrice();
 			this._makeOrderAccount.set_BuySetPrice(this._instrument.get_LastQuotation().getBuy());
 			this._makeOrderAccount.set_SellSetPrice(this._instrument.get_LastQuotation().getSell());
 			this._makeOrderAccount.set_PriceInfo(this._instrument.get_LastQuotation().get_Timestamp(), this._instrument.get_LastQuotation().get_IsQuote());
@@ -353,6 +437,8 @@ public class SpotTradeOrderForm extends FrameBase2
 		}
 
 		if(this.limitOrderForm != null) this.limitOrderForm.refreshPrice();
+		if(this.deliveryForm != null) this.deliveryForm.refreshPrice();
+
 		if(this.isHasDeal())
 		{
 			BigDecimal answerLot = this._instrument.get_LastQuotation().get_AnswerLot();
@@ -362,10 +448,10 @@ public class SpotTradeOrderForm extends FrameBase2
 				{
 					TradePolicyDetail tradePolicyDetail = this._settingsManager.getTradePolicyDetail(this._makeOrderAccount.get_Account().get_TradePolicyId(),
 						this._instrument.get_Id());
-					answerLot = AppToolkit.fixLot(answerLot, false, tradePolicyDetail, this._makeOrderAccount.get_Account());
+					answerLot = AppToolkit.fixLot(answerLot, false, tradePolicyDetail, this._makeOrderAccount);
 
 					BigDecimal dealLot = AppToolkit.convertStringToBigDecimal(this.totalLotTextField.getText());
-					dealLot = AppToolkit.fixLot(dealLot, false, tradePolicyDetail, this._makeOrderAccount.get_Account());
+					dealLot = AppToolkit.fixLot(dealLot, false, tradePolicyDetail, this._makeOrderAccount);
 					if (answerLot.compareTo(dealLot) < 0)
 					{
 						RelationOrder[] relations = new RelationOrder[this._makeOrderAccount.getOutstandingOrders().values().size()];
@@ -430,7 +516,7 @@ public class SpotTradeOrderForm extends FrameBase2
 		Account account = this._makeOrderAccount.get_Account();
 		TradePolicyDetail tradePolicyDetail = this._settingsManager.getTradePolicyDetail(account.get_TradePolicyId(),
 			this._instrument.get_Id());
-		return AppToolkit.getDefaultLot(this._instrument, true, tradePolicyDetail, account);
+		return AppToolkit.getDefaultLot(this._instrument, true, tradePolicyDetail, this._makeOrderAccount);
 	}
 
 	private String getFormatLot(BigDecimal lot)
@@ -447,7 +533,7 @@ public class SpotTradeOrderForm extends FrameBase2
 
 		TradePolicyDetail tradePolicyDetail = this._settingsManager.getTradePolicyDetail(this._makeOrderAccount.get_Account().get_TradePolicyId(),
 			this._instrument.get_Id());
-		accountLot = AppToolkit.fixLot(accountLot, false, tradePolicyDetail, this._makeOrderAccount.get_Account());
+		accountLot = AppToolkit.fixLot(accountLot, false, tradePolicyDetail, this._makeOrderAccount);
 
 		BigDecimal accountLot2 = accountLot;
 		/*if(currentLot.compareTo(accountLot) >= 0)
@@ -542,6 +628,11 @@ public class SpotTradeOrderForm extends FrameBase2
 		public Boolean isMakeLimitOrder()
 		{
 			return null;
+		}
+
+		public boolean isDelivery()
+		{
+			return false;
 		}
 
 		public BigDecimal getTotalQuantity()
@@ -669,8 +760,8 @@ public class SpotTradeOrderForm extends FrameBase2
 		}
 		TradePolicyDetail tradePolicyDetail = this._settingsManager.getTradePolicyDetail(this._makeOrderAccount.get_Account().get_TradePolicyId(),
 			this._instrument.get_Id());
-		BigDecimal lot2 = AppToolkit.fixLot(lot, isOpen, tradePolicyDetail, this._makeOrderAccount.get_Account());
-		BigDecimal defaultLot = AppToolkit.getDefaultLot(this._instrument, isOpen, tradePolicyDetail, this._makeOrderAccount.get_Account());
+		BigDecimal lot2 = AppToolkit.fixLot(lot, isOpen, tradePolicyDetail, this._makeOrderAccount);
+		BigDecimal defaultLot = AppToolkit.getDefaultLot(this._instrument, isOpen, tradePolicyDetail, this._makeOrderAccount);
 		String formattedLot = this.getFormatLot(lot2);
 		if(lot.compareTo(lot2) != 0)
 		{
@@ -984,7 +1075,7 @@ public class SpotTradeOrderForm extends FrameBase2
 
 				TradePolicyDetail tradePolicyDetail = this._settingsManager.getTradePolicyDetail(this._makeOrderAccount.get_Account().get_TradePolicyId(),
 						this._instrument.get_Id());
-				liqLots = AppToolkit.fixLot(liqLots, false, tradePolicyDetail, this._makeOrderAccount.get_Account());
+				liqLots = AppToolkit.fixLot(liqLots, false, tradePolicyDetail, this._makeOrderAccount);
 				this.totalLotTextField.setText(AppToolkit.getFormatLot(liqLots, this._makeOrderAccount.get_Account(), this._instrument));
 				this.updateBuySellLot();
 				return;
@@ -1085,7 +1176,7 @@ public class SpotTradeOrderForm extends FrameBase2
 					AlertDialogForm.showDialog(this, null, true, Language.OrderLMTPageorderValidAlert7);
 					TradePolicyDetail tradePolicyDetail = this._settingsManager.getTradePolicyDetail(this._makeOrderAccount.get_Account().get_TradePolicyId(),
 						this._instrument.get_Id());
-					liqLots = AppToolkit.fixLot(liqLots, false, tradePolicyDetail, this._makeOrderAccount.get_Account());
+					liqLots = AppToolkit.fixLot(liqLots, false, tradePolicyDetail, this._makeOrderAccount);
 					this.totalLotTextField.setText(AppToolkit.getFormatLot(liqLots, this._makeOrderAccount.get_Account(), this._instrument));
 					this.updateBuySellLot();
 				}
@@ -1214,6 +1305,15 @@ public class SpotTradeOrderForm extends FrameBase2
 			this._makeOrderAccount.set_BuySellType( (isBuy) ? BuySellType.Buy : BuySellType.Sell);
 			this._makeOrderAccount.set_IsBuyForCurrent(isBuy);
 			this._makeOrderAccount.set_DQMaxMove((Integer)this.dQMaxMoveNumeric.getValue());
+			if(isBuy && this.instalmentCheckBox.isSelected())
+			{
+				this._makeOrderAccount.set_InstalmentInfo(this.instalmentInfo);
+			}
+			else
+			{
+				this._makeOrderAccount.set_InstalmentInfo(null);
+			}
+
 			VerificationOrderForm verificationOrderForm = new VerificationOrderForm(this, "Verification Order", true, this._tradingConsole,
 				this._settingsManager, this._instrument,
 				this._makeSpotTradeOrder.get_MakeOrderAccounts(), OrderType.SpotTrade, OperateType.SingleSpotTrade, this.isHasDeal(), null, null);
@@ -1295,7 +1395,7 @@ public class SpotTradeOrderForm extends FrameBase2
 		this.totalLotTextField.addPropertyChangeListener(propertyChangeListener);
 		this.addWindowListener(new SpotTradeOrderForm_this_windowAdapter(this));
 
-		this.setSize(490, 460);
+		this.setSize(490, 470);
 		this.setResizable(true);
 		this.setTitle(Language.spotTradeOrderFormTitle);
 
@@ -1318,6 +1418,9 @@ public class SpotTradeOrderForm extends FrameBase2
 		totalLotStaticText.setText("Lot");
 		totalLotStaticText.setFont(font);
 		closeLotStaticText.setFont(font);
+		instrumentQuoteDescription.setFont(font);
+		this.instalmentCheckBox.setFont(font);
+
 		font = new Font("SansSerif", Font.BOLD, 14);
 		instrumentDescriptionStaticText.setFont(font);
 		instrumentDescriptionStaticText.setVisible(false);
@@ -1367,23 +1470,50 @@ public class SpotTradeOrderForm extends FrameBase2
 		//dQMaxMoveNumeric.setBorderStyle(0);
 		dQMaxMoveNumeric.setFont(font);
 		remberMaxMoveCheckBox.setFont(font);
-		spotTradePanel.add(accountEdit, new GridBagConstraints2(3, 3, 1, 1, 0.0, 0.0
-			, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(2, 0, 2, 1), 0, 0));
-		spotTradePanel.add(accountStaticText, new GridBagConstraints2(0, 3, 3, 1, 0.0, 0.0
-			, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(5, 10, 0, 5), 0, 0));
-		spotTradePanel.add(dQMaxMoveStaticText, new GridBagConstraints(0, 7, 3, 1, 0.0, 0.0
-			, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(5, 10, 0, 5), 0, 0));
-		remberMaxMoveCheckBox.setBackground(Color.WHITE);
-		spotTradePanel.add(totalLotStaticText, new GridBagConstraints(0, 5, 3, 1, 0.0, 0.0
-			, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(5, 10, 0, 5), 0, 0));
-		spotTradePanel.add(closeLotStaticText, new GridBagConstraints(0, 6, 3, 1, 0.0, 0.0
-			, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(5, 10, 0, 5), 0, 0));
 
 		spotTradePanel.add(bidButton, new GridBagConstraints(0, 0, 2, 1, 0.0, 0.0
 			, GridBagConstraints.EAST, GridBagConstraints.NONE, new Insets(5, 5, 0, 0), 80, 55));
 
 		spotTradePanel.add(askButton, new GridBagConstraints(2, 0, 2, 1, 0.0, 0.0
 			, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(5, 2, 0, 0), 80, 55));
+
+		spotTradePanel.add(this.instrumentQuoteDescription, new GridBagConstraints2(0, 1, 4, 1, 0.0, 0.0,
+				GridBagConstraints.SOUTHWEST, GridBagConstraints.HORIZONTAL, new Insets(2, 5, 0, 0), 0, 20));
+
+		spotTradePanel.add(accountStaticText, new GridBagConstraints2(0, 4, 3, 1, 0.0, 0.0
+			, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(5, 10, 0, 5), 0, 0));
+		spotTradePanel.add(accountEdit, new GridBagConstraints2(3, 4, 1, 1, 0.0, 0.0
+			, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(2, 0, 2, 1), 0, 0));
+
+		spotTradePanel.add(totalLotStaticText, new GridBagConstraints(0, 6, 3, 1, 0.0, 0.0
+			, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(5, 10, 0, 5), 0, 0));
+		spotTradePanel.add(totalLotTextField, new GridBagConstraints(3, 6, 1, 1, 0.0, 0.0
+			, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, new Insets(6, 0, 2, 1), 60, 0));
+
+		spotTradePanel.add(closeLotStaticText, new GridBagConstraints(0, 7, 3, 1, 0.0, 0.0
+			, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(5, 10, 0, 5), 0, 0));
+		spotTradePanel.add(closeLotTextField, new GridBagConstraints(3, 7, 1, 1, 0.0, 0.0
+			, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, new Insets(6, 0, 2, 1), 60, 0));
+
+		spotTradePanel.add(dQMaxMoveStaticText, new GridBagConstraints(0, 8, 3, 1, 0.0, 0.0
+			, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(5, 10, 0, 5), 0, 0));
+		remberMaxMoveCheckBox.setBackground(Color.WHITE);
+		JPanel panel = new JPanel();
+		panel.setLayout(new GridBagLayout());
+		panel.setBackground(Color.WHITE);
+		panel.add(dQMaxMoveNumeric, new GridBagConstraints(0, 0, 1, 1, 0.0, 0.0
+			, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, new Insets(0, 0, 2, 0), 20, 0));
+		panel.add(remberMaxMoveCheckBox, new GridBagConstraints(1, 0, 1, 1, 0.0, 0.0
+			, GridBagConstraints.EAST, GridBagConstraints.HORIZONTAL, new Insets(0, 0, 2, 0), 0, 0));
+
+		spotTradePanel.add(panel, new GridBagConstraints(3, 8, 1, 1, 0.0, 0.0
+			, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, new Insets(6, 0, 2, 1), 0, 0));
+
+		instalmentCheckBox.setBackground(null);
+		spotTradePanel.add(instalmentCheckBox, new GridBagConstraints(0, 9, 3, 1, 0.0, 0.0
+			, GridBagConstraints.SOUTHWEST, GridBagConstraints.HORIZONTAL, new Insets(5, 5, 0, 1), 0, 0));
+		spotTradePanel.add(instalmentButton, new GridBagConstraints(3, 9, 1, 1, 0.0, 0.0
+			, GridBagConstraints.SOUTHWEST, GridBagConstraints.HORIZONTAL, new Insets(0, 0, 2, 1), 0, 0));
 
 		/*spotTradePanel.add(setPriceAskStaticText, new GridBagConstraints(7, 0, 1, 3, 1.0, 0.0
 			, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, new Insets(15, 0, 5, 10), 0, 0));
@@ -1426,38 +1556,22 @@ public class SpotTradeOrderForm extends FrameBase2
 		};
 		outstandingOrderTable.addSelectedRowChangedListener(selectedRowChangedListener);*/
 		outstandingOrderTable.enableRowStripe();
-		spotTradePanel.add(instrumentDescriptionStaticText, new GridBagConstraints(0, 2, 4, 1, 0.0, 0.0
+		spotTradePanel.add(instrumentDescriptionStaticText, new GridBagConstraints(0, 8, 4, 1, 0.0, 0.0
 			, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(15, 5, 5, 10), 0, 0));
-		spotTradePanel.add(scrollPane, new GridBagConstraints(4, 0, 4, 9, 1.0, 1.0
+		spotTradePanel.add(scrollPane, new GridBagConstraints(4, 0, 4, 11, 1.0, 1.0
 			, GridBagConstraints.CENTER, GridBagConstraints.BOTH, new Insets(5, 10, 5, 10), 0, 0));
-		spotTradePanel.add(exitButton, new GridBagConstraints(6, 10, 2, 1, 0.0, 0.0
+		spotTradePanel.add(exitButton, new GridBagConstraints(6, 12, 2, 1, 0.0, 0.0
 			, GridBagConstraints.EAST, GridBagConstraints.NONE, new Insets(0, 1, 10, 10), 10, 0));
 		/*spotTradePanel.add(sellButton, new GridBagConstraints(0, 9, 3, 1, 0.0, 0.0
 			, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(0, 10, 10, 1), 10, 0));
 		spotTradePanel.add(buyButton, new GridBagConstraints(3, 9, 1, 1, 0.0, 0.0
 			, GridBagConstraints.EAST, GridBagConstraints.NONE, new Insets(0, 1, 10, 2), 10, 0));*/
-		spotTradePanel.add(resetButton, new GridBagConstraints(4, 10, 1, 1, 0.0, 0.0
+		spotTradePanel.add(resetButton, new GridBagConstraints(4, 12, 1, 1, 0.0, 0.0
 			, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(0, 10, 10, 0), 0, 0));
 		spotTradePanel.add(closeAllButton, new GridBagConstraints(5, 10, 1, 1, 0.0, 0.0
 			, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(0, 1, 10, 0), 0, 0));
-		spotTradePanel.add(dealButton, new GridBagConstraints(0, 10, 4, 1, 0.0, 0.0
+		spotTradePanel.add(dealButton, new GridBagConstraints(0, 12, 4, 1, 0.0, 0.0
 			, GridBagConstraints.SOUTH, GridBagConstraints.HORIZONTAL, new Insets(0, 5, 10, 2), 10, 0));
-
-		JPanel panel = new JPanel();
-		panel.setLayout(new GridBagLayout());
-		panel.setBackground(Color.WHITE);
-		panel.add(dQMaxMoveNumeric, new GridBagConstraints(0, 0, 1, 1, 0.0, 0.0
-			, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, new Insets(0, 0, 2, 0), 20, 0));
-		panel.add(remberMaxMoveCheckBox, new GridBagConstraints(1, 0, 1, 1, 0.0, 0.0
-			, GridBagConstraints.EAST, GridBagConstraints.HORIZONTAL, new Insets(0, 0, 2, 0), 0, 0));
-
-		spotTradePanel.add(panel, new GridBagConstraints(3, 7, 1, 1, 0.0, 0.0
-			, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, new Insets(6, 0, 2, 1), 0, 0));
-
-		spotTradePanel.add(totalLotTextField, new GridBagConstraints(3, 5, 1, 1, 0.0, 0.0
-			, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, new Insets(6, 0, 2, 1), 60, 0));
-		spotTradePanel.add(closeLotTextField, new GridBagConstraints(3, 6, 1, 1, 0.0, 0.0
-			, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, new Insets(6, 0, 2, 1), 60, 0));
 	}
 
 	@Override
@@ -1489,8 +1603,8 @@ public class SpotTradeOrderForm extends FrameBase2
 	PVButton2 exitButton = new PVButton2();
 	PVButton2 closeAllButton = new PVButton2();
 	DataGrid outstandingOrderTable = new DataGrid("OutstandingOrderTable");
-	JFormattedTextField totalLotTextField = new JFormattedTextField(new DecimalFormat());
-	JFormattedTextField closeLotTextField = new JFormattedTextField(new DecimalFormat());
+	JFormattedTextFieldEx totalLotTextField = new JFormattedTextFieldEx(new DecimalFormat(), true);
+	JFormattedTextFieldEx closeLotTextField = new JFormattedTextFieldEx(new DecimalFormat(), true);
 	PVStaticText2 accountEdit = new PVStaticText2();
 	//PVStaticText2 setPriceBidStaticText = new PVStaticText2();
 	//PVStaticText2 setPriceAskStaticText = new PVStaticText2();
@@ -1499,13 +1613,23 @@ public class SpotTradeOrderForm extends FrameBase2
 	//PVStaticText2 separatorStaticText = new PVStaticText2();
 	JideTabbedPane tabbedPane = new JideTabbedPane();
 	JPanel spotTradePanel = new JPanel();
+
+	JCheckBox instalmentCheckBox = new JCheckBox();
+	PVButton2 instalmentButton = new PVButton2();
+	InstalmentForm instalmentForm = null;
+	InstalmentInfo instalmentInfo = null;
+
 	private Timer timerTime;
+
+	//MultiTextArea instrumentNarrative = new MultiTextArea();
+	NoneResizeableTextField instrumentQuoteDescription = new NoneResizeableTextField();
 
 	java.awt.GridBagLayout gridBagLayout1 = new GridBagLayout();
 	private PVStaticText2 dQMaxMoveStaticText = new PVStaticText2();
 	private JSpinner dQMaxMoveNumeric = new JSpinner();
 	private JCheckBox remberMaxMoveCheckBox = new JCheckBox();
 	private LimitOrderForm limitOrderForm;
+	private DeliveryForm deliveryForm;
 	private MatchingOrderForm matchingOrderForm;
 	private IOpenCloseRelationSite openCloseRelationSite;
 
@@ -1639,7 +1763,7 @@ public class SpotTradeOrderForm extends FrameBase2
 		{
 			TradePolicyDetail tradePolicyDetail = this._settingsManager.getTradePolicyDetail(this._makeOrderAccount.get_Account().get_TradePolicyId(),
 				this._instrument.get_Id());
-			totalCloseLot = AppToolkit.fixLot(totalCloseLot, false, tradePolicyDetail, this._makeOrderAccount.get_Account());
+			totalCloseLot = AppToolkit.fixLot(totalCloseLot, false, tradePolicyDetail, this._makeOrderAccount);
 		}
 
 		/*BigDecimal currentLot = AppToolkit.convertStringToBigDecimal(this.totalLotTextField.getText());

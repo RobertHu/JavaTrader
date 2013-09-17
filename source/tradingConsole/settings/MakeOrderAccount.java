@@ -55,21 +55,32 @@ public class MakeOrderAccount
 	private boolean _priceIsQuote = false;
 
 	private int _DQMaxMove = 0;
+	private InstalmentInfo _instalmentInfo = null;
 
 	private Account _account;
 	private Instrument _instrument;
+	private boolean _isForDelivery;
 	private HashMap<Guid, RelationOrder> _outstandingOrders;
 	//private IOpenCloseRelationBaseSite _site;
 
-
 	public static MakeOrderAccount create(TradingConsole tradingConsole, SettingsManager settingsManager, Guid accountId, Guid instrumentId)
 	{
-		return new MakeOrderAccount(tradingConsole, settingsManager, accountId, instrumentId);
+		return create(tradingConsole, settingsManager, accountId, instrumentId, false);
+	}
+
+	public static MakeOrderAccount create(TradingConsole tradingConsole, SettingsManager settingsManager, Guid accountId, Guid instrumentId, boolean isForDelivery)
+	{
+		return new MakeOrderAccount(tradingConsole, settingsManager, accountId, instrumentId, isForDelivery);
 	}
 
 	public static MakeOrderAccount create(TradingConsole tradingConsole, SettingsManager settingsManager, Account account, Instrument instrument)
 	{
-		return MakeOrderAccount.create(tradingConsole, settingsManager, account.get_Id(), instrument.get_Id());
+		return create(tradingConsole, settingsManager, account, instrument, false);
+	}
+
+	public static MakeOrderAccount create(TradingConsole tradingConsole, SettingsManager settingsManager, Account account, Instrument instrument, boolean isForDelivery)
+	{
+		return MakeOrderAccount.create(tradingConsole, settingsManager, account.get_Id(), instrument.get_Id(), isForDelivery);
 	}
 
 	/*public static MakeOrderAccount create(MakeOrderAccount orginalAccount)
@@ -77,7 +88,8 @@ public class MakeOrderAccount
 		return MakeOrderAccount.create(orginalAccount._tradingConsole, orginalAccount._settingsManager, orginalAccount._account, orginalAccount._instrument);
 	}*/
 
-	private MakeOrderAccount(TradingConsole tradingConsole, SettingsManager settingsManager, Guid accountId, Guid instrumentId)
+	private MakeOrderAccount(TradingConsole tradingConsole, SettingsManager settingsManager,
+							 Guid accountId, Guid instrumentId, boolean isForDelivery)
 	{
 		this._outstandingOrders = new HashMap<Guid, RelationOrder> ();
 
@@ -86,6 +98,7 @@ public class MakeOrderAccount
 
 		this._account = this._settingsManager.getAccount(accountId);
 		this._instrument = this._settingsManager.getInstrument(instrumentId);
+		this._isForDelivery = isForDelivery;
 
 		this._buySetPrice = null;
 		this._sellSetPrice = null;
@@ -118,7 +131,7 @@ public class MakeOrderAccount
 		Account account = this.get_Account();
 		TradePolicyDetail tradePolicyDetail = this._settingsManager.getTradePolicyDetail(account.get_TradePolicyId(),
 			this._instrument.get_Id());
-		return AppToolkit.getDefaultLot(this._instrument, true, tradePolicyDetail, account);
+		return this._isForDelivery ? tradePolicyDetail.get_PhysicalMinDeliveryQuantity() : AppToolkit.getDefaultLot(this._instrument, true, tradePolicyDetail, this);
 	}
 
 	//For OneCancelOther
@@ -250,11 +263,18 @@ public class MakeOrderAccount
 
 	private void setIsBuyForCurrent(boolean value)
 	{
-		if (this._buySellType != BuySellType.Both)
+		if(this._isForDelivery)
 		{
-			this._buySellType = (value) ? BuySellType.Buy : BuySellType.Sell;
+			this._isBuyForCurrent = false;
 		}
-		this._isBuyForCurrent = value;
+		else
+		{
+			if (this._buySellType != BuySellType.Both)
+			{
+				this._buySellType = (value) ? BuySellType.Buy : BuySellType.Sell;
+			}
+			this._isBuyForCurrent = value;
+		}
 	}
 
 	public boolean get_IsBuyForCurrent()
@@ -283,6 +303,16 @@ public class MakeOrderAccount
 		this._DQMaxMove = value;
 	}
 
+	public void set_InstalmentInfo(InstalmentInfo value)
+	{
+		this._instalmentInfo = value;
+	}
+
+	public InstalmentInfo get_InstalmentInfo()
+	{
+		return this._instalmentInfo;
+	}
+
 	public HashMap<Guid, RelationOrder> getPlaceRelation()
 	{
 		HashMap<Guid, RelationOrder> placeRelation = null;
@@ -304,6 +334,11 @@ public class MakeOrderAccount
 	public tradingConsole.ui.grid.BindingSource get_BindingSourceForOutstanding()
 	{
 		return this._bindingSourceForOutstanding;
+	}
+
+	public String get_OutstandingKey()
+	{
+		return this._outstandingKey;
 	}
 
 	public Account get_Account()
@@ -345,20 +380,20 @@ public class MakeOrderAccount
 	}
 
 	//exclude make Liquidation order.....
-	private void setOutstandingOrders(BuySellType buySellType, Order mapOrder, Boolean isSpot, Boolean isMakeLimitOrder)
+	private void setOutstandingOrders(BuySellType buySellType, Order mapOrder, Boolean isSpot, Boolean isMakeLimitOrder, boolean isDelivery)
 	{
 		if (mapOrder == null)
 		{
-			this.setOutstandingOrders(buySellType, isSpot, isMakeLimitOrder);
+			this.setOutstandingOrders(buySellType, isSpot, isMakeLimitOrder, isDelivery);
 		}
 		else
 		{
-			this.setOutstandingOrders(mapOrder, isSpot, isMakeLimitOrder);
+			this.setOutstandingOrders(mapOrder, isSpot, isMakeLimitOrder, isDelivery);
 		}
 	}
 
 	//Used by Limit,MOO,MOC,MKT,OCO for mapOrder
-	private void setOutstandingOrders(Order mapOrder, Boolean isSpot, Boolean isMakeLimitOrder)
+	private void setOutstandingOrders(Order mapOrder, Boolean isSpot, Boolean isMakeLimitOrder, boolean isDelivery)
 	{
 		/*if (this._outstandingOrders.size() > 0 || this._account.get_Type() == AccountType.Agent)
 		{
@@ -371,25 +406,25 @@ public class MakeOrderAccount
 		}*/
 		this._outstandingOrders.clear();
 		Guid orderId = mapOrder.get_Id();
-		RelationOrder outstandingOrder = new RelationOrder(this._tradingConsole, this._settingsManager, mapOrder, isSpot, isMakeLimitOrder);
+		RelationOrder outstandingOrder = new RelationOrder(this._tradingConsole, this._settingsManager, mapOrder, isSpot, isMakeLimitOrder, isDelivery);
 
 		BigDecimal avaiableCloseLot = outstandingOrder.get_LiqLot();
 		if(avaiableCloseLot.compareTo(BigDecimal.ZERO) > 0)
 		{
 			TradePolicyDetail tradePolicyDetail = this.getTradePolicyDetail();
-			BigDecimal lot = AppToolkit.fixLot(avaiableCloseLot, false, tradePolicyDetail, this._account);
-			if(avaiableCloseLot.compareTo(lot) <= 0)
+			BigDecimal lot = isDelivery ? AppToolkit.fixDeliveryLot(avaiableCloseLot, tradePolicyDetail) : AppToolkit.fixCloseLot(avaiableCloseLot, avaiableCloseLot, tradePolicyDetail, this._account);
+			if(avaiableCloseLot.compareTo(lot) >= 0)
 			{
 				outstandingOrder.set_LiqLot(lot);
 
-				outstandingOrder.set_IsMakeLimitOrder(isMakeLimitOrder);
+				if(!isDelivery) outstandingOrder.set_IsMakeLimitOrder(isMakeLimitOrder);
 				this._outstandingOrders.put(orderId, outstandingOrder);
 			}
 		}
 	}
 
 	//exclude make Liquidation order and make Limit,MOO,MOC,MKT,OCO for mapOrder.....
-	private void setOutstandingOrders(BuySellType buySellType, Boolean isSpot, Boolean isMakeLimitOrder)
+	private void setOutstandingOrders(BuySellType buySellType, Boolean isSpot, Boolean isMakeLimitOrder, boolean isDelivery)
 	{
 		/*if (this._outstandingOrders.size() > 0 || this._account.get_Type() == AccountType.Agent)
 		{
@@ -414,24 +449,47 @@ public class MakeOrderAccount
 					if(order.get_Phase() != Phase.Executed) continue;
 					if(order.get_Transaction().get_Account().get_Type() == AccountType.Agent
 						|| order.get_Transaction().get_Account().get_Type() == AccountType.Transit) continue;
-					BigDecimal availableLotBanlance = order.get_LotBalance();
-					if(isSpot != null) availableLotBanlance = order.getAvailableLotBanlance(isSpot, isMakeLimitOrder);
-					if (availableLotBanlance.compareTo(BigDecimal.ZERO) > 0)
+
+					BigDecimal availableLotBanlance = BigDecimal.ZERO;
+					if(isDelivery)
 					{
-						Guid orderId = order.get_Id();
-						RelationOrder outstandingOrder = new RelationOrder(this._tradingConsole, this._settingsManager, order);
-						outstandingOrder.set_IsMakeLimitOrder(isMakeLimitOrder);
-						if (buySellType.equals(BuySellType.Both))
+						if(order.canDelivery())
 						{
-							this._outstandingOrders.put(orderId, outstandingOrder);
+							availableLotBanlance = order.getAvailableDeliveryLot();
+							if (availableLotBanlance.compareTo(BigDecimal.ZERO) > 0)
+							{
+								Guid orderId = order.get_Id();
+								RelationOrder outstandingOrder = new RelationOrder(this._tradingConsole, this._settingsManager, order, false, null, true);
+								this._outstandingOrders.put(orderId, outstandingOrder);
+							}
 						}
-						else if (order.get_IsBuy() && (buySellType.equals(BuySellType.Buy)))
+					}
+					else
+					{
+						if(order.canClose())
 						{
-							this._outstandingOrders.put(orderId, outstandingOrder);
-						}
-						else if (!order.get_IsBuy() && (buySellType.equals(BuySellType.Sell)))
-						{
-							this._outstandingOrders.put(orderId, outstandingOrder);
+							availableLotBanlance = order.get_LotBalance();
+							if (isSpot != null)
+								availableLotBanlance = order.getAvailableLotBanlance(isSpot, isMakeLimitOrder);
+
+							if (availableLotBanlance.compareTo(BigDecimal.ZERO) > 0)
+							{
+								Guid orderId = order.get_Id();
+								RelationOrder outstandingOrder = new RelationOrder(this._tradingConsole, this._settingsManager, order);
+								outstandingOrder.set_IsMakeLimitOrder(isMakeLimitOrder);
+								if (buySellType.equals(BuySellType.Both))
+								{
+									this._outstandingOrders.put(orderId, outstandingOrder);
+								}
+								else if (order.get_IsBuy() && (buySellType.equals(BuySellType.Buy)))
+								{
+									this._outstandingOrders.put(orderId, outstandingOrder);
+								}
+								else if (!order.get_IsBuy() && (buySellType.equals(BuySellType.Sell)))
+								{
+									this._outstandingOrders.put(orderId, outstandingOrder);
+								}
+							}
 						}
 					}
 				}
@@ -514,7 +572,7 @@ public class MakeOrderAccount
 										BuySellType editOutstandingOrderBuySellType, IOpenCloseRelationSite openCloseRelationSite, Order mapOrder)
 	{
 		Boolean isSpot = openCloseRelationSite.getOrderType() == null ?  null : openCloseRelationSite.getOrderType().isSpot();
-		this.setOutstandingOrders(buySellType, mapOrder, isSpot, openCloseRelationSite.isMakeLimitOrder());
+		this.setOutstandingOrders(buySellType, mapOrder, isSpot, openCloseRelationSite.isMakeLimitOrder(), openCloseRelationSite.isDelivery());
 		HashMap<Guid, RelationOrder> editOutstandingOrders = this.getEditOutstandingOrders(editOutstandingOrderBuySellType, mapOrder);
 		boolean hasChange = this.hasChange(grid, editOutstandingOrders);
 
@@ -781,6 +839,20 @@ public class MakeOrderAccount
 		return quoteLot;
 	}
 
+	public BigDecimal getTotalCloseLotOfFullClose()
+	{
+		BigDecimal sumLiqLots = BigDecimal.ZERO;
+		for (Iterator<RelationOrder> iterator = this._outstandingOrders.values().iterator(); iterator.hasNext(); )
+		{
+			RelationOrder relationOrder = iterator.next();
+			if (relationOrder.isFullClose())
+			{
+				sumLiqLots = sumLiqLots.add(relationOrder.get_LiqLot());
+			}
+		}
+		return sumLiqLots;
+	}
+
 	public BigDecimal getSumLiqLots()
 	{
 		BigDecimal sumLiqLots = BigDecimal.ZERO;
@@ -857,20 +929,21 @@ public class MakeOrderAccount
 		for (Iterator<RelationOrder> iterator = this._outstandingOrders.values().iterator(); iterator.hasNext(); )
 		{
 			RelationOrder relationOrder = iterator.next();
-			if(this._isBuyForCurrent != relationOrder.get_IsBuy())
+			if(this._isBuyForCurrent != relationOrder.get_IsBuy()
+				|| (this._isForDelivery && relationOrder.get_IsBuy()))
 			{
 				totalLiqLot = totalLiqLot.add(relationOrder.get_LiqLot());
 			}
 		}
 		TradePolicyDetail tradePolicyDetail
 					= this._settingsManager.getTradePolicyDetail(this._account.get_TradePolicyId(), this._instrument.get_Id());
-		totalLiqLot = AppToolkit.fixLot(totalLiqLot, false, tradePolicyDetail, this._account);
+		totalLiqLot = this._isForDelivery ? AppToolkit.fixDeliveryLot(totalLiqLot, tradePolicyDetail) : totalLiqLot;// AppToolkit.fixLot(totalLiqLot, false, tradePolicyDetail, this);
 		BigDecimal totalLiqLot2 = totalLiqLot;
 
 		for (Iterator<RelationOrder> iterator = this._outstandingOrders.values().iterator(); iterator.hasNext(); )
 		{
 			RelationOrder relationOrder = iterator.next();
-			if(this._isBuyForCurrent != relationOrder.get_IsBuy())
+			if(this._isBuyForCurrent != relationOrder.get_IsBuy() || (this._isForDelivery && relationOrder.get_IsBuy()))
 			{
 				BigDecimal liqLot = relationOrder.get_LiqLot();
 				liqLot = totalLiqLot.compareTo(liqLot) > 0 ? liqLot : totalLiqLot;
@@ -925,7 +998,7 @@ public class MakeOrderAccount
 			if(this._outstandingOrders.values().size() == 1)
 			{
 				TradePolicyDetail tradePolicyDetail = this.getTradePolicyDetail();
-				liqLot = AppToolkit.fixLot(liqLot, false, tradePolicyDetail, this._account);
+				liqLot = AppToolkit.fixCloseLot(liqLot, liqLot, tradePolicyDetail, this._account);
 			}
 
 			boolean isBuy = (buySellType == BuySellType.Buy);
@@ -1111,14 +1184,21 @@ public class MakeOrderAccount
 
 	public static void unbind(String dataSourceKey, tradingConsole.ui.grid.BindingSource bindingSource)
 	{
-		TradingConsole.bindingManager.unbind(dataSourceKey, bindingSource);
+		try
+		{
+			TradingConsole.bindingManager.unbind(dataSourceKey, bindingSource);
+		}
+		catch(Throwable t)
+		{
+
+		}
 	}
 
 	public void add(String dataSourceKey)
 	{
 		if (this._buySellType == BuySellType.Both)
 		{
-			this._isBuyForCurrent = true;
+			this._isBuyForCurrent = this._isForDelivery ? false : true;
 			this._isBuyForCombo = Language.Buy;
 			this.add2(dataSourceKey);
 
@@ -1167,7 +1247,7 @@ public class MakeOrderAccount
 
 	public void update(String dataSourceKey, boolean isDblClickAsk)
 	{
-		if (this._buySellType == BuySellType.Both)
+		if (!this._isForDelivery && this._buySellType == BuySellType.Both)
 		{
 			boolean isBuy = Instrument.getSelectIsBuy(this._instrument, isDblClickAsk);
 

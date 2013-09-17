@@ -32,6 +32,11 @@ public class TradeDay
 		return this._lastTradeDay;
 	}
 
+	public boolean contains(DateTime time)
+	{
+		return this._beginTime.compareTo(time) <= 0 && this._endTime.compareTo(time) >= 0;
+	}
+
 	public TradeDay()
 	{
 	}

@@ -70,6 +70,7 @@ public class Account implements Scheduler.ISchedulerCallback
 	private double _balance;
 	private double _necessary;
 	private double _equity;
+	private double _frozenFund;
 
 	private double _creditAmount;
 	private double _unclearAmount;
@@ -153,6 +154,10 @@ public class Account implements Scheduler.ISchedulerCallback
 		this._tradingConsole.get_MainForm().get_OpenOrderTable().filter();
 		this._tradingConsole.get_MainForm().get_OrderTable().filter();
 		this._tradingConsole.get_MainForm().get_NotConfirmedPendingOrderTable().filter();
+		this._tradingConsole.get_MainForm().get_PhysicalInventoryTable().filter();
+		this._tradingConsole.get_MainForm().get_PhysicalPendingInventoryTable().filter();
+		this._tradingConsole.get_MainForm().get_PhysicalShotSellTable().filter();
+		this.updateNode();
 		this._settingsManager.calculateSummary();
 	}
 
@@ -359,6 +364,19 @@ public class Account implements Scheduler.ISchedulerCallback
 		return this._code;
 	}
 
+	public String getCode()
+	{
+		if(this.get_TradingConsole().get_SettingsManager().get_SystemParameter().get_ShowAccountName())
+		{
+			return this.get_Code() + " (" + this.get_Name() + ")";
+		}
+		else
+		{
+			return this.get_Code();
+		}
+
+	}
+
 	public Guid get_GroupId()
 	{
 		return this._groupId;
@@ -397,6 +415,16 @@ public class Account implements Scheduler.ISchedulerCallback
 	public void set_Necessary(double value)
 	{
 		this._necessary = value;
+	}
+
+	public double get_FrozenFund()
+	{
+		return this._frozenFund;
+	}
+
+	public void set_FrozenFund(double value)
+	{
+		this._frozenFund = value;
 	}
 
 	public double get_Equity()
@@ -516,8 +544,8 @@ public class Account implements Scheduler.ISchedulerCallback
 
 	private Account()
 	{
-		this._notValuedTradingItem = TradingItem.create(0.00, 0.00, 0.00);
-		this._floatTradingItem = TradingItem.create(0.00, 0.00, 0.00);
+		this._notValuedTradingItem = TradingItem.create(0.00, 0.00, 0.00, 0.00);
+		this._floatTradingItem = TradingItem.create(0.00, 0.00, 0.00, 0.00);
 
 		this._transactions = new HashMap<Guid, Transaction> ();
 		this._accountCurrencies = new HashMap<CompositeKey2<Guid, Guid>, AccountCurrency> ();
@@ -627,6 +655,8 @@ public class Account implements Scheduler.ISchedulerCallback
 		this._balance = AppToolkit.convertDBValueToDouble(dataRow.get_Item("Balance"),0.0);
 		this._necessary = AppToolkit.convertDBValueToDouble(dataRow.get_Item("Necessary"),0.0);
 
+		this._frozenFund = AppToolkit.convertDBValueToDouble(dataRow.get_Item("FrozenFund"), 0.0);
+
 		this._notValuedTradingItem.set_Interest(AppToolkit.convertDBValueToDouble(dataRow.get_Item("InterestPLNotValued"),0.0));
 		this._notValuedTradingItem.set_Storage(AppToolkit.convertDBValueToDouble(dataRow.get_Item("StoragePLNotValued"),0.0));
 		this._notValuedTradingItem.set_Trade(AppToolkit.convertDBValueToDouble(dataRow.get_Item("TradePLNotValued"),0.0));
@@ -634,6 +664,7 @@ public class Account implements Scheduler.ISchedulerCallback
 		this._floatTradingItem.set_Interest(AppToolkit.convertDBValueToDouble(dataRow.get_Item("InterestPLFloat"),0.0));
 		this._floatTradingItem.set_Storage(AppToolkit.convertDBValueToDouble(dataRow.get_Item("StoragePLFloat"),0.0));
 		this._floatTradingItem.set_Trade(AppToolkit.convertDBValueToDouble(dataRow.get_Item("TradePLFloat"),0.0));
+		this._floatTradingItem.set_ValueAsMargin(AppToolkit.convertDBValueToDouble(dataRow.get_Item("ValueAsMargin"),0.0));
 
 		if (AppToolkit.isDBNull(dataRow.get_Item("AlertLevel")))
 		{
@@ -826,6 +857,14 @@ public class Account implements Scheduler.ISchedulerCallback
 			else if (nodeName.equals("Necessary"))
 			{
 				this._necessary = Double.valueOf(nodeValue).doubleValue();
+			}
+			else if (nodeName.equals("FrozenFund"))
+			{
+				this._frozenFund = Double.valueOf(nodeValue).doubleValue();
+			}
+			else if (nodeName.equals("ValueAsMargin"))
+			{
+				this._floatTradingItem.set_ValueAsMargin(Double.valueOf(nodeValue).doubleValue());
 			}
 			//else if (nodeName.equals("Equity"))
 			//{??????????????????????????
@@ -1776,6 +1815,11 @@ public class Account implements Scheduler.ISchedulerCallback
 
 	private boolean caculateIsSplitLot(Instrument instrument)
 	{
+		if(instrument.get_Category().equals(InstrumentCategory.Physical))
+		{
+			if(instrument.get_PhysicalLotDecimal() > 0) return true;
+		}
+
 		TradePolicyDetail tradePolicyDetail
 				= this._settingsManager.getTradePolicyDetail(this.get_TradePolicyId(), instrument.get_Id());
 

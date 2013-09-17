@@ -18,7 +18,9 @@ import framework.lang.Enum;
 import framework.xml.*;
 import tradingConsole.CloseOrder.*;
 import tradingConsole.enumDefine.*;
+import tradingConsole.enumDefine.physical.*;
 import tradingConsole.framework.*;
+import tradingConsole.physical.*;
 import tradingConsole.settings.*;
 import tradingConsole.ui.*;
 import tradingConsole.ui.borderStyleHelper.*;
@@ -44,6 +46,7 @@ public class Order
 	private String _code;
 	private BigDecimal _lot;
 	private BigDecimal _lotBalance;
+	private BigDecimal _deliveryLockedLot = BigDecimal.ZERO;
 	private boolean _isOpen;
 	private boolean _isBuy;
 	private Price _setPrice;
@@ -59,6 +62,19 @@ public class Order
 	private BigDecimal _storagePerLot;
 	private double _tradePL;
 	private Phase _phase; //when an OCO order was executed,another OCO order's phase = cancelled, but transaction's phase = executed
+	private PhysicalTradeSide _physicalTradeSide = PhysicalTradeSide.None;
+	private Guid _physicalRequestId = null;
+
+	private Guid _instalmentPolicyId;
+	private InstalmentType _physicalInstalmentType;
+	private int _period;
+	private BigDecimal _instalmentFee;
+	private BigDecimal _downPayment;
+	private RecalculateRateType	_recalculateRateType;
+	private BigDecimal _physicalOriginValue;
+	private BigDecimal _physicalPaidValue;
+
+	private boolean _isInstalmentOverdue;
 
 	//will rewrite it use _relationOrders?????????????????
 	private String _peerOrderCodes;
@@ -91,10 +107,18 @@ public class Order
 	private OrderModification _orderModification;
 	private PLNotValued _PLNotValued = new PLNotValued();
 
+	private double _valueAsMargin;
+	private double _marketValue;
+
 	//outstanding order use
 	public String get_Summary()
 	{
-		return this.get_ExecuteTradeDay() + " " + this.get_LotBalanceString()
+		return this.get_Summary(false);
+	}
+
+	public String get_Summary(boolean isForDelivery)
+	{
+		return this.get_ExecuteTradeDay() + " " + (isForDelivery ? this.get_Weight() : this.get_LotBalanceString())
 			+ this.get_IsBuyString() + " " + this.get_ExecutePriceString();
 	}
 
@@ -610,7 +634,14 @@ public class Order
 
 	public String get_LotString()
 	{
-		return AppToolkit.getFormatLot(this._lot, this.get_Account(), this.get_Instrument());
+		if(this._transaction.get_Instrument().get_Category().equals(InstrumentCategory.Physical))
+		{
+			return AppToolkit.format(this._lot, this._transaction.get_Instrument().get_PhysicalLotDecimal());
+		}
+		else
+		{
+			return AppToolkit.getFormatLot(this._lot, this.get_Account(), this.get_Instrument());
+		}
 	}
 
 	public BigDecimal get_Lot()
@@ -686,6 +717,16 @@ public class Order
 		return AppToolkit.format(this._pLTradingItem.get_Trade(), this._displayDecimals);
 	}
 
+	public double get_MarketValue()
+	{
+		return this._marketValue;
+	}
+
+	public String get_MarketValueString()
+	{
+		return AppToolkit.format(this._marketValue, this._displayDecimals);
+	}
+
 	public String get_CommissionSumString()
 	{
 		return AppToolkit.format(this._commissionSum.doubleValue(), this._displayDecimals);
@@ -719,7 +760,14 @@ public class Order
 
 	public String get_LotBalanceString()
 	{
-		return AppToolkit.getFormatLot(this._lotBalance, this.get_Account(), this.get_Instrument());
+		if(this._transaction.get_Instrument().get_Category().equals(InstrumentCategory.Physical))
+		{
+			return AppToolkit.format(this._lotBalance, this._transaction.get_Instrument().get_PhysicalLotDecimal());
+		}
+		else
+		{
+			return AppToolkit.getFormatLot(this._lotBalance, this.get_Account(), this.get_Instrument());
+		}
 	}
 
 	public BigDecimal get_LotBalance()
@@ -727,9 +775,36 @@ public class Order
 		return this._lotBalance;
 	}
 
-	public BigDecimal getAvailableLotBanlance(boolean isSpotTrade, Boolean isMakeLimitOrder)
+	public BigDecimal getAvailableDeliveryLot()
 	{
-		if (isSpotTrade)
+		if(!this._isBuy) return BigDecimal.ZERO;
+
+		ArrayList<Guid> ocoTransactions = new ArrayList<Guid>();
+
+		BigDecimal pendingCloseLot = BigDecimal.ZERO;
+		for (int index = 0; index < this._closeOrders.getRowCount(); index++)
+		{
+			Order closeOrder = ( (CloseOrder)this._closeOrders.getObject(index)).get_Order();
+			if (closeOrder.get_Phase() == Phase.Placed || closeOrder.get_Phase() == Phase.Placing)
+			{
+				Guid transactionId = this._transaction.get_Id();
+				if(!ocoTransactions.contains(transactionId))
+				{
+					BigDecimal closeLot = this.getCloseLot(closeOrder);
+					pendingCloseLot = pendingCloseLot.add(closeLot);
+					if(this._transaction.get_Type().equals(TransactionType.OneCancelOther))
+					{
+						ocoTransactions.add(transactionId);
+					}
+				}
+			}
+		}
+		return this._lotBalance.subtract(pendingCloseLot);
+	}
+
+	public BigDecimal getAvailableLotBanlance(Boolean isSpotTrade, Boolean isMakeLimitOrder)
+	{
+		if (isSpotTrade != null && isSpotTrade)
 		{
 			return this._lotBalance;
 		}
@@ -794,6 +869,20 @@ public class Order
 	public String get_CommissionString()
 	{
 		return AppToolkit.format(this.calcCommission(), this._displayDecimals);
+	}
+
+	public boolean hasRebate()
+	{
+		return this._commissionSum.compareTo(BigDecimal.ZERO) < 0;
+	}
+
+	public String get_RebateString()
+	{
+		if(this._commissionSum.compareTo(BigDecimal.ZERO) < 0)
+		{
+			return AppToolkit.format(this._commissionSum.negate(), this._displayDecimals);
+		}
+		return "";
 	}
 
 	public String get_LivePriceString()
@@ -965,9 +1054,9 @@ public class Order
 		this._sequence = 0;
 
 		this._displayDecimals = Short.MIN_VALUE;
-		this._pLTradingItem = TradingItem.create(0.00, 0.00, 0.00);
-		this._floatTradingItem = TradingItem.create(0.00, 0.00, 0.00);
-		this._notValuedTradingItem = TradingItem.create(0.00, 0.00, 0.00);
+		this._pLTradingItem = TradingItem.create(0.00, 0.00, 0.00, 0.00);
+		this._floatTradingItem = TradingItem.create(0.00, 0.00, 0.00, 0.00);
+		this._notValuedTradingItem = TradingItem.create(0.00, 0.00, 0.00, 0.00);
 		this._isAssignOrder = false;
 
 		this._code = "";
@@ -996,6 +1085,8 @@ public class Order
 		this._transaction = transaction;
 		this._displayDecimals = this.getDisplayDecimals();
 		this.setValue(dataRow);
+		this.initInstalmentInfo();
+		this.caculateValueAsMarginForInstalment();
 
 		//Modified by Michael on 2008-04-22
 		//this._livePrice = this._transaction.get_Instrument().get_LastQuotation().getBuySell(!this._isBuy);
@@ -1012,6 +1103,19 @@ public class Order
 
 		//maybe has error...........
 		this._phase = this._transaction.get_Phase();
+	}
+
+	void initInstalmentInfo()
+	{
+		if(this._transaction.get_InstalmentInfo() != null)
+		{
+			InstalmentInfo instalmentInfo = this._transaction.get_InstalmentInfo();
+			this._instalmentPolicyId = instalmentInfo.get_InstalmentPolicyId();
+			this._period = instalmentInfo.get_Period();
+			this._downPayment = instalmentInfo.get_DownPayment();
+			this._recalculateRateType = instalmentInfo.get_RecalculateRateType();
+			this._physicalInstalmentType = instalmentInfo.get_InstalmentType();
+		}
 	}
 
 	public void replace(DataRow dataRow)
@@ -1070,6 +1174,131 @@ public class Order
 			this._executeTradeDay = (AppToolkit.isDBNull(dataRow.get_Item("ExecuteTradeDay"))) ? null : (DateTime)dataRow.get_Item("ExecuteTradeDay");
 		}
 		this._tradeOption = Enum.valueOf(TradeOption.class, ( (Short)dataRow.get_Item("TradeOption")).intValue());
+		if(dataRow.get_Item("PhysicalTradeSide") == DBNull.value)
+		{
+			this._physicalTradeSide = PhysicalTradeSide.None;
+		}
+		else
+		{
+			this._physicalTradeSide = Enum.valueOf(PhysicalTradeSide.class, ( (Integer)dataRow.get_Item("PhysicalTradeSide")).intValue());
+		}
+		if(dataRow.get_Item("PhysicalRequestId") == DBNull.value)
+		{
+			this._physicalRequestId = null;
+		}
+		else
+		{
+			this._physicalRequestId = (Guid)dataRow.get_Item("PhysicalRequestId");
+		}
+
+		if(dataRow.get_Table().get_Columns().contains("InstalmentPolicyId"))
+		{
+			if (dataRow.get_Item("InstalmentPolicyId") == DBNull.value)
+			{
+				this._instalmentPolicyId = null;
+			}
+			else
+			{
+				this._instalmentPolicyId = (Guid)dataRow.get_Item("InstalmentPolicyId");
+			}
+		}
+
+		if(dataRow.get_Table().get_Columns().contains("PhysicalInstalmentType"))
+		{
+			if (dataRow.get_Item("PhysicalInstalmentType") == DBNull.value)
+			{
+				this._physicalInstalmentType = InstalmentType.FullAmount;
+			}
+			else
+			{
+				this._physicalInstalmentType = Enum.valueOf(InstalmentType.class, (Integer)dataRow.get_Item("PhysicalInstalmentType"));
+			}
+		}
+
+		if(dataRow.get_Table().get_Columns().contains("Period"))
+		{
+			if (dataRow.get_Item("Period") == DBNull.value)
+			{
+				this._period = 0;
+			}
+			else
+			{
+				this._period = (Integer)dataRow.get_Item("Period");
+			}
+		}
+
+		if(dataRow.get_Table().get_Columns().contains("DownPayment"))
+		{
+			if (dataRow.get_Item("DownPayment") == DBNull.value)
+			{
+				this._downPayment = BigDecimal.ZERO;
+			}
+			else
+			{
+				this._downPayment = (BigDecimal)dataRow.get_Item("DownPayment");
+			}
+		}
+
+		if(dataRow.get_Table().get_Columns().contains("DownPayment"))
+		{
+			if (dataRow.get_Item("RecalculateRateType") == DBNull.value)
+			{
+				this._recalculateRateType = RecalculateRateType.All;
+			}
+			else
+			{
+				this._recalculateRateType = Enum.valueOf(RecalculateRateType.class, (Integer)dataRow.get_Item("RecalculateRateType"));
+			}
+		}
+
+		if(dataRow.get_Table().get_Columns().contains("PhysicalOriginValue"))
+		{
+			if (dataRow.get_Item("PhysicalOriginValue") == DBNull.value)
+			{
+				this._physicalOriginValue = BigDecimal.ZERO;
+			}
+			else
+			{
+				this._physicalOriginValue = (BigDecimal)dataRow.get_Item("PhysicalOriginValue");
+			}
+		}
+
+		if(dataRow.get_Table().get_Columns().contains("InstalmentAdministrationFee"))
+		{
+			if (dataRow.get_Item("InstalmentAdministrationFee") == DBNull.value)
+			{
+				this._instalmentFee = BigDecimal.ZERO;
+			}
+			else
+			{
+				this._instalmentFee = (BigDecimal)dataRow.get_Item("InstalmentAdministrationFee");
+			}
+		}
+
+		if(dataRow.get_Table().get_Columns().contains("PhysicalPaidAmount"))
+		{
+			if (dataRow.get_Item("PhysicalPaidAmount") == DBNull.value)
+			{
+				this._physicalPaidValue = BigDecimal.ZERO;
+			}
+			else
+			{
+				this._physicalPaidValue = (BigDecimal)dataRow.get_Item("PhysicalPaidAmount");
+			}
+		}
+
+		if(dataRow.get_Table().get_Columns().contains("PhysicalPaidAmount"))
+		{
+			if (dataRow.get_Item("PhysicalPaidAmount") == DBNull.value)
+			{
+				this._isInstalmentOverdue = false;
+			}
+			else
+			{
+				this._isInstalmentOverdue = (Boolean)dataRow.get_Item("IsInstalmentOverdue");
+			}
+		}
+
 		this._commissionSum = AppToolkit.convertDBValueToBigDecimal(dataRow.get_Item("CommissionSum"), 0.0);
 		this._levySum = AppToolkit.convertDBValueToBigDecimal(dataRow.get_Item("LevySum"), 0.0);
 		this._interestPerLot = AppToolkit.convertDBValueToBigDecimal(dataRow.get_Item("InterestPerLot"), 0.0);
@@ -1088,6 +1317,8 @@ public class Order
 		this._floatTradingItem.set_Trade(AppToolkit.round(AppToolkit.convertDBValueToDouble(dataRow.get_Item("TradePLFloat"), 0.0), this._displayDecimals));
 		this._floatTradingItem.set_Interest(AppToolkit.round(AppToolkit.convertDBValueToDouble(dataRow.get_Item("InterestPLFloat"), 0.0), this._displayDecimals));
 		this._floatTradingItem.set_Storage(AppToolkit.round(AppToolkit.convertDBValueToDouble(dataRow.get_Item("StoragePLFloat"), 0.0), this._displayDecimals));
+		this._valueAsMargin = AppToolkit.convertDBValueToDouble(dataRow.get_Item("ValueAsMargin"), 0.0);
+		//this._floatTradingItem.set_ValueAsMargin(AppToolkit.round(AppToolkit.convertDBValueToDouble(dataRow.get_Item("ValueAsMargin"), 0.0), this._displayDecimals));
 
 		if (dataRow.get_Table().get_Columns().contains("InterestPLNotValued"))
 		{
@@ -1183,6 +1414,50 @@ public class Order
 			{
 				this._tradeOption = Enum.valueOf(TradeOption.class, Integer.parseInt(nodeValue));
 			}
+			else if (nodeName.equals("PhysicalTradeSide"))
+			{
+				this._physicalTradeSide = Enum.valueOf(PhysicalTradeSide.class, Integer.parseInt(nodeValue));
+			}
+			else if(nodeName.equals("PhysicalRequestId"))
+			{
+				this._physicalRequestId = new Guid(nodeValue);
+			}
+			else if(nodeName.equals("InstalmentPolicyId"))
+			{
+				this._instalmentPolicyId = new Guid(nodeValue);
+			}
+			else if(nodeName.equals("PhysicalInstalmentType"))
+			{
+				this._physicalInstalmentType = Enum.valueOf(InstalmentType.class, Integer.parseInt(nodeValue));
+			}
+			else if(nodeName.equals("Period"))
+			{
+				this._period = Integer.parseInt(nodeValue);
+			}
+			else if(nodeName.equals("DownPayment"))
+			{
+				this._downPayment = new BigDecimal(nodeValue);
+			}
+			else if(nodeName.equals("RecalculateRateType"))
+			{
+				this._recalculateRateType = Enum.valueOf(RecalculateRateType.class, Integer.parseInt(nodeValue));
+			}
+			else if(nodeName.equals("PhysicalOriginValue"))
+			{
+				this._physicalOriginValue = new BigDecimal(nodeValue);
+			}
+			else if(nodeName.equals("InstalmentAdministrationFee"))
+			{
+				this._instalmentFee = new BigDecimal(nodeValue);
+			}
+			else if(nodeName.equals("PhysicalPaidValue"))
+			{
+				this._physicalPaidValue = new BigDecimal(nodeValue);
+			}
+			else if (nodeName.equals("IsInstalmentOverdue"))
+			{
+				this._isInstalmentOverdue = Boolean.parseBoolean(nodeValue);
+			}
 			else if (nodeName.equals("CommissionSum"))
 			{
 				this._commissionSum = new BigDecimal(Double.valueOf(nodeValue).doubleValue());
@@ -1222,6 +1497,11 @@ public class Order
 			else if (nodeName.equals("StoragePLFloat"))
 			{
 				this._floatTradingItem.set_Storage(AppToolkit.round(Double.valueOf(nodeValue).doubleValue(), this._displayDecimals));
+			}
+			else if (nodeName.equals("ValueAsMargin"))
+			{
+				this._valueAsMargin = Double.valueOf(nodeValue).doubleValue();
+				//this._floatTradingItem.set_ValueAsMargin(AppToolkit.round(Double.valueOf(nodeValue).doubleValue(), this._displayDecimals));
 			}
 			else if (nodeName.equals("TradePL"))
 			{
@@ -1430,6 +1710,10 @@ public class Order
 				propertyDescriptorList.add(item);
 			}
 		}
+		propertyDescriptor = PropertyDescriptor.create(Order.class, OrderColKey.RebateString, true, null, OrderLanguage.RebateString,
+			80, SwingConstants.RIGHT, null, null);
+		propertyDescriptorList.add(propertyDescriptor);
+
 		if (propertyDescriptorList.size() != propertyDescriptors.length)
 		{
 			propertyDescriptors = new PropertyDescriptor[propertyDescriptorList.size()];
@@ -1639,6 +1923,104 @@ public class Order
 		}
 	}
 
+	public String get_Unit()
+	{
+		return this.get_Instrument().get_Unit();
+	}
+
+	public String get_Currency()
+	{
+		Account account = this.get_Account();
+		Instrument instrument = this.get_Instrument();
+		return account.get_IsMultiCurrency() ? instrument.get_Currency().get_Code() : account.get_Currency().get_Code();
+	}
+
+	public String get_Weight()
+	{
+		if(this._transaction.get_Instrument().get_Category().equals(InstrumentCategory.Physical))
+		{
+			BigDecimal lot = this._lotBalance;
+			BigDecimal weight = lot.multiply(this._transaction.get_ContractSize());
+			return AppToolkit.format(weight.doubleValue(), this.get_Instrument().get_PhysicalLotDecimal());
+		}
+		else
+		{
+			return "";
+		}
+	}
+
+	public static PropertyDescriptor[] getPropertyDescriptorsForShortSell()
+	{
+		PropertyDescriptor[] propertyDescriptors = new PropertyDescriptor[9];
+
+		int index = 0;
+		PropertyDescriptor propertyDescriptor = PropertyDescriptor.create(Order.class, OpenOrderColKey.AccountCode, true, null, OpenOrderLanguage.AccountCode,
+			80, SwingConstants.CENTER, null, null);
+		propertyDescriptors[index++] = propertyDescriptor;
+
+		propertyDescriptor = PropertyDescriptor.create(Order.class, OpenOrderColKey.InstrumentCode, true, null, PhysicalInventoryLanguage.Instrument,
+			80, SwingConstants.CENTER, null, null);
+		propertyDescriptors[index++] = propertyDescriptor;
+
+		propertyDescriptor = PropertyDescriptor.create(Order.class, OpenOrderColKey.ExecuteTradeDay, true, null, PhysicalInventoryLanguage.ShortSellDate,
+			80, SwingConstants.CENTER, null, null);
+		propertyDescriptors[index++] = propertyDescriptor;
+
+		propertyDescriptor = PropertyDescriptor.create(Order.class, PhysicalInventoryColKey.Weight, true, null, PhysicalInventoryLanguage.Weight,
+			80, SwingConstants.CENTER, null, null, null, null);
+		propertyDescriptors[index++] = propertyDescriptor;
+
+		propertyDescriptor = PropertyDescriptor.create(Order.class, PhysicalInventoryColKey.Unit, true, null, PhysicalInventoryLanguage.Unit,
+			80, SwingConstants.CENTER, null, null, null, null);
+		propertyDescriptors[index++] = propertyDescriptor;
+
+		propertyDescriptor = PropertyDescriptor.create(Order.class, PhysicalInventoryColKey.Currency, true, null, AccountSingleLanguage.CurrencyCode,
+			80, SwingConstants.CENTER, null, null, null, null);
+		propertyDescriptors[index++] = propertyDescriptor;
+
+		propertyDescriptor = PropertyDescriptor.create(Order.class, OpenOrderColKey.ExecutePriceString, true, null, PhysicalInventoryLanguage.ShortSellPrice,
+			80, SwingConstants.CENTER, null, null);
+		propertyDescriptors[index++] = propertyDescriptor;
+
+		propertyDescriptor = PropertyDescriptor.create(Order.class, OpenOrderColKey.LivePriceString, true, null, PhysicalInventoryLanguage.ReferencePrice,
+			80, SwingConstants.CENTER, null, null);
+		propertyDescriptors[index++] = propertyDescriptor;
+
+		propertyDescriptor = PropertyDescriptor.create(Order.class, OpenOrderColKey.TradePLFloatString, true, null, OpenOrderLanguage.TradePLFloatString,
+			80, SwingConstants.CENTER, null, null);
+		propertyDescriptors[index++] = propertyDescriptor;
+
+		return propertyDescriptors;
+	}
+
+	public static PropertyDescriptor[] getPropertyDescriptorsForPhysical()
+	{
+		PropertyDescriptor[] propertyDescriptors = new PropertyDescriptor[5];
+
+		int index = 0;
+		PropertyDescriptor propertyDescriptor = PropertyDescriptor.create(Order.class, OpenOrderColKey.ShortCode, false, null, OpenOrderLanguage.ShortCode,
+			120, SwingConstants.CENTER, null, null);
+		propertyDescriptors[index++] = propertyDescriptor;
+
+		propertyDescriptor = PropertyDescriptor.create(Order.class, OpenOrderColKey.ExecuteTradeDay, true, null, OpenOrderLanguage.ExecuteTradeDay,
+			100, SwingConstants.CENTER, null, null);
+		propertyDescriptors[index++] = propertyDescriptor;
+
+		propertyDescriptor = PropertyDescriptor.create(Order.class, OpenOrderColKey.ExecutePriceString, true, null, OpenOrderLanguage.ExecutePriceString,
+			100, SwingConstants.RIGHT, null, null);
+		propertyDescriptors[index++] = propertyDescriptor;
+
+		propertyDescriptor = PropertyDescriptor.create(Order.class, OpenOrderColKey.LivePriceString, true, null, OpenOrderLanguage.LivePriceString,
+			100, SwingConstants.RIGHT, null, null);
+		propertyDescriptors[index++] = propertyDescriptor;
+
+		propertyDescriptor = PropertyDescriptor.create(Order.class, PhysicalInventoryColKey.Weight, true, null, PhysicalInventoryLanguage.Weight,
+			120, SwingConstants.CENTER, null, null);
+		propertyDescriptors[index++] = propertyDescriptor;
+
+		return propertyDescriptors;
+	}
+
 	//OpenOrderList use
 	public static PropertyDescriptor[] getPropertyDescriptorsForOpenOrderList(SettingsManager settingsManager)
 	{
@@ -1756,6 +2138,10 @@ public class Order
 				propertyDescriptorList.add(item);
 			}
 		}
+		propertyDescriptor = PropertyDescriptor.create(Order.class, OrderColKey.RebateString, true, null, OrderLanguage.RebateString,
+			80, SwingConstants.RIGHT, null, null);
+		propertyDescriptorList.add(propertyDescriptor);
+
 		if (propertyDescriptorList.size() != propertyDescriptors.length)
 		{
 			propertyDescriptors = new PropertyDescriptor[propertyDescriptorList.size()];
@@ -1823,6 +2209,7 @@ public class Order
 
 	public void addWorkingOrder(OperateWhichOrderUI operateWhichOrderUI, boolean isFromExecute2)
 	{
+		boolean isPhysicalOrder = this.get_Instrument().get_Category().equals(InstrumentCategory.Physical);
 		if (operateWhichOrderUI.equals(OperateWhichOrderUI.Both)
 			|| operateWhichOrderUI.equals(OperateWhichOrderUI.WorkingOrderList))
 		{
@@ -1833,13 +2220,16 @@ public class Order
 			else
 			{
 				TradingConsole.bindingManager.add(Order.workingOrdersKey, this);
-				if (this._transaction.get_OrderType().equals(OrderType.Limit)
-					|| this._transaction.get_OrderType().equals(OrderType.Stop)
-					|| this._transaction.get_OrderType().equals(OrderType.OneCancelOther)
-					|| this._transaction.get_OrderType().equals(OrderType.MarketOnOpen)
-					|| this._transaction.get_OrderType().equals(OrderType.MarketOnClose))
+				if(!isPhysicalOrder)
 				{
-					TradingConsole.bindingManager.add(Order.notConfirmedPendingOrdersKey, this);
+					if (this._transaction.get_OrderType().equals(OrderType.Limit)
+						|| this._transaction.get_OrderType().equals(OrderType.Stop)
+						|| this._transaction.get_OrderType().equals(OrderType.OneCancelOther)
+						|| this._transaction.get_OrderType().equals(OrderType.MarketOnOpen)
+						|| this._transaction.get_OrderType().equals(OrderType.MarketOnClose))
+					{
+						TradingConsole.bindingManager.add(Order.notConfirmedPendingOrdersKey, this);
+					}
 				}
 
 				this.orderStyleWorkingOrderList();
@@ -1853,11 +2243,15 @@ public class Order
 
 	public void addOpenOrderList(OperateWhichOrderUI operateWhichOrderUI)
 	{
+		boolean isPhysicalOrder = this.get_Instrument().get_Category().equals(InstrumentCategory.Physical);
 		if (operateWhichOrderUI.equals(OperateWhichOrderUI.Both)
 			|| operateWhichOrderUI.equals(OperateWhichOrderUI.OpenOrderList))
 		{
-			TradingConsole.bindingManager.add(Order.openOrdersKey, this);
-			this.orderStyleOpenOrderList();
+			if(!isPhysicalOrder)
+			{
+				TradingConsole.bindingManager.add(Order.openOrdersKey, this);
+				this.orderStyleOpenOrderList();
+			}
 			RelationOrder.get_OrderStateReceiver().add(this);
 		}
 	}
@@ -1903,9 +2297,21 @@ public class Order
 
 	public static void removeFromOpenOrderList(Order order)
 	{
-		TradingConsole.bindingManager.remove(Order.openOrdersKey, order);
-		RelationOrder.get_OrderStateReceiver().remove(order);
-		order._tradingConsole.refreshSummary();
+		boolean isPhysicalOrder = order.get_Instrument().get_Category().equals(InstrumentCategory.Physical);
+		if(isPhysicalOrder)
+		{
+			InventoryManager.RemoveTransactionResult result = InventoryManager.instance.remove(order);
+			if (result.hasInventoryRemoved)
+			{
+				order._tradingConsole.get_MainForm().get_PhysicalInventoryTable().collapseAllRows();
+			}
+		}
+		else
+		{
+			TradingConsole.bindingManager.remove(Order.openOrdersKey, order);
+			RelationOrder.get_OrderStateReceiver().remove(order);
+			order._tradingConsole.refreshSummary();
+		}
 	}
 
 	public void remove()
@@ -1958,8 +2364,16 @@ public class Order
 		if (operateWhichOrderUI.equals(OperateWhichOrderUI.Both)
 			|| operateWhichOrderUI.equals(OperateWhichOrderUI.OpenOrderList))
 		{
-			TradingConsole.bindingManager.update(Order.openOrdersKey, this, propertyName, value);
-			this.orderStyleOpenOrderList();
+			boolean isPhysicalOrder = this.get_Instrument().get_Category().equals(InstrumentCategory.Physical);
+			if(isPhysicalOrder)
+			{
+				InventoryManager.instance.update(this, propertyName, value);
+			}
+			else
+			{
+				TradingConsole.bindingManager.update(Order.openOrdersKey, this, propertyName, value);
+				this.orderStyleOpenOrderList();
+			}
 		}
 		this._tradingConsole.refreshSummary();
 		if(!this._phase.equals(Phase.Placed) && !this._phase.equals(Phase.Placing))
@@ -1982,6 +2396,7 @@ public class Order
 
 	public void update(boolean refreshSummary)
 	{
+		boolean isPhysicalOrder = this.get_Instrument().get_Category().equals(InstrumentCategory.Physical);
 		OperateWhichOrderUI operateWhichOrderUI = this.getOperateWhichOrderUI();
 
 		if (operateWhichOrderUI.equals(OperateWhichOrderUI.Both)
@@ -2006,8 +2421,15 @@ public class Order
 		if (operateWhichOrderUI.equals(OperateWhichOrderUI.Both)
 			|| operateWhichOrderUI.equals(OperateWhichOrderUI.OpenOrderList))
 		{
-			TradingConsole.bindingManager.update(Order.openOrdersKey, this);
-			this.orderStyleOpenOrderList();
+			if(isPhysicalOrder)
+			{
+				InventoryManager.instance.update(this);
+			}
+			else
+			{
+				TradingConsole.bindingManager.update(Order.openOrdersKey, this);
+				this.orderStyleOpenOrderList();
+			}
 		}
 		if(refreshSummary) this._tradingConsole.refreshSummary();
 		if(!this._phase.equals(Phase.Placed) && !this._phase.equals(Phase.Placing))
@@ -2251,7 +2673,7 @@ public class Order
 	{
 		if (this._isOpen)
 		{
-			TradingItem tradingItem = TradingItem.create(0.00, 0.00, 0.00);
+			TradingItem tradingItem = TradingItem.create(0.00, 0.00, 0.00, 0.00);
 
 			Price close = null;
 			if (this._isBuy)
@@ -2269,7 +2691,9 @@ public class Order
 				sell = this._executePrice.clone();
 			}
 
-			this._margin = this.calculateMargin(close);
+			boolean needCaculateTradePLAndMargin
+				= this._physicalTradeSide.equals(PhysicalTradeSide.None) || this._physicalTradeSide.equals(PhysicalTradeSide.ShortSell);
+			this._margin = needCaculateTradePLAndMargin ? this.calculateMargin(close) : 0;
 
 			//Modified by Michael on 2008-04-22
 			//this._livePrice = Price.clone(close);
@@ -2285,8 +2709,11 @@ public class Order
 			short decimals = this._transaction.get_Instrument().get_Currency().get_Decimals();
 			tradingItem.set_Interest(AppToolkit.round(this._lotBalance.doubleValue() * this._interestPerLot.doubleValue(), decimals));
 			tradingItem.set_Storage(AppToolkit.round(this._lotBalance.doubleValue() * this._storagePerLot.doubleValue(), decimals));
-			tradingItem.set_Trade(this.calculateTradePL2(this.get_Transaction().get_Instrument().get_TradePLFormula(), this._lotBalance,
-				this.get_Transaction().get_ContractSize(), buy, sell, close, decimals));
+			tradingItem.set_Trade(needCaculateTradePLAndMargin ? this.calculateTradePL2(this.get_Transaction().get_Instrument().get_TradePLFormula(), this._lotBalance,
+				this.get_Transaction().get_ContractSize(), buy, sell, close, decimals) : 0);
+
+			this.caculateMarketValue(close);
+			tradingItem.set_ValueAsMargin(AppToolkit.round(this._valueAsMargin, decimals));
 
 			if (this._transaction.get_Account().get_IsMultiCurrency() == false)
 			{
@@ -2298,9 +2725,103 @@ public class Order
 				tradingItem.set_Interest(AppToolkit.round(tradingItem.get_Interest(), this._displayDecimals));
 				tradingItem.set_Storage(AppToolkit.round(tradingItem.get_Storage(), this._displayDecimals));
 				tradingItem.set_Trade(AppToolkit.round(tradingItem.get_Trade(), this._displayDecimals));
+				tradingItem.set_ValueAsMargin(AppToolkit.round(tradingItem.get_ValueAsMargin(), this._displayDecimals));
+			}
+			InventoryManager.instance.recaculateMarketValue(this);
+			this._floatTradingItem.merge(tradingItem);
+		}
+	}
+
+	public void recaculateValueAsMargin()
+	{
+		if(this._physicalTradeSide.equals(PhysicalTradeSide.Buy) || this._physicalTradeSide.equals(PhysicalTradeSide.Deposit))
+		{
+			short decimals = this._transaction.get_Instrument().get_Currency().get_Decimals();
+			Quotation quotation = this.get_Instrument().get_Quotation();
+			Price livePrice = null;
+			if (quotation != null)
+			{
+				livePrice = quotation.getSell();
 			}
 
-			this._floatTradingItem.merge(tradingItem);
+			if (livePrice == null)	livePrice = this._executePrice;
+
+			this.caculateMarketValue(livePrice);
+			double valueAsMargin = AppToolkit.round(this._valueAsMargin, decimals);
+			if (this._transaction.get_Account().get_IsMultiCurrency() == false)
+			{
+				Guid instrumentCurrencyId = this._transaction.get_Instrument().get_Currency().get_Id();
+				Guid accountCurrencyId = this._transaction.get_Account().get_Currency().get_Id();
+				CurrencyRate currencyRate = this._settingsManager.getCurrencyRate(instrumentCurrencyId, accountCurrencyId);
+				valueAsMargin = currencyRate.exchange(valueAsMargin);
+			}
+			this._floatTradingItem.set_ValueAsMargin(AppToolkit.round(valueAsMargin, this._displayDecimals));
+		}
+	}
+
+	static public double caculateMarketValue(Price livePirce, short tradePLFormula, BigDecimal lot, double contractSize, double oddDiscount)
+	{
+		double marketValue = 0;
+		double price = Price.toDouble(livePirce);
+		switch (tradePLFormula)
+		{
+			case 0:
+				marketValue = lot.intValue() * price * contractSize
+					+ (lot.doubleValue() - lot.intValue()) * price * contractSize * oddDiscount;
+				break;
+			case 1:
+			case 3:
+				marketValue = lot.intValue() * contractSize
+					+ (lot.doubleValue() - lot.intValue()) * contractSize * oddDiscount;
+				break;
+			case 2:
+				marketValue = lot.intValue() / price * contractSize
+					+ (lot.doubleValue() - lot.intValue()) / price * contractSize * oddDiscount;
+				break;
+		}
+		return marketValue;
+	}
+
+	private void caculateValueAsMarginForInstalment()
+	{
+		if(this._instalmentPolicyId != null && !this.IsPayOff() && this._physicalPaidValue != null)
+		{
+			InstalmentPolicy instalmentPolicy
+				= this.get_Account().get_TradingConsole().get_SettingsManager().getInstalmentPolicy(this._instalmentPolicyId);
+			this._valueAsMargin = this._physicalPaidValue.abs().doubleValue() * instalmentPolicy.get_ValueDiscountAsMargin().doubleValue();
+		}
+	}
+
+	private void caculateMarketValue(Price livePirce)
+	{
+		//if(livePirce.equals(this._livePrice) && this._marketValue != 0) return this._floatTradingItem.get_ValueAsMargin();
+		double marketValue = 0;
+
+		if(this._physicalTradeSide.equals(PhysicalTradeSide.Buy) || this._physicalTradeSide.equals(PhysicalTradeSide.Deposit))
+		{
+			Guid tradePolicyId = this.get_Account().get_TradePolicyId();
+			Guid instrumentId = this.get_Instrument().get_Id();
+			TradePolicyDetail tradePolicyDetail =
+				this.get_Account().get_TradingConsole().get_SettingsManager().getTradePolicyDetail(tradePolicyId, instrumentId);
+
+			double oddDiscount = tradePolicyDetail.get_DiscountOfOdd().doubleValue();
+			BigDecimal lot = this._lotBalance;
+			short tradePLFormula = this.get_Instrument().get_TradePLFormula();
+			marketValue = Order.caculateMarketValue(livePirce, tradePLFormula, lot, this._transaction.get_ContractSize().doubleValue(), oddDiscount);
+
+			if(this._instalmentPolicyId == null || this.IsPayOff())
+			{
+				this._valueAsMargin = marketValue * tradePolicyDetail.get_ValueDiscountAsMargin().doubleValue();
+			}
+
+			if (this._transaction.get_Account().get_IsMultiCurrency() == false)
+			{
+				Guid instrumentCurrencyId = this._transaction.get_Instrument().get_Currency().get_Id();
+				Guid accountCurrencyId = this._transaction.get_Account().get_Currency().get_Id();
+				CurrencyRate currencyRate = this._settingsManager.getCurrencyRate(instrumentCurrencyId, accountCurrencyId);
+				marketValue = currencyRate.exchange(marketValue);
+			}
+			this._marketValue = marketValue;
 		}
 	}
 
@@ -2561,8 +3082,9 @@ public class Order
 			}
 			else
 			{
+				boolean isDelivery = closedOrder._physicalTradeSide.equals(PhysicalTradeSide.Delivery);
 				String previousRelationPeerOrderCodes = openOrder.get_PeerOrderCodes();
-				BigDecimal relationLotBalance = openOrder.get_LotBalance();
+				BigDecimal relationLotBalance = isDelivery ? openOrder._deliveryLockedLot : openOrder.get_LotBalance();
 
 				String currenctRelationPeerOrderIDs = "";
 
@@ -2584,7 +3106,9 @@ public class Order
 
 				Instrument instrument = openOrder.get_Transaction().get_Instrument();
 				BigDecimal lotBalance = relationLotBalance.subtract(relationLiqLot);
-				if (lotBalance.compareTo(BigDecimal.ZERO) <= 0)
+				boolean shouldRemove = lotBalance.compareTo(BigDecimal.ZERO) <= 0;
+				if(isDelivery) shouldRemove &= openOrder.get_LotBalance().compareTo(BigDecimal.ZERO) <= 0;
+				if (shouldRemove)
 				{
 					//Michael......
 					//tradingConsole.removeOrder(order);
@@ -2654,6 +3178,67 @@ public class Order
 		{
 			this._setPrice = value;
 		}
+	}
+
+	public PhysicalTradeSide get_PhysicalTradeSide()
+	{
+		return this._physicalTradeSide;
+	}
+
+	public Guid get_PhysicalRequestId()
+	{
+		return this._physicalRequestId;
+	}
+
+	public Guid get_InstalmentPolicyId()
+	{
+		return this._instalmentPolicyId;
+	}
+
+	public InstalmentType get_PhysicalInstalmentType()
+	{
+		return this._physicalInstalmentType;
+	}
+
+	public int get_Period()
+	{
+		return this._period;
+	}
+
+	public BigDecimal get_DownPayment()
+	{
+		return this._downPayment;
+	}
+
+	public RecalculateRateType get_RecalculateRateType()
+	{
+		return this._recalculateRateType;
+	}
+
+	public BigDecimal get_PhysicalOriginValue()
+	{
+		return this._physicalOriginValue;
+	}
+
+	public BigDecimal get_PhysicalPaidValue()
+	{
+		return this._physicalPaidValue;
+	}
+
+	public boolean get_IsInstalmentOverdue()
+	{
+		return this._isInstalmentOverdue;
+	}
+
+	public boolean IsPayOff()
+	{
+		if(this._physicalPaidValue == null || this._physicalOriginValue == null) return false;
+		return this._physicalPaidValue.abs().compareTo(this._physicalOriginValue) == 0;
+	}
+
+	public BigDecimal get_InstalmentFee()
+	{
+		return this._instalmentFee;
 	}
 
 	public Price get_SetPrice2()
@@ -2747,6 +3332,8 @@ public class Order
 				+ (this._dQMaxMove == 0 ? "" : space + Language.OrderSingleDQlblDQMaxMove + space + this._dQMaxMove);
 		}
 
+		String instalmentInfo = this._transaction.get_InstalmentInfo() == null ? "" : TradingConsole.enterLine + this._transaction.get_InstalmentInfo().getVerificationInfo();
+
 		if (this._isOpen)
 		{
 			String ifDoneVerificationInfo = "";
@@ -2775,7 +3362,11 @@ public class Order
 					ifDoneVerificationInfo = TradingConsole.enterLine + Language.IfDonePrompt + TradingConsole.enterLine + ifDoneVerificationInfo;
 				}
 			}
-			return verificationInfo + ifDoneVerificationInfo;
+			return verificationInfo + ifDoneVerificationInfo + instalmentInfo;
+		}
+		else
+		{
+			verificationInfo = verificationInfo + instalmentInfo;
 		}
 
 		verificationInfo += TradingConsole.enterLine
@@ -2897,11 +3488,18 @@ public class Order
 	//Make order
 	public String getMakeOrderConfirmXml(OperateType operateType)
 	{
+		InstrumentCategory instrumentCategory = this.get_Instrument().get_Category();
+		PhysicalTradeSide physicalTradeSide = PhysicalTradeSide.None;
+		if(instrumentCategory.equals(InstrumentCategory.Physical))
+		{
+			physicalTradeSide = this._isBuy ? PhysicalTradeSide.Buy : PhysicalTradeSide.Sell;
+		}
 		String xml = "";
 		if (operateType.equals(OperateType.Assign))
 		{
 			xml = "<Order " +
 				"ID=\'" + this._id.toString() + "\' " +
+				"PhysicalTradeSide=\'" + XmlConvert.toString(physicalTradeSide.value()) + "\' " +
 				"IsOpen=\'" + XmlConvert.toString(this._isOpen) + "\' " +
 				"Lot=\'" + this.get_LotString() + "\'>";
 		}
@@ -2920,6 +3518,7 @@ public class Order
 			xml += "SetPrice=\'" + Price.toString(this._setPrice) + "\' ";
 			xml += "SetPrice2=\'" + Price.toString(this._setPrice2) + "\' ";
 			xml += "DQMaxMove=\'" + XmlConvert.toString(this._dQMaxMove) + "\' ";
+			xml += "PhysicalTradeSide=\'" + XmlConvert.toString(physicalTradeSide.value()) + "\' ";
 			if (this._makeOrderAccount != null && this._makeOrderAccount.get_PriceTimestamp() != null)
 			{
 				xml += "PriceTimestamp=\'" + XmlConvert.toString(this._makeOrderAccount.get_PriceTimestamp()) + "\' ";
@@ -2930,6 +3529,15 @@ public class Order
 			}
 			xml += "Lot=\'" + this.get_LotString() + "\' ";
 			xml += "OriginalLot=\'" + this.get_LotString() + "\' ";
+			InstalmentInfo instalmentInfo = this._transaction.get_InstalmentInfo();
+			if(instalmentInfo != null)
+			{
+				xml += "InstalmentPolicyId=\'" + instalmentInfo.get_InstalmentPolicyId().toString() + "\' ";
+				xml += "Period=\'" + Integer.toString(instalmentInfo.get_Period()) + "\' ";
+				xml += "DownPayment=\'" + instalmentInfo.get_DownPaymentInFormat() + "\' ";
+				xml += "PhysicalInstalmentType=\'" + Integer.toString(instalmentInfo.get_InstalmentType().value()) + "\' ";
+				xml += "RecalculateRateType=\'" + Integer.toString(instalmentInfo.get_RecalculateRateType().value()) + "\' ";
+			}
 
 			IfDoneInfo ifDoneInfo = this._transaction.get_IfDoneInfo();
 			if (ifDoneInfo != null && this._transaction.get_OrderType().value() == OrderType.Limit.value())
@@ -2994,7 +3602,7 @@ public class Order
 		this.add();
 	}
 
-	public String getLogAction()
+	public String getLogAction(boolean isFirstOrder, boolean isLastOrder)
 	{
 		String submitor = this._transaction.get_Submitor();
 		String action = "";
@@ -3006,36 +3614,42 @@ public class Order
 			{
 				String message = this.get_Message();
 				message = (StringHelper.isNullOrEmpty(message)) ? "" : ", " + message;
-				action = submitor + LogLanguage.Placing + accountCode + LogLanguage.At + this.getLogActionOrderInfo() + LogLanguage.Send + message;
+				action = isFirstOrder ? submitor + LogLanguage.Placing + accountCode : "";
+				action += LogLanguage.At + this.getLogActionOrderInfo() + (isLastOrder ? LogLanguage.Send : "") + message;
 				action += (StringHelper.isNullOrEmpty(this.get_RefCode())) ? "" : LogLanguage.RefrenceCode + " " + this.get_RefCode();
 			}
 			else if (this._phase == Phase.Placed)
 			{
-				action = submitor + LogLanguage.Set + accountCode + LogLanguage.At + this.getLogActionOrderInfo() + LogLanguage.Message +
-					LogLanguage.RefrenceCode + " " + this.get_RefCode();
+				action = isFirstOrder ? submitor + LogLanguage.Set + accountCode : "";
+				action += LogLanguage.At + this.getLogActionOrderInfo() +
+					(isLastOrder ? LogLanguage.Message + LogLanguage.RefrenceCode + " " + this.get_RefCode() : "");
 			}
 			else if (this._phase == Phase.Executed || this._phase == Phase.Completed)
 			{
 				if (this._transaction.get_OrderType() == OrderType.Risk)
 				{
 					String setPrice = this.get_SetPriceString();
-					action = LogLanguage.Risk + accountCode + LogLanguage.Set + LogLanguage.At + setPrice + this.get_IsBuyLongString() + this.get_LotString() +
-						LogLanguage.Lot + this.get_InstrumentCode() + LogLanguage.RefrenceCode2 + this._code;
+					action = isFirstOrder ? LogLanguage.Risk + accountCode + LogLanguage.Set : "";
+					action += LogLanguage.At + setPrice + this.get_IsBuyLongString() + this.get_LotString() +
+						LogLanguage.Lot + this.get_InstrumentCode() + (isLastOrder ? LogLanguage.RefrenceCode2 + this._code : "");
 				}
 				else
 				{
-					action = submitor + LogLanguage.Set + accountCode + LogLanguage.At + this.getLogActionOrderInfo() + LogLanguage.Executed +
-						LogLanguage.RefrenceCode2 + " " + this.get_RefCode();
+					action = isFirstOrder ? submitor + LogLanguage.Set + accountCode : "";
+					action += LogLanguage.At + this.getLogActionOrderInfo() + (isLastOrder ? LogLanguage.Executed +
+						LogLanguage.RefrenceCode2 + " " + this.get_RefCode() : "");
 				}
 			}
 			else if (this._phase == Phase.Cancelled)
 			{
-				action = submitor + LogLanguage.Set + accountCode + LogLanguage.At + this.getLogActionOrderInfo() + LogLanguage.Cancelled; // + " " +
+				action = isFirstOrder ? submitor + LogLanguage.Set + accountCode : "";
+				action += LogLanguage.At + this.getLogActionOrderInfo() + (isLastOrder ? LogLanguage.Cancelled : ""); // + " " +
 				//this.get_Message();
 			}
 			else if (this._phase == Phase.Deleted)
 			{
-				action = accountCode + LogLanguage.ExecutedAt + LogLanguage.At + this.getLogActionOrderInfo() + LogLanguage.Deleted + this.get_Message();
+				action = isFirstOrder ? accountCode + LogLanguage.ExecutedAt : "";
+				action += LogLanguage.At + this.getLogActionOrderInfo() + (isLastOrder ? LogLanguage.Deleted : "") + this.get_Message();
 			}
 		}
 		else
@@ -3044,35 +3658,41 @@ public class Order
 			{
 				String message = this.get_Message();
 				message = (StringHelper.isNullOrEmpty(message)) ? "" : ", " + message;
-				action = submitor + " " + LogLanguage.Placing + " " +
-					this.getLogActionOrderInfo() + LogLanguage.Send + message;
+				action = isFirstOrder ? submitor + " " + LogLanguage.Placing : "";
+				action += " " + this.getLogActionOrderInfo() + (isLastOrder ? LogLanguage.Send : "") + message;
 			}
 			else if (this._phase == Phase.Placed)
 			{
-				action = LogLanguage.OrderTo + " " + this.getLogActionOrderInfo() + " " + LogLanguage.Placed + LogLanguage.RefrenceCode + " " +
-					this.get_RefCode();
+				action = isFirstOrder ? LogLanguage.OrderTo : "";
+				action += " " + this.getLogActionOrderInfo() + " " + (isLastOrder ? LogLanguage.Placed + LogLanguage.RefrenceCode + " " +
+					this.get_RefCode(): "") ;
 			}
 			else if (this._phase == Phase.Executed || this._phase == Phase.Completed)
 			{
 				if (this._transaction.get_OrderType() == OrderType.Risk)
 				{
-					action = LogLanguage.Risk + " " + this.getLogActionOrderInfo() + LogLanguage.RefrenceCode2 + this._code;
+					action = isFirstOrder ? LogLanguage.Risk : "";
+					action += " " + this.getLogActionOrderInfo() + (isLastOrder ? LogLanguage.RefrenceCode2 + " " + this._code : "") ;
 				}
 				else
 				{
-					action = this.getLogActionOrderInfo() + " " + LogLanguage.Executed + LogLanguage.RefrenceCode2 + " " +
-						this.get_RefCode();
+					action = this.getLogActionOrderInfo() + " " + (isLastOrder ? LogLanguage.Executed + LogLanguage.RefrenceCode2 + " " +
+						this.get_RefCode(): "") ;
 				}
 			}
 			else if (this._phase == Phase.Cancelled)
 			{
-				action = this.getLogActionOrderInfo() + " " + LogLanguage.Cancelled + " " + this.get_Message();
+				action = this.getLogActionOrderInfo() + " " + (isLastOrder ? LogLanguage.Cancelled  : "")+ " " + this.get_Message();
 			}
 			else if (this._phase == Phase.Deleted)
 			{
-				action = LogLanguage.OrderTo + " " + this.getLogActionOrderInfo() + " " + LogLanguage.Deleted + this.get_Message();
+				action = isFirstOrder ? LogLanguage.OrderTo : "";
+				action += " " + this.getLogActionOrderInfo() + " " + (isLastOrder ? LogLanguage.Deleted : "") + this.get_Message();
 			}
 		}
+
+		String instalmentInfo = "";
+		if(isLastOrder) instalmentInfo = this._transaction.get_InstalmentInfo() == null ? "" : "  " + InstalmentLanguage.Instalment + ":" + this._transaction.get_InstalmentInfo().getVerificationInfo();
 
 		if (this._isOpen)
 		{
@@ -3102,23 +3722,26 @@ public class Order
 					ifDoneVerificationInfo = "; " + Language.IfDonePrompt + ":" + ifDoneVerificationInfo;
 				}
 			}
-			return action + ifDoneVerificationInfo;
+			return action + ifDoneVerificationInfo + instalmentInfo;
 		}
 		else
 		{
 			String openOrderInfo = "";
 			String openOrderInfo2 = "";
-			for (Iterator<RelationOrder> iterator = this._relationOrders.values().iterator(); iterator.hasNext(); )
+			if(!this._transaction.get_Type().equals(TransactionType.OneCancelOther) || !isFirstOrder)
 			{
-				RelationOrder relationOrder = iterator.next();
-				openOrderInfo2 = relationOrder.getVerificationInfo();
-				if (StringHelper.isNullOrEmpty(openOrderInfo))
+				for (Iterator<RelationOrder> iterator = this._relationOrders.values().iterator(); iterator.hasNext(); )
 				{
-					openOrderInfo = openOrderInfo2;
-				}
-				else
-				{
-					openOrderInfo += TradingConsole.enterLine + openOrderInfo2;
+					RelationOrder relationOrder = iterator.next();
+					openOrderInfo2 = relationOrder.getVerificationInfo();
+					if (StringHelper.isNullOrEmpty(openOrderInfo))
+					{
+						openOrderInfo = openOrderInfo2;
+					}
+					else
+					{
+						openOrderInfo += TradingConsole.enterLine + openOrderInfo2;
+					}
 				}
 			}
 			if (!StringHelper.isNullOrEmpty(openOrderInfo))
@@ -3126,7 +3749,7 @@ public class Order
 				openOrderInfo = "; " + Language.ForLiquidation + openOrderInfo;
 			}
 
-			return action + openOrderInfo;
+			return action  + instalmentInfo + openOrderInfo;
 		}
 	}
 
@@ -3324,6 +3947,8 @@ public class Order
 			Order.dataTable = new DataTable("Order");
 			Order.dataTable.get_Columns().add("ID", Guid.class);
 			Order.dataTable.get_Columns().add("TradeOption", Short.class);
+			Order.dataTable.get_Columns().add("PhysicalTradeSide", Integer.class);
+			Order.dataTable.get_Columns().add("PhysicalRequestId", Guid.class);
 			Order.dataTable.get_Columns().add("IsOpen", Boolean.class);
 			Order.dataTable.get_Columns().add("IsBuy", Boolean.class);
 			Order.dataTable.get_Columns().add("SetPrice", String.class);
@@ -3341,9 +3966,15 @@ public class Order
 			Order.dataTable.get_Columns().add("InterestPLFloat", BigDecimal.class);
 			Order.dataTable.get_Columns().add("StoragePLFloat", BigDecimal.class);
 			Order.dataTable.get_Columns().add("InterestRate", BigDecimal.class);
+			Order.dataTable.get_Columns().add("ValueAsMargin", BigDecimal.class);
 			//dataTable.get_Columns().add("Sequence",Integer.class);
 			Order.dataTable.get_Columns().add("DQMaxMove", Integer.class);
 			Order.dataTable.get_Columns().add("LivePrice", String.class);
+			/*Order.dataTable.get_Columns().add("InstalmentPolicyId", Guid.class);
+			Order.dataTable.get_Columns().add("Period", Integer.class);
+			Order.dataTable.get_Columns().add("DownPayment", BigDecimal.class);
+			Order.dataTable.get_Columns().add("InstalmentFrequence", Integer.class);
+			Order.dataTable.get_Columns().add("InstalmentAdministrationFee", BigDecimal.class);*/
 		}
 		return Order.dataTable;
 	}
@@ -3463,6 +4094,73 @@ public class Order
 		{
 			TradingConsole.bindingManager.remove(Order.notConfirmedPendingOrdersKey, this);
 		}
+	}
+
+	public void addDeliveryLockLot(BigDecimal lockLot)
+	{
+		this._deliveryLockedLot = this._deliveryLockedLot.add(lockLot);
+		this._lotBalance = this._lotBalance.subtract(lockLot);
+		if(this._lotBalance.compareTo(BigDecimal.ZERO) <= 0)
+		{
+			this._tradingConsole.get_OpenOrders().remove(this.get_Id());
+		}
+	}
+
+	public void subtractDeliveryLockLot(BigDecimal lockLot, boolean onlySubtractDeliveryLockLot)
+	{
+		this._deliveryLockedLot = this._deliveryLockedLot.subtract(lockLot);
+		if(!onlySubtractDeliveryLockLot)
+		{
+			this._lotBalance = this._lotBalance.add(lockLot);
+			if (this._lotBalance.compareTo(BigDecimal.ZERO) > 0)
+			{
+				this._tradingConsole.get_OpenOrders().put(this.get_Id(), this);
+			}
+		}
+	}
+
+	public boolean canDelivery()
+	{
+		return (this._physicalTradeSide.equals(PhysicalTradeSide.Buy) && this.IsPayOff() )
+			|| this._physicalTradeSide.equals(PhysicalTradeSide.Deposit);
+	}
+
+	public boolean canClose()
+	{
+		if(this._instalmentPolicyId == null)
+		{
+			return true;
+		}
+		else
+		{
+			if (this.IsPayOff())
+			{
+				return true;
+			}
+			else
+			{
+				InstalmentPolicy instalmentPolicy = this._settingsManager.getInstalmentPolicy(this._instalmentPolicyId);
+				if (instalmentPolicy.get_CloseOption().equals(InstalmentCloseOption.Disallow)
+					|| (instalmentPolicy.get_CloseOption().equals(InstalmentCloseOption.AllowWhenNotOverdue) && this._isInstalmentOverdue))
+				{
+					return false;
+				}
+				else
+				{
+					return true;
+				}
+			}
+		}
+	}
+
+	public void set_PhysicalPaidAmount(BigDecimal physicalPaidAmount)
+	{
+		this._physicalPaidValue = physicalPaidAmount;
+	}
+
+	public void set_InstalmentOverdue(boolean isInstalmentOverdue)
+	{
+		this._isInstalmentOverdue = isInstalmentOverdue;
 	}
 
 	private static class OrderComparatorForAdjustingLot implements Comparator<Order>

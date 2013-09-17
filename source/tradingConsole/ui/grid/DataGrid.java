@@ -638,6 +638,21 @@ public class DataGrid extends HierarchicalTable implements IView
 		this._enableFilterColumns.clear();
 	}
 
+	public void scrollToVisible(int rowIndex, int vColIndex) {
+		if (!(this.getParent() instanceof JViewport)) {
+			return;
+		}
+		JViewport viewport = (JViewport)this.getParent();
+
+		// This rectangle is relative to the table where the
+		// northwest corner of cell (0,0) is always (0,0).
+		Rectangle r = this.getCellRect(rowIndex, vColIndex, true);
+
+		Point p = viewport.getViewPosition();
+		r.setLocation(r.x - p.x, r.y - p.y);// + this.getRowHeight());
+		viewport.scrollRectToVisible(r);
+	}
+
 	private static class FontChangedListener implements IFontChangedListener
 	{
 		private DataGrid _owner;

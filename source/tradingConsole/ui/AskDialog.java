@@ -65,14 +65,14 @@ public class AskDialog extends StandardDialog
 		buttonPanel.addButton(okButton, ButtonPanel.AFFIRMATIVE_BUTTON);
 		buttonPanel.addButton(cancelButton, ButtonPanel.CANCEL_BUTTON);
 
-		okButton.setAction(new AbstractAction(UIDefaultsLookup.getString("OptionPane.okButtonText")) {
+		okButton.setAction(new AbstractAction(Language.Confirm) {
 			public void actionPerformed(ActionEvent e) {
 				setDialogResult(RESULT_AFFIRMED);
 				setVisible(false);
 				dispose();
 			}
 		});
-		cancelButton.setAction(new AbstractAction(UIDefaultsLookup.getString("OptionPane.cancelButtonText")) {
+		cancelButton.setAction(new AbstractAction(Language.OrderPlacementbtnCancel) {
 			public void actionPerformed(ActionEvent e) {
 				setDialogResult(RESULT_CANCELLED);
 				setVisible(false);

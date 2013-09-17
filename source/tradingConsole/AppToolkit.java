@@ -26,6 +26,8 @@ import java.io.FileWriter;
 import java.io.BufferedReader;
 import java.io.PrintWriter;
 import java.io.IOException;
+import tradingConsole.settings.MakeOrderAccount;
+import tradingConsole.enumDefine.InstrumentCategory;
 
 
 public class AppToolkit
@@ -412,6 +414,11 @@ public class AppToolkit
 		return valueString.concat(AppToolkit.duplicateZero(padZero));
 	}*/
 
+	public static String format(BigDecimal value, int decimalDigits)
+	{
+		return format(value.doubleValue(), decimalDigits);
+	}
+
 	//will rewrite...............
 	public static String format(double value, int decimalDigits) //has ","
 	{
@@ -532,14 +539,12 @@ public class AppToolkit
 		}
 	}
 
-	public static BigDecimal fixLot(BigDecimal lot, boolean isOpen, TradePolicyDetail tradePolicyDetail, Account account)
+	public static BigDecimal fixDeliveryLot(BigDecimal lot, TradePolicyDetail tradePolicyDetail)
 	{
-		BigDecimal minLot = isOpen ? tradePolicyDetail.get_MinOpen() : tradePolicyDetail.get_MinClose();
-		minLot = minLot.multiply(account.get_RateLotMin());
+		BigDecimal minLot = tradePolicyDetail.get_PhysicalMinDeliveryQuantity();
 		if(lot.compareTo(minLot) <= 0) return minLot;
 
-		BigDecimal lotMultiple = isOpen ? tradePolicyDetail.get_OpenMultiplier() : tradePolicyDetail.get_CloseMultiplier();
-		BigDecimal step = account.get_RateLotMultiplier().multiply(lotMultiple);
+		BigDecimal step = tradePolicyDetail.get_PhysicalDeliveryIncremental();
 		BigDecimal fixedLot = lot;
 		if(step.compareTo(BigDecimal.ZERO) > 0)
 		{
@@ -549,17 +554,104 @@ public class AppToolkit
 		return fixedLot.compareTo(minLot) < 0 ? minLot : fixedLot;
 	}
 
-	private static boolean isValidLot(BigDecimal lot, boolean isOpen, TradePolicyDetail tradePolicyDetail, Account account)
+	public static BigDecimal fixCloseLot(BigDecimal closeLot, BigDecimal avaiableCloseLot, TradePolicyDetail tradePolicyDetail, Account account)
+	{
+		if(closeLot.compareTo(avaiableCloseLot) >= 0)
+		{
+			return avaiableCloseLot;
+		}
+
+		BigDecimal lotMultiple = tradePolicyDetail.get_CloseMultiplier();
+		BigDecimal step = account.get_RateLotMultiplier().multiply(lotMultiple);
+		BigDecimal fixedCloseLot = closeLot;
+		BigDecimal minCloseLot = tradePolicyDetail.get_MinClose().multiply(account.get_RateLotMin());
+		if(step.compareTo(BigDecimal.ZERO) <= 0)
+		{
+			int scale = avaiableCloseLot.scale();
+			step = BigDecimal.ONE.movePointLeft(scale);
+		}
+
+		long multiple = closeLot.divide(step, BigDecimal.ROUND_FLOOR).longValue();
+		while(multiple >= 0)
+		{
+			fixedCloseLot = step.multiply(BigDecimal.valueOf(multiple));
+			BigDecimal remainLot = avaiableCloseLot.subtract(fixedCloseLot);
+			if (remainLot.compareTo(minCloseLot) >= 0)
+			{
+				break;
+			}
+			multiple--;
+		}
+		return fixedCloseLot;
+	}
+
+	public static BigDecimal fixTotalCloseLot(BigDecimal lot, TradePolicyDetail tradePolicyDetail, MakeOrderAccount account)
+	{
+		BigDecimal minValue = tradePolicyDetail.get_MinClose();
+		minValue=minValue.multiply(account.get_Account().get_RateLotMin());
+		BigDecimal multiplier = tradePolicyDetail.get_CloseMultiplier();
+		multiplier = multiplier.multiply(account.get_Account().get_RateLotMultiplier());
+		//BigDecimal defaultLot = AppToolkit.getDefaultLot(instrument, false, tradePolicyDetail, account.get_Account());
+		//if(lot.compareTo(minValue) == 0 || lot.compareTo(defaultLot) == 0)
+		if(lot.compareTo(minValue) == 0)
+		{
+			return lot;
+		}
+		else if(lot.compareTo(minValue) > 0)
+		{
+			if(MakeOrder.isMultiple(lot, multiplier))
+			{
+				return lot;
+			}
+			else
+			{
+				BigDecimal totalCloseLotOfFullClose = account.getTotalCloseLotOfFullClose();
+				if(lot.compareTo(totalCloseLotOfFullClose) == 0
+				   || MakeOrder.isMultiple(lot.subtract(totalCloseLotOfFullClose), multiplier))
+				{
+					return lot;
+				}
+			}
+		}
+
+		BigDecimal fixedLot = lot;
+		if(multiplier.compareTo(BigDecimal.ZERO) > 0)
+		{
+			BigDecimal multiple = lot.divide(multiplier, BigDecimal.ROUND_FLOOR);
+			fixedLot = multiplier.multiply(BigDecimal.valueOf(multiple.longValue()));
+		}
+		return fixedLot.compareTo(minValue) < 0 ? minValue : fixedLot;
+	}
+
+	public static BigDecimal fixLot(BigDecimal lot, boolean isOpen, TradePolicyDetail tradePolicyDetail, MakeOrderAccount account)
+	{
+		if(!isOpen) return AppToolkit.fixTotalCloseLot(lot, tradePolicyDetail, account);
+		BigDecimal minLot = isOpen ? tradePolicyDetail.get_MinOpen() : tradePolicyDetail.get_MinClose();
+		minLot = minLot.multiply(account.get_Account().get_RateLotMin());
+		if(lot.compareTo(minLot) <= 0) return minLot;
+
+		BigDecimal lotMultiple = isOpen ? tradePolicyDetail.get_OpenMultiplier() : tradePolicyDetail.get_CloseMultiplier();
+		BigDecimal step = account.get_Account().get_RateLotMultiplier().multiply(lotMultiple);
+		BigDecimal fixedLot = lot;
+		if(step.compareTo(BigDecimal.ZERO) > 0)
+		{
+			BigDecimal multiple = lot.divide(step, BigDecimal.ROUND_FLOOR);
+			fixedLot = step.multiply(BigDecimal.valueOf(multiple.longValue()));
+		}
+		return fixedLot.compareTo(minLot) < 0 ? minLot : fixedLot;
+	}
+
+	private static boolean isValidLot(BigDecimal lot, boolean isOpen, TradePolicyDetail tradePolicyDetail, MakeOrderAccount account)
 	{
 		BigDecimal lot2 = AppToolkit.fixLot(lot, isOpen, tradePolicyDetail, account);
 		return lot2.compareTo(lot) == 0;
 	}
 
-	public static BigDecimal getDefaultLot(Instrument instrument, boolean isOpen, TradePolicyDetail tradePolicyDetail, Account account)
+	public static BigDecimal getDefaultLot(Instrument instrument, boolean isOpen, TradePolicyDetail tradePolicyDetail, MakeOrderAccount account)
 	{
-		BigDecimal defaultLot = tradePolicyDetail.get_DefaultLot().multiply(account.get_RateDefaultLot());
+		BigDecimal defaultLot = tradePolicyDetail.get_DefaultLot().multiply(account.get_Account().get_RateDefaultLot());
 		BigDecimal lastPlaceLot =null;
-		String fileName = String.format("%s.txt",account. get_Id().toString());
+		String fileName = String.format("%s.txt",account.get_Account().get_Id().toString());
 		File file = new File(fileName);
 		boolean isSaved=false;
 		String instrumentID=instrument.get_Id().toString();
@@ -600,7 +692,7 @@ public class AppToolkit
 			}
 		}
 		if(!isSaved){
-		    lastPlaceLot=PalceLotNnemonic.getLastPlaceLot(instrument.get_Id(), account.get_Id());
+		    lastPlaceLot=PalceLotNnemonic.getLastPlaceLot(instrument.get_Id(), account.get_Account().get_Id());
 		}
 
 
@@ -612,7 +704,7 @@ public class AppToolkit
 		defaultLot = defaultLot.compareTo(maxLot) > 0 ? maxLot : defaultLot;
 
 		BigDecimal minLot = isOpen ? tradePolicyDetail.get_MinOpen() : tradePolicyDetail.get_MinClose();
-		minLot = minLot.multiply(account.get_RateLotMin());
+		minLot = minLot.multiply(account.get_Account().get_RateLotMin());
 		return defaultLot.compareTo(minLot) > 0 ? defaultLot : minLot;
 	}
 
@@ -625,7 +717,14 @@ public class AppToolkit
 
 	public static String getFormatLot(BigDecimal lot, Account account, Instrument instrument)
 	{
-		return AppToolkit.getFormatLot(lot, account.getIsSplitLot(instrument));
+		if(instrument.get_Category().equals(InstrumentCategory.Physical))
+		{
+			return AppToolkit.format(lot, instrument.get_PhysicalLotDecimal());
+		}
+		else
+		{
+			return AppToolkit.getFormatLot(lot, account.getIsSplitLot(instrument));
+		}
 	}
 
 	public static String getFormatLot(BigDecimal lot, boolean isSplitLot)
@@ -677,6 +776,21 @@ public class AppToolkit
 			}
 		}
 
+		//remove '0' in tail
+		pointIndex = -1;
+		for(int index = returnResult.length() - 1; index >=0; index--)
+		{
+			if(returnResult.charAt(index) != '0')
+			{
+				if(returnResult.charAt(index) != '.')
+				{
+					pointIndex = index;
+				}
+				break;
+			}
+		}
+		if(pointIndex > 0) returnResult = returnResult.substring(0, pointIndex + 1);
+		/////////////////
 		return returnResult;
 	}
 

@@ -53,6 +53,17 @@ public class LiquidationOrderForm extends JDialog implements ISchedulerCallback
 		Order order = this._makeLiquidationOrder.getFirstOpenOrderHasClosed(this._tradingConsole, null);
 		this._instrument = order.get_Transaction().get_Instrument();
 
+		if(!StringHelper.isNullOrEmpty(this._instrument.get_QuoteDescription()))
+		{
+			this.instrumentQuoteDescription.setText(this._instrument.get_QuoteDescription());
+		}
+		else
+		{
+			this.instrumentQuoteDescription.setVisible(false);
+		}
+		this.setTitle(Language.liquidationOrderFormTitle + "  " + this._instrument.get_DescriptionForTrading());
+
+
 		this.instrumentDescriptionStaticText.setText(this._instrument.get_Description());
 		this.setPriceBidStaticText.setText(this._instrument.get_Bid());
 		this.setPriceBidStaticText.setForeground(Color.red);
@@ -277,10 +288,18 @@ public class LiquidationOrderForm extends JDialog implements ISchedulerCallback
 					e.set_Cancel(true);
 					return;
 				}
-				BigDecimal newValue2 = AppToolkit.convertStringToBigDecimal(AppToolkit.getFormatLot(newValue, order.get_Account(), order.get_Instrument()));
+				Account account = order.get_Account();
+				TradePolicyDetail tradePolicyDetail =
+					account.get_TradingConsole().get_SettingsManager().getTradePolicyDetail(account.get_TradePolicyId(), order.get_Instrument().get_Id());
+				newValue = AppToolkit.fixCloseLot(newValue, order.getAvailableLotBanlance(true, null), tradePolicyDetail, account);
+				String formatLot = AppToolkit.getFormatLot(newValue, account, order.get_Instrument());
+				e.set_NewValue(formatLot);
+				relationOrder.set_LiqLotString(AppToolkit.getFormatLot(newValue, order.get_Account(), order.get_Instrument()));
+				this._owner._makeLiquidationOrder.update();
+
+				/*BigDecimal newValue2 = AppToolkit.convertStringToBigDecimal(AppToolkit.getFormatLot(newValue, order.get_Account(), order.get_Instrument()));
 				if (newValue2.compareTo(BigDecimal.ZERO) == 0 || newValue2.compareTo(newValue) != 0)
 				{
-
 					//e.set_Cancel(true);
 					//return;
 					if(newValue2.compareTo(BigDecimal.ZERO) != 0 || newValue.compareTo(BigDecimal.ZERO) > 0)
@@ -307,7 +326,8 @@ public class LiquidationOrderForm extends JDialog implements ISchedulerCallback
 					e.set_Cancel(true);
 					return;
 				}*/
-				if (newValue.compareTo(order.getAvailableLotBanlance(true, null)) > 0)
+
+				/*if (newValue.compareTo(order.getAvailableLotBanlance(true, null)) > 0)
 				{
 					AlertDialogForm.showDialog(this._owner, null, true,
 											   Language.OrderOperateOrderOperateLiquidationGrid_ValidateEditAlert0);
@@ -329,7 +349,7 @@ public class LiquidationOrderForm extends JDialog implements ISchedulerCallback
 				//refresh Open Order
 				//relationOrder.set_LiqLotString(e.getString());
 				relationOrder.set_LiqLotString(AppToolkit.getFormatLot(newValue, order.get_Account(), order.get_Instrument()));
-				this._owner._makeLiquidationOrder.update();
+				this._owner._makeLiquidationOrder.update();*/
 			}
 		}
 	}
@@ -557,6 +577,7 @@ public class LiquidationOrderForm extends JDialog implements ISchedulerCallback
 		setPriceAskStaticText.setAlignment(0);
 		separatorStaticText.setText("/");
 		separatorStaticText.setFont(font);
+		instrumentQuoteDescription.setFont(font);
 		submitButton.setText("Submit");
 		submitButton.setTriangle(4);
 		exitButton.setText("Exit");
@@ -581,17 +602,20 @@ public class LiquidationOrderForm extends JDialog implements ISchedulerCallback
 		this.getContentPane().add(setPriceAskStaticText, new GridBagConstraints(4, 0, 2, 1, 0.0, 0.0
 			, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, new Insets(10, 2, 2, 150), 30, 0));
 
+		this.getContentPane().add(this.instrumentQuoteDescription, new GridBagConstraints(0, 4, 6, 1, 0.0, 0
+			, GridBagConstraints.SOUTHWEST, GridBagConstraints.HORIZONTAL, new Insets(0, 10, 0, 10), 0, 20));
+
 		JScrollPane scrollPane = new JScrollPane(liquidationOrderTable);
-		this.getContentPane().add(scrollPane, new GridBagConstraints(0, 3, 6, 2, 1.0, 1.0
+		this.getContentPane().add(scrollPane, new GridBagConstraints(0, 5, 6, 1, 1.0, 1.0
 			, GridBagConstraints.CENTER, GridBagConstraints.BOTH, new Insets(10, 10, 5, 10), 0, 0));
 
-		this.getContentPane().add(submitButton, new GridBagConstraints(0, 5, 1, 1, 0.0, 0.0
+		this.getContentPane().add(submitButton, new GridBagConstraints(0, 7, 1, 1, 0.0, 0.0
 			, GridBagConstraints.NORTHWEST, GridBagConstraints.NONE, new Insets(2, 10, 10, 0), 20, 0));
-		this.getContentPane().add(multipleCloseButton, new GridBagConstraints(1, 5, 1, 1, 0.0, 0.0
+		this.getContentPane().add(multipleCloseButton, new GridBagConstraints(1, 7, 1, 1, 0.0, 0.0
 			, GridBagConstraints.NORTHWEST, GridBagConstraints.NONE, new Insets(2, 1, 10, 0), 0, 0));
-		this.getContentPane().add(closeAllButton, new GridBagConstraints(3, 5, 3, 1, 0.0, 0.0
+		this.getContentPane().add(closeAllButton, new GridBagConstraints(3, 7, 3, 1, 0.0, 0.0
 			, GridBagConstraints.NORTHWEST, GridBagConstraints.NONE, new Insets(2, 1, 10, 0), 20, 0));
-		this.getContentPane().add(exitButton, new GridBagConstraints(5, 5, 1, 1, 0.0, 0.0
+		this.getContentPane().add(exitButton, new GridBagConstraints(5, 7, 1, 1, 0.0, 0.0
 			, GridBagConstraints.NORTHEAST, GridBagConstraints.NONE, new Insets(2, 5, 10, 10), 20, 0));
 	}
 
@@ -604,6 +628,8 @@ public class LiquidationOrderForm extends JDialog implements ISchedulerCallback
 	PVStaticText2 setPriceBidStaticText = new PVStaticText2();
 	PVStaticText2 setPriceAskStaticText = new PVStaticText2();
 	PVStaticText2 separatorStaticText = new PVStaticText2();
+	//MultiTextArea instrumentNarrative = new MultiTextArea();
+	NoneResizeableTextField instrumentQuoteDescription = new NoneResizeableTextField();
 	DataGrid liquidationOrderTable = new DataGrid("LiquidationOrderTable");
 	PVButton2 submitButton = new PVButton2();
 	PVButton2 closeAllButton = new PVButton2();
@@ -682,6 +708,12 @@ public class LiquidationOrderForm extends JDialog implements ISchedulerCallback
 		{
 			return null;
 		}
+
+		public boolean isDelivery()
+		{
+			return false;
+		}
+
 
 		public void addPlaceOrderTypeChangedListener(IPlaceOrderTypeChangedListener placeOrderTypeChangedListener)
 		{

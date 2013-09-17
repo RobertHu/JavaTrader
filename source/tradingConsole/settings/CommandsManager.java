@@ -18,6 +18,11 @@ import tradingConsole.enumDefine.*;
 import tradingConsole.ui.*;
 import tradingConsole.ui.columnKey.*;
 import tradingConsole.ui.language.*;
+import tradingConsole.physical.DeliveryRequest;
+import tradingConsole.physical.PendingInventoryManager;
+import tradingConsole.physical.InventoryManager;
+import tradingConsole.enumDefine.physical.DeliveryStatus;
+
 import org.apache.log4j.Logger;
 import nu.xom.*;
 public class CommandsManager
@@ -291,6 +296,78 @@ public class CommandsManager
 		return accountId;
 	}
 
+	private void handleScrapDeposit(XmlNode xmlNode)
+	{
+		PendingInventoryManager.instance.addOrUpdateScrapDeposit(xmlNode);
+	}
+
+	private Guid applyDelivery(XmlNode xmlNode)
+	{
+		DeliveryRequest deliveryRequest = new DeliveryRequest();
+		deliveryRequest.initialize(xmlNode, this._settingsManager);
+
+		PendingInventoryManager.instance.add(deliveryRequest);
+
+		Account account = deliveryRequest.getAccount();
+		Guid accountId = account.get_Id();
+		Guid currencyId = new Guid(xmlNode.get_Attributes().get_ItemOf("ChargeCurrencyId").get_Value());
+		double charge = Double.parseDouble(xmlNode.get_Attributes().get_ItemOf("Charge").get_Value());
+
+		if(account.get_Currency().get_Id().equals(currencyId))
+		{
+			account.set_Balance(deliveryRequest.getAccount().get_Balance() - charge);
+			account.calculateEquity();
+			account.updateNode();
+		}
+		else
+		{
+			AccountCurrency accountCurrency = this._settingsManager.getAccountCurrency(accountId, currencyId);
+			accountCurrency.addBalance(-charge);
+			CurrencyRate currencyRate = this._settingsManager.getCurrencyRate(accountCurrency.get_Currency().get_Id(), deliveryRequest.getAccount().get_Currency().get_Id());
+			account.set_Balance(account.get_Balance() - currencyRate.exchange(charge));
+			account.calculateEquity();
+			account.updateNode();
+			accountCurrency.updateNode();
+		}
+
+		return deliveryRequest.getAccount().get_Id();
+	}
+
+	private Guid cancelDelivery(XmlNode xmlNode)
+	{
+		XmlAttributeCollection attributes = xmlNode.get_Attributes();
+		Guid deliveryRequestId = new Guid(attributes.get_ItemOf("DeliveryRequestId").get_Value());
+		DeliveryStatus deliveryStatus = Enum.valueOf(DeliveryStatus.class, Integer.parseInt(attributes.get_ItemOf("Status").get_Value()));
+		DeliveryRequest deliveryRequest = PendingInventoryManager.instance.getDeliveryRequest(deliveryRequestId);
+		deliveryRequest.setStatus(deliveryStatus);
+		PendingInventoryManager.instance.remove(deliveryRequestId);
+		this._tradingConsole.calculatePLFloat();
+		return deliveryRequest.getAccount().get_Id();
+	}
+
+	private Guid notifyDelivery(XmlNode xmlNode)
+	{
+		XmlAttributeCollection attributes = xmlNode.get_Attributes();
+		Guid deliveryRequestId = new Guid(attributes.get_ItemOf("DeliveryRequestId").get_Value());
+		DeliveryRequest deliveryRequest = PendingInventoryManager.instance.getDeliveryRequest(deliveryRequestId);
+		DeliveryStatus deliveryStatus
+			= Enum.valueOf(DeliveryStatus.class, Integer.parseInt(attributes.get_ItemOf("Status").get_Value()));
+		deliveryRequest.setStatus(deliveryStatus);
+		if(attributes.get_ItemOf("AvalibleDeliveryTime") != null)
+		{
+			DateTime avalibleDeliveryTime = DateTime.valueOf(attributes.get_ItemOf("AvalibleDeliveryTime").get_Value());
+			deliveryRequest.setAvalibleDeliveryTime(avalibleDeliveryTime);
+		}
+		else if(attributes.get_ItemOf("DeliveryTime") != null)
+		{
+			DateTime deliveryTime = DateTime.valueOf(attributes.get_ItemOf("DeliveryTime").get_Value());
+			deliveryRequest.setDeliveryTime(deliveryTime);
+		}
+		deliveryRequest.update();
+
+		return deliveryRequest.getAccount().get_Id();
+	}
+
 	private Guid execute2(XmlNode xmlNode)
 	{
 		Sound.play(Sound.Execute2);
@@ -553,6 +630,11 @@ public class CommandsManager
 				VolumeNecessaryDetail.update(this._settingsManager, xmlNode, updateType);
 				isNeedCalculatePLFloat = true;
 			}
+			else if(nodeName.equals("Physical.DeliveryCharge"))
+			{
+				DeliveryCharge.update(this._settingsManager, xmlNode, updateType);
+				isNeedCalculatePLFloat = updateType.equalsIgnoreCase("Modify");
+			}
 			else if(nodeName.equals("DealingPolicyDetail"))
 			{
 				DealingPolicyDetail.updateDealingPolicyDetail(this._tradingConsole, this._settingsManager, xmlNode, updateType);
@@ -592,7 +674,14 @@ public class CommandsManager
 						QuotePolicyDetail.updateQuotePolicyDetail(this._tradingConsole, this._settingsManager, quotePolicyDetailNode, updateType);
 					}
 				}
-
+			}
+			else if(nodeName.equals("InstalmentPolicy"))
+			{
+				this._settingsManager.updateInstalmentPolicy(xmlNode, updateType);
+			}
+			else if(nodeName.equals("InstalmentPolicyDetail"))
+			{
+				this._settingsManager.updateInstalmentPolicyDetail(xmlNode, updateType);
 			}
 			else if (nodeName.equals("Currency"))
 			{
@@ -1147,6 +1236,12 @@ public class CommandsManager
 					double necessary = Double.parseDouble(alertCollection.get_ItemOf("Necessary").get_Value());
 					account.set_Necessary(necessary);
 				}
+				if (alertCollection.get_ItemOf("FrozenFund") != null)
+				{
+					double frozenFund = Double.parseDouble(alertCollection.get_ItemOf("FrozenFund").get_Value());
+					account.set_FrozenFund(frozenFund);
+				}
+
 				account.calculateEquity();
 
 				if (alertCollection.get_ItemOf("InterestPLNotValued") != null)
@@ -1250,6 +1345,11 @@ public class CommandsManager
 				{
 					double necessary = Double.parseDouble(alertCollection.get_ItemOf("Necessary").get_Value());
 					account.set_Necessary(necessary);
+				}
+				if (alertCollection.get_ItemOf("FrozenFund") != null)
+				{
+					double frozenFund = Double.parseDouble(alertCollection.get_ItemOf("FrozenFund").get_Value());
+					account.set_FrozenFund(frozenFund);
 				}
 
 				//since the execution order of alertAccounts is adjusted, the nesessary must be got from the server to make sure it is correct
@@ -1420,6 +1520,25 @@ public class CommandsManager
 				isNeedGetInterestRateFromServer = true;
 				isNeedCalculatePLFloat = true;
 				needRefreshSummary = true;
+			}
+			else if(localName.equalsIgnoreCase("ApplyDelivery"))
+			{
+				Guid accountId = this.applyDelivery(xmlNode);
+				if(!accountId.equals(Guid.empty) && !accountIds.contains(accountId)) accountIds.add(accountId);
+			}
+			else if(localName.equalsIgnoreCase("NotifyScrapDeposit"))
+			{
+				this.handleScrapDeposit(xmlNode);
+			}
+			else if(localName.equalsIgnoreCase("CancleDelivery"))
+			{
+				Guid accountId = this.cancelDelivery(xmlNode);
+				if(!accountId.equals(Guid.empty) && !accountIds.contains(accountId)) accountIds.add(accountId);
+			}
+			else if(localName.equalsIgnoreCase("NotifyDelivery"))
+			{
+				Guid accountId = this.notifyDelivery(xmlNode);
+				if(!accountId.equals(Guid.empty) && !accountIds.contains(accountId)) accountIds.add(accountId);
 			}
 			else if (localName.equalsIgnoreCase("AlertAccounts"))
 			{
@@ -1797,6 +1916,8 @@ public class CommandsManager
 			Guid orderId = Guid.empty;
 			String autoLimitPrice = null;
 			String autoStopPrice = null;
+			BigDecimal physicalPaidAmount = null;
+			Boolean isInstalmentOverdue = null;
 
 			for (int index2 = 0; index2 < attributes.get_Count(); index2++)
 			{
@@ -1815,14 +1936,38 @@ public class CommandsManager
 				{
 					autoStopPrice = value;
 				}
+				else if (name.equalsIgnoreCase("PhysicalPaidAmount"))
+				{
+					physicalPaidAmount = new BigDecimal(value);
+				}
+				else if (name.equalsIgnoreCase("AutoStopPrice"))
+				{
+					isInstalmentOverdue = Boolean.parseBoolean(value);
+				}
 			}
 			Order order = this._tradingConsole.getOrder(orderId);
 			if (order != null)
 			{
-				order.set_AutoLimitPriceString(autoLimitPrice);
-				order.set_AutoStopPriceString(autoStopPrice);
-				order.update("AutoLimitPriceString", autoLimitPrice);
-				order.update("AutoStopPriceString", autoStopPrice);
+				if (!StringHelper.isNullOrEmpty(autoLimitPrice))
+				{
+					order.set_AutoLimitPriceString(autoLimitPrice);
+					order.update("AutoLimitPriceString", autoLimitPrice);
+				}
+
+				if(!StringHelper.isNullOrEmpty(autoLimitPrice))
+				{
+					order.set_AutoStopPriceString(autoStopPrice);
+					order.update("AutoStopPriceString", autoStopPrice);
+				}
+
+				if(physicalPaidAmount != null)
+				{
+					order.set_PhysicalPaidAmount(physicalPaidAmount);
+				}
+				if(isInstalmentOverdue != null)
+				{
+					order.set_InstalmentOverdue(isInstalmentOverdue);
+				}
 			}
 		}
 	}

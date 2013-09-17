@@ -58,6 +58,12 @@ import javax.swing.JScrollPane;
 import java.net.URL;
 import java.net.URI;
 import org.apache.log4j.Logger;
+import tradingConsole.enumDefine.InstrumentCategory;
+import tradingConsole.physical.PendingInventoryManager;
+import tradingConsole.enumDefine.physical.DeliveryStatus;
+import java.util.ArrayList;
+import tradingConsole.physical.DeliveryRequest;
+import java.util.HashMap;
 
 public class ReportForm extends JDialog implements IAsyncCommandListener, ActionListener
 {
@@ -95,26 +101,33 @@ public class ReportForm extends JDialog implements IAsyncCommandListener, Action
 		this.setTitle(Language.Reports);
 		this.reportTypeStaticText.setText(Language.ReportType);
 		this.accountStaticText.setText(Language.ReportAccountCode);
+		this.deliveryBillCodeStaticText.setText(Language.ReportDeliveryBillCode);
 		this.viewButton.setText(Language.ReportViewCaption);
 		this.reportTypeStaticText.setAlignment(2);
 		this.accountStaticText.setAlignment(2);
+		this.deliveryBillCodeStaticText.setAlignment(2);
 		this.dateFromStaticText.setAlignment(2);
 		this.dateToStaticText.setAlignment(2);
 
 		this.reportTypeChoice.setEditable(false);
 		this.accountChoice.setEditable(false);
+		this.deliveryBillChoice.setEditable(false);
 
+		this.fillDeliveryRequests();
 		this.fillReportType();
-		this.fillAccount();
 
 		if (this.reportTypeChoice.getItemCount() > 0)
 		{
 			this.reportTypeChoice.setSelectedIndex(0);
 		}
+		this.fillAccount();
 		if (this.accountChoice.getItemCount() > 0)
 		{
 			this.accountChoice.setSelectedIndex(0);
 		}
+
+		this.fillDeliveryBills();
+
 		this.reportTypeChoice_OnChange();
 		this._tradingConsole.addAsyncCommandListener(this);
 		this._asyncResultId = Guid.empty;
@@ -133,15 +146,83 @@ public class ReportForm extends JDialog implements IAsyncCommandListener, Action
 		{
 			this.reportTypeChoice.addItem(Language.ReportTypeAccountSummary);
 		}
+		if(this._settingsManager.hasInstrumentOf(InstrumentCategory.Physical)
+			&& this._settingsManager.get_SystemParameter().get_useFlashReportInJava())
+		{
+			this.reportTypeChoice.addItem(Language.ReportTypePhysicalLedger);
+			if(this.allDeliveryRequests.size() > 0)
+			{
+				this.reportTypeChoice.addItem(Language.ReportTypePhysicalDeliveryLedger);
+			}
+		}
+	}
+
+	private HashMap<Account, ArrayList<DeliveryRequest>> allDeliveryRequests = new HashMap<Account,ArrayList<DeliveryRequest>>();
+	private void fillDeliveryRequests()
+	{
+		this.allDeliveryRequests.clear();
+
+		for(Account account : this._settingsManager.get_Accounts().values())
+		{
+			ArrayList<DeliveryRequest> deliveryRequests
+				= PendingInventoryManager.instance.getAvaiableDeliveryRequests(account);
+			if(deliveryRequests != null && deliveryRequests.size() > 0)
+			{
+				this.allDeliveryRequests.put(account, deliveryRequests);
+			}
+		}
+	}
+
+	private void fillDeliveryBills()
+	{
+		int selectedIndex = this.accountChoice.getSelectedIndex();
+		if(selectedIndex >= 0)
+		{
+			String accountCode = this.accountChoice.getItemAt(selectedIndex).toString();
+			Account currentAccount = this.getAccount(accountCode);
+
+			this.deliveryBillChoice.removeAllItems();
+			if(!this.allDeliveryRequests.containsKey(currentAccount)) return;
+			ArrayList<DeliveryRequest> deliveryRequests
+				= this.allDeliveryRequests.get(currentAccount);
+			for (DeliveryRequest deliveryRequest : deliveryRequests)
+			{
+				this.deliveryBillChoice.addItem(deliveryRequest.get_Code());
+			}
+		}
+
+		if(this.deliveryBillChoice.getItemCount() > 0)
+		{
+			this.deliveryBillChoice.setSelectedIndex(0);
+		}
 	}
 
 	private void fillAccount()
 	{
 		this.accountChoice.removeAllItems();
-		Account[] accounts = new Account[this._settingsManager.get_Accounts().values().size()];
-		accounts = this._settingsManager.get_Accounts().values().toArray(accounts);
-		Arrays.sort(accounts, Account.comparatorByCode);
 
+		boolean forPhysicalDelivery = false;
+		int i = this.reportTypeChoice.getSelectedIndex();
+		if (i >= 0)
+		{
+			String reportType = this.reportTypeChoice.getItemAt(i).toString();
+			if (reportType.equals(Language.ReportTypePhysicalDeliveryLedger))
+				forPhysicalDelivery = true;
+		}
+
+		Account[] accounts = null;
+		if(forPhysicalDelivery)
+		{
+			accounts = new Account[this.allDeliveryRequests.size()];
+			accounts = this.allDeliveryRequests.keySet().toArray(accounts);
+		}
+		else
+		{
+			accounts = new Account[this._settingsManager.get_Accounts().values().size()];
+			accounts = this._settingsManager.get_Accounts().values().toArray(accounts);
+		}
+
+		Arrays.sort(accounts, Account.comparatorByCode);
 		for (Account account : accounts)
 		{
 			boolean verifiedCustomerIdentity = account.get_VerifiedCustomerIdentity();
@@ -150,6 +231,7 @@ public class ReportForm extends JDialog implements IAsyncCommandListener, Action
 				this.accountChoice.addItem(account.get_Code());
 			}
 		}
+
 	}
 
 	//this method will not need if modify accountChoise item???????
@@ -166,6 +248,16 @@ public class ReportForm extends JDialog implements IAsyncCommandListener, Action
 		return null;
 	}
 
+	public DeliveryRequest getDeliveryRequest(Account account, String code)
+	{
+		ArrayList<DeliveryRequest> deliveryRequests = this.allDeliveryRequests.get(account);
+		for(DeliveryRequest request : deliveryRequests)
+		{
+			if(request.get_Code().compareToIgnoreCase(code) == 0) return request;
+		}
+		return null;
+	}
+
 	private void viewReport(String url)
 	{
 		int i = this.reportTypeChoice.getSelectedIndex();
@@ -174,31 +266,52 @@ public class ReportForm extends JDialog implements IAsyncCommandListener, Action
 			return;
 		}
 		String reportType = this.reportTypeChoice.getItemAt(i).toString();
+		String deliveryRequestCode = null, deliveryRequestId = null;
+		String accountIdString = null, dateFromStr = null, dateToStr = null;
+		String accountCode = null;
+		DateTime dateFrom = null, dateTo = null;
+		Account account = null;
 		i = this.accountChoice.getSelectedIndex();
 		if (i < 0)
 		{
 			return;
 		}
-
-		Date from = this.dateFromDate.getDate();
-		Date to = this.dateToDate.getDate();
-		if (from == null || to == null)
-		{
-			return;
-		}
-
-		DateTime dateFrom = DateTime.fromDate(from);
-		String dateFromStr = dateFrom.toString("yyyy-MM-dd");
-		DateTime dateTo = DateTime.fromDate(to);
-		String dateToStr = dateTo.toString("yyyy-MM-dd");
-
-		String accountCode = this.accountChoice.getItemAt(i).toString();
-		Account account = this.getAccount(accountCode);
+		accountCode = this.accountChoice.getItemAt(i).toString();
+		account = this.getAccount(accountCode);
 		if (account == null)
 		{
 			return;
 		}
-		String accountIdString = account.get_Id().toString();
+
+		if(reportType.equalsIgnoreCase(Language.ReportTypePhysicalDeliveryLedger))
+		{
+			int index = this.deliveryBillChoice.getSelectedIndex();
+			if(index < 0) return;
+			deliveryRequestCode = this.deliveryBillChoice.getItemAt(index).toString();
+			DeliveryRequest deliveryRequest = this.getDeliveryRequest(account, deliveryRequestCode);
+			if(deliveryRequest == null) return;
+			deliveryRequestId = deliveryRequest.getId().toString();
+		}
+		else
+		{
+			Date from = this.dateFromDate.getDate();
+			Date to = this.dateToDate.getDate();
+			if (from == null || to == null)
+			{
+				return;
+			}
+
+			dateFrom = DateTime.fromDate(from);
+			dateFromStr = dateFrom.toString("yyyy-MM-dd");
+			dateTo = DateTime.fromDate(to);
+			dateToStr = dateTo.toString("yyyy-MM-dd");
+
+			if (account == null)
+			{
+				return;
+			}
+			accountIdString = account.get_Id().toString();
+		}
 
 		String companyCode = this._tradingConsole.get_LoginInformation().get_CompanyName();
 		String userId = this._tradingConsole.get_LoginInformation().get_CustomerId().toString();
@@ -227,14 +340,36 @@ public class ReportForm extends JDialog implements IAsyncCommandListener, Action
 		}
 		else if (reportType.equals(Language.ReportTypeAccountSummary))
 		{
-			url = url +"?companyName="+companyCode+"&reporttype=accountsummary&accountId="+accountIdString+"&tradeDay="
-				+dateFromStr+"&language="+language+"&userID="+userId+"&runModel=1";
+			url = url +"?companyName="+companyCode+"&reporttype=accountsummary&accountId="+accountIdString+"&tradeDayBegin="
+				+dateFromStr+"&tradeDayEnd="+dateToStr+"&language="+language+"&userID="+userId+"&runModel=1";
 
-			String info = StringHelper.format("{0}: Account={1}, TradeDay={2}",
+			String info = StringHelper.format("{0}: Account={1}, From={2}, To={3}",
 											  new Object[]
-											  {Language.ReportTypeAccountSummary, accountIdString, XmlConvert.toString(dateFrom, "yyyy/MM/dd")});
+											  {Language.ReportTypeAccountSummary, accountIdString, XmlConvert.toString(dateFrom, "yyyy/MM/dd"),
+											  XmlConvert.toString(dateTo, "yyyy/MM/dd")});
 			this._tradingConsole.saveLog(LogCode.AccountSummary, info, null, account.get_Id());
 		}
+		else if(reportType.equals(Language.ReportTypePhysicalLedger))
+		{
+			url = url +"?companyName="+companyCode+"&reporttype=physicalledger&accountId="+accountIdString+"&tradeDayBegin="+dateFromStr+
+				"&tradeDayEnd="+dateToStr+"&language="+language+"&userID="+userId+"&runModel=1";
+
+			String info = StringHelper.format("{0}: Account={1}, From={2}, To={3}",
+											  new Object[]
+											  {Language.ReportTypePhysicalLedger, accountCode, XmlConvert.toString(dateFrom, "yyyy/MM/dd"),
+											  XmlConvert.toString(dateTo, "yyyy/MM/dd")});
+			this._tradingConsole.saveLog(LogCode.PhysicalLedger, info, null, account.get_Id());
+		}
+		else if(reportType.equals(Language.ReportTypePhysicalDeliveryLedger))
+		{
+			url = url +"?companyName="+companyCode+"&reporttype=physicaldelivery&deliveryRequestId="+deliveryRequestId+"&language="+language+"&userID="+userId+"&runModel=1";
+
+			String info = StringHelper.format("{0}: DeliveryRequest Code ={1}",
+											  new Object[]
+											  {Language.ReportTypePhysicalDeliveryLedger, deliveryRequestCode});
+			this._tradingConsole.saveLog(LogCode.PhysicalDelivery, info, null, null);
+		}
+
 
 		try
 		{
@@ -373,11 +508,12 @@ public class ReportForm extends JDialog implements IAsyncCommandListener, Action
 			}
 			accountIdString = sb.toString();
 			asyncResultId = this._tradingConsole.get_TradingConsoleServer().accountSummaryForJava2(XmlConvert.toString(dateFrom, "yyyy/MM/dd"),
-				accountIdString, reportxml);
+				XmlConvert.toString(dateTo, "yyyy/MM/dd"), accountIdString, reportxml);
 
-			String info = StringHelper.format("{0}: TradeDay={1}",
+			String info = StringHelper.format("{0}: Account={1}, From={2}, To={3}",
 											  new Object[]
-											  {Language.ReportTypeAccountSummary, XmlConvert.toString(dateFrom, "yyyy/MM/dd")});
+											  {Language.ReportTypeAccountSummary, accountIdString, XmlConvert.toString(dateFrom, "yyyy/MM/dd"),
+											  XmlConvert.toString(dateTo, "yyyy/MM/dd")});
 			this._tradingConsole.saveLog(LogCode.AccountSummary, info, null);
 		}
 
@@ -505,8 +641,11 @@ public class ReportForm extends JDialog implements IAsyncCommandListener, Action
 		this.dateFromDate.setDate(tradeDay.toDate());
 		this.dateToDate.setDate(tradeDay.toDate());
 		String reportType = this.reportTypeChoice.getItemAt(i).toString();
+		this.fillAccount();
 		if (reportType.equals(Language.ReportTypeStatement))
 		{
+			this.hideDeliveryComponents();
+
 			if(isForEVGREEN)
 			{
 				this.dateToStaticText.setVisible(false);
@@ -523,8 +662,10 @@ public class ReportForm extends JDialog implements IAsyncCommandListener, Action
 			this.thisWeekRadioButton.setEnabled(true);
 			this.thisMonthRadioButton.setEnabled(true);
 		}
-		else if (reportType.equals(Language.ReportTypeLedger))
+		else if (reportType.equals(Language.ReportTypeLedger) || reportType.equals(Language.ReportTypePhysicalLedger))
 		{
+			this.hideDeliveryComponents();
+
 			if(isForEVGREEN)
 			{
 				this.dateToStaticText.setVisible(true);
@@ -544,20 +685,60 @@ public class ReportForm extends JDialog implements IAsyncCommandListener, Action
 		}
 		else if (reportType.equals(Language.ReportTypeAccountSummary))
 		{
+			this.hideDeliveryComponents();
+
 			this.dateFromStaticText.setText(Language.ReportDate1InnerTextForStatement);
-			this.dateToDate.setEnabled(false);
+			this.dateToStaticText.setText(Language.ReportDate2InnerTextForLedger);
+			this.dateToDate.setEnabled(true);
 			this.accountChoice.setEnabled(false);
-			this.todayRadioButton.setEnabled(false);
-			this.thisWeekRadioButton.setEnabled(false);
-			this.thisMonthRadioButton.setEnabled(false);
-			this.todayRadioButton.setSelected(true);
+			this.todayRadioButton.setEnabled(true);
+			this.thisWeekRadioButton.setEnabled(true);
+			this.thisMonthRadioButton.setEnabled(true);
+		}
+		else if(reportType.equals(Language.ReportTypePhysicalDeliveryLedger))
+		{
+			this.showDeliveryComponents();
 		}
 
 		this.doLayout();
 	}
 
+	private void showDeliveryComponents()
+	{
+		this.setVisibleOfDeliveryComponents(true);
+	}
+
+	private void hideDeliveryComponents()
+	{
+		this.setVisibleOfDeliveryComponents(false);
+	}
+
+	private void setVisibleOfDeliveryComponents(boolean visible)
+	{
+		this.deliveryBillCodeStaticText.setVisible(visible);
+		this.deliveryBillChoice.setVisible(visible);
+
+		this.dateFromStaticText.setVisible(!visible);
+		this.dateFromDate.setVisible(!visible);
+		this.dateToStaticText.setVisible(!visible);
+		this.dateToDate.setVisible(!visible);
+		this.todayRadioButton.setVisible(!visible);
+		this.thisWeekRadioButton.setVisible(!visible);
+		this.thisMonthRadioButton.setVisible(!visible);
+		this.todayRadioButton.setVisible(!visible);
+	}
+
 	private void accountChoice_OnChange()
 	{
+		int i = this.reportTypeChoice.getSelectedIndex();
+		if (i >= 0)
+		{
+			String reportType = this.reportTypeChoice.getItemAt(i).toString();
+			if (reportType.equals(Language.ReportTypePhysicalDeliveryLedger))
+			{
+				this.fillDeliveryBills();
+			}
+		}
 	}
 
 	//SourceCode End////////////////////////////////////////////////////////////////////////////////////////////////
@@ -602,9 +783,14 @@ public class ReportForm extends JDialog implements IAsyncCommandListener, Action
 		this.add(dateToStaticText, new GridBagConstraints2(0, 4, 1, 1, 0.0, 0.0,
 			GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(1, 10, 1, 5), 0, 0));
 
+		this.add(this.deliveryBillCodeStaticText, new GridBagConstraints2(0, 3, 1, 1, 0.0, 0.0,
+			GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(1, 10, 1, 5), 0, 0));
+
 		this.getContentPane().add(reportTypeChoice, new GridBagConstraints(1, 1, 1, 1, 0.0, 0.0
 			, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, new Insets(10, 0, 1, 10), 24, 0));
 		this.getContentPane().add(accountChoice, new GridBagConstraints(1, 2, 1, 1, 0.0, 0.0
+			, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, new Insets(1, 0, 1, 10), 0, 0));
+		this.getContentPane().add(this.deliveryBillChoice, new GridBagConstraints(1, 3, 1, 1, 0.0, 0.0
 			, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, new Insets(1, 0, 1, 10), 0, 0));
 		this.getContentPane().add(dateFromDate, new GridBagConstraints(1, 3, 1, 1, 0.0, 0.0
 			, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, new Insets(1, 0, 1, 10), 26, 0));
@@ -748,6 +934,8 @@ public class ReportForm extends JDialog implements IAsyncCommandListener, Action
 	private DateComboBox dateToDate = new DateComboBox();
 	private GridBagLayout gridBagLayout1 = new GridBagLayout();
 	private String fileToExecute;
+	private PVStaticText2 deliveryBillCodeStaticText = new PVStaticText2();
+	private JComboBox deliveryBillChoice = new JComboBox();
 
 	public void viewButton_actionPerformed(ActionEvent e)
 	{
@@ -758,6 +946,7 @@ public class ReportForm extends JDialog implements IAsyncCommandListener, Action
 				String flashReportUrl =
 					this._tradingConsole.get_ServiceManager().get_ServiceUrl().toLowerCase().replaceFirst("tradingconsole/service.asmx",
 					"TradingConsoleSLReport/ReportViewer.aspx");
+				//flashReportUrl = flashReportUrl.replaceFirst("https", "http");
 				this.viewReport(flashReportUrl);
 			}
 			else

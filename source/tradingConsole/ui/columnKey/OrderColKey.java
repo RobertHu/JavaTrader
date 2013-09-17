@@ -27,6 +27,7 @@ public class OrderColKey
 	public static final String EndTime = "EndTime";
 	public static final String ContractSize = "ContractSize";
 	public static final String CommissionSum = "CommissionSum";
+	public static final String RebateString = "RebateString";
 	public static final String LevySum = "LevySum";
 	public static final String AssigningOrder = "AssigningOrder";
 	public static final String TradePL = "TradePL";

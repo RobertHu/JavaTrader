@@ -67,11 +67,13 @@ public class Transaction implements ISchedulerCallback
 
 	private String getChangeToOcoOrderConfirmXml()
 	{
+		Instrument instrument = this.get_Instrument();
 		String xml = "<Transaction ";
 		this._orderType = OrderType.Limit;
 		xml += "ID=\'" + this._id.toString() + "\' " +
 			"AccountID=\'" + this._account.get_Id().toString() + "\' " +
 			"InstrumentID=\'" + this._instrument.get_Id().toString() + "\' " +
+			"InstrumentCategory=\'" + XmlConvert.toString(instrument.get_Category().value()) + "\' " +
 			"Type=\'" + XmlConvert.toString(this._type.value()) + "\' " +
 			"SubType=\'" + XmlConvert.toString(this._subType.value()) + "\' " +
 			"OrderType=\'" + XmlConvert.toString(this._orderType.value()) + "\' " +
@@ -118,6 +120,8 @@ public class Transaction implements ISchedulerCallback
 			}
 		}
 
+		Instrument instrument = this.get_Instrument();
+
 		String xml = "<Transaction ";
 		if (operateType.equals(OperateType.Assign))
 		{
@@ -125,6 +129,7 @@ public class Transaction implements ISchedulerCallback
 				"AccountID=\'" + this._account.get_Id().toString() + "\' " +
 				"Type=\'" + XmlConvert.toString(this._type.value()) + "\' " +
 				"SubType=\'" + XmlConvert.toString(this._subType.value()) + "\' " +
+				"InstrumentCategory=\'" + XmlConvert.toString(instrument.get_Category().value()) + "\' " +
 				"BeginTime=\'" + XmlConvert.toString(this._beginTime, "yyyy-MM-dd HH:mm:ss") + "\' " +
 				"EndTime=\'" + XmlConvert.toString(this._endTime, "yyyy-MM-dd HH:mm:ss") + "\' " +
 				"ExpireType=\'" + XmlConvert.toString(this._expireType.value()) + "\' " +
@@ -150,6 +155,7 @@ public class Transaction implements ISchedulerCallback
 				"InstrumentID=\'" + this._instrument.get_Id().toString() + "\' " +
 				"Type=\'" + XmlConvert.toString(this._type.value()) + "\' " +
 				"SubType=\'" + XmlConvert.toString(this._subType.value()) + "\' " +
+				"InstrumentCategory=\'" + XmlConvert.toString(instrument.get_Category().value()) + "\' " +
 				"OrderType=\'" + XmlConvert.toString(this._orderType.value()) + "\' " +
 				"BeginTime=\'" + XmlConvert.toString(this._beginTime, "yyyy-MM-dd HH:mm:ss") + "\' " +
 				"EndTime=\'" + XmlConvert.toString(this._endTime, "yyyy-MM-dd HH:mm:ss") + "\' " +
@@ -213,11 +219,17 @@ public class Transaction implements ISchedulerCallback
 	public String getLogAction()
 	{
 		String logAction = "";
+		boolean isFirstOrder = true;
+		boolean isLastOrder = false;
+		int index = 0;
 		for (Iterator<Order> iterator = this._orders.values().iterator(); iterator.hasNext(); )
 		{
+			isLastOrder = index == this._orders.size() - 1;
 			Order order = iterator.next();
 			logAction = (!StringHelper.isNullOrEmpty(logAction)) ? logAction + TradingConsole.delimiterRow : "";
-			logAction += order.getLogAction();
+			logAction += order.getLogAction(isFirstOrder, isLastOrder);
+			isFirstOrder = false;
+			index++;
 		}
 		if(this.get_OrderType().value() == OrderType.SpotTrade.value()
 		   && this._phase.value() == Phase.Placing.value() && this._placingLogInfo != null)
@@ -301,7 +313,7 @@ public class Transaction implements ISchedulerCallback
 		TradingConsole.traceSource.trace(TraceType.Information, "confirm.makeOrderConfirm.place: placeToServer()_Begin");
 		try
 		{
-		  this._tradingConsole.get_TradingConsoleServer().beginPlace(xmlTransaction, placeCallback, null);
+			this._tradingConsole.get_TradingConsoleServer().beginPlace(xmlTransaction, placeCallback, null);
 		}
 		catch(Exception ex){
 			ex.printStackTrace();
@@ -951,9 +963,8 @@ public class Transaction implements ISchedulerCallback
 				order = new Order(tradingConsole, settingsManager);
 				order.setValue(orderCollection, transaction);
 				order.set_IsAssignOrder(false);
-				tradingConsole.setOrder(order);
-
 				transaction.get_Orders().put(orderId, order);
+				tradingConsole.setOrder(order);
 
 				settingsManager.verifyAccountCurrency(order);
 
@@ -1002,7 +1013,7 @@ public class Transaction implements ISchedulerCallback
 			}
 
 			//Relation Orders Process-----------------------------------------------------------------------------------
-			TradingItem pLTradingItem = TradingItem.create(0.00, 0.00, 0.00);
+			TradingItem pLTradingItem = TradingItem.create(0.00, 0.00, 0.00, 0.00);
 			boolean needUpdatePLTradingItem = false;
 			//special process for another user(as agent user) make order
 			boolean needUpdateRelationOrder = order.get_RelationOrders().size() <= 0;
@@ -1269,9 +1280,9 @@ public class Transaction implements ISchedulerCallback
 					orderIdToMatchedLot.remove(order.get_Id());
 				}
 				order.set_IsAssignOrder(isAssign);
-				tradingConsole.setOrder(order);
 
 				transaction.get_Orders().put(orderId, order);
+				tradingConsole.setOrder(order);
 
 				settingsManager.verifyAccountCurrency(order);
 
@@ -1373,7 +1384,7 @@ public class Transaction implements ISchedulerCallback
 				assignedLot = assignedLot.add(lot);
 			}
 
-			TradingItem pLTradingItem = TradingItem.create(0.00, 0.00, 0.00);
+			TradingItem pLTradingItem = TradingItem.create(0.00, 0.00, 0.00, 0.00);
 			boolean needUpdatePLTradingItem = false;
 			/*
 			 String peerOrderIDs2 = "";
@@ -1937,7 +1948,10 @@ public class Transaction implements ISchedulerCallback
 
 		if (this._orderType == OrderType.Limit && this._assigningOrder != null) //must be changing Limit/Stop order to OCO order
 		{
-			Order.removeFromWorkingOrderList(this._assigningOrder);
+			if(this._phase.equals(Phase.Placed))
+			{
+				Order.removeFromWorkingOrderList(this._assigningOrder);
+			}
 			//this._tradingConsole.removeOrder(this._assigningOrder);
 		}
 	}
@@ -1998,9 +2012,14 @@ public class Transaction implements ISchedulerCallback
 				if (orderNode.get_Attributes().get_Count() > 0)
 				{
 					Guid executedOCOOrderId = new Guid(orderNode.get_Attributes().get_ItemOf("ID").get_Value());
+					boolean isFirstOrder = true;
+					boolean isLastOrder = false;
+					int index = 0;
 					for (Iterator<Order> iterator = this._orders.values().iterator(); iterator.hasNext(); )
 					{
+						isLastOrder = index == this._orders.size() - 1;
 						Order order = iterator.next();
+						index++;
 						if (!order.get_Id().equals(executedOCOOrderId))
 						{ //flag order's phase = cancelled, but transaction's phase = executed
 							boolean isNeedSaveLog = (order.get_Phase()!=Phase.Cancelled);
@@ -2008,7 +2027,8 @@ public class Transaction implements ISchedulerCallback
 
 							if (isNeedSaveLog)
 							{
-								this._tradingConsole.saveLog(LogCode.Cancelled,order.getLogAction(), order.get_Transaction().get_Id(), this.get_Account().get_Id());
+								this._tradingConsole.saveLog(LogCode.Cancelled,order.getLogAction(isFirstOrder, isLastOrder), order.get_Transaction().get_Id(), this.get_Account().get_Id());
+								isFirstOrder = false;
 							}
 							return;
 						}
@@ -2221,10 +2241,11 @@ public class Transaction implements ISchedulerCallback
 		return false;
 	}
 
-	public boolean isVerify(DateTime appTime)
+	private static TimeSpan SuspiciousTimeSpan = TimeSpan.fromSeconds(60);
+	public boolean isSuspicious(DateTime appTime)
 	{
-		return ( (this._phase == Phase.Placing || this._phase == Phase.Placed)
-				&& this._endTime.before(appTime));
+		return ( (this._phase == Phase.Placing || this._phase == Phase.Placed) && this._endTime.before(appTime))
+			|| (this._phase == Phase.Placing && appTime.substract(this._beginTime).compareTo(SuspiciousTimeSpan) > 0 );
 	}
 
 	public boolean needCalculateSummary()
@@ -2251,6 +2272,7 @@ public class Transaction implements ISchedulerCallback
 		for (Iterator<Order> iterator = this._orders.values().iterator(); iterator.hasNext(); )
 		{
 			Order order = iterator.next();
+			order.initInstalmentInfo();
 			order.makeOrderConfirm();
 		}
 
@@ -2311,5 +2333,16 @@ public class Transaction implements ISchedulerCallback
 	public IfDoneInfo get_IfDoneInfo()
 	{
 		return this._ifDoneInfo;
+	}
+
+	private InstalmentInfo _instalmentInfo;
+	public void set_InstalmentInfo(InstalmentInfo instalmentInfo)
+	{
+		this._instalmentInfo = instalmentInfo;
+	}
+
+	public InstalmentInfo get_InstalmentInfo()
+	{
+		return this._instalmentInfo;
 	}
 }

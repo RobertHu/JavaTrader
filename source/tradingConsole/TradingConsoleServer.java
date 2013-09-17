@@ -174,6 +174,7 @@ public class TradingConsoleServer implements ITimeSyncService, Scheduler.ISchedu
 		{
 			this.stopSlidingWindow();
 			this._slidingWindow.start(this._lastEndSequence);
+
 			TradingConsole.traceSource.trace(TraceType.Information, "GetCommandsScheduler.scheduler.add_Begin");
 			DateTime beginTime = TradingConsoleServer.appTime();
 			TradingConsole.traceSource.trace(TraceType.Information, "GetCommandsScheduler.scheduler.add_End");
@@ -543,7 +544,23 @@ public class TradingConsoleServer implements ITimeSyncService, Scheduler.ISchedu
 
 	public Guid asyncGetTickByTickHistoryDatas2(Guid instrumentId, DateTime from, DateTime to)
 	{
-		throw new UnsupportedOperationException();
+		Guid result = Guid.empty;
+		try
+		{
+			ComunicationObject command = CommandHelper.buildAsyncGetTickByTickHistoryDatas2(instrumentId,from,to);
+			SignalObject signal = RequestCommandHelper.request(command);
+			if(signal.getIsError())
+			{
+				return result;
+			}
+			result = RequestCommandHelper.getGuidFromResponse(signal.getResult());
+		}
+		catch (Throwable throwable)
+		{
+			this.throwableProcess("asyncGetTickByTickHistoryDatas2", throwable);
+		}
+		return result;
+
 	}
 
 	public DataSet getChartData(Guid asyncResultId)
@@ -605,6 +622,28 @@ public class TradingConsoleServer implements ITimeSyncService, Scheduler.ISchedu
 	{
 		throw new UnsupportedOperationException();
 	}
+
+	public DataSet getOrderInstalment(Guid orderId)
+	{
+		DataSet result = null;
+		try
+		{
+			ComunicationObject command = CommandHelper.buildGetOrderInstalment(orderId);
+			SignalObject signal=RequestCommandHelper.request(command);
+			if(signal.getIsError()){
+				return result;
+			}
+			result = RequestCommandHelper.getDataFromResponse(signal.getResult());
+			return result;
+		}
+		catch (Throwable throwable)
+		{
+			this.throwableProcess("getOrderInstalment", throwable);
+			return result;
+		}
+	}
+
+
 
 	public GetInitDataResult getInitData( /*out*/int commandSequence)
 	{
@@ -1003,6 +1042,26 @@ public class TradingConsoleServer implements ITimeSyncService, Scheduler.ISchedu
 		throw new UnsupportedOperationException();
 	}
 
+	public ApplyDeliveryResult applyDelivery(XmlNode deliveryRequire)
+	{
+		ApplyDeliveryResult result=null;
+		try
+		{
+			ComunicationObject command = CommandHelper.buildApplyDelivery(deliveryRequire);
+			SignalObject signal = RequestCommandHelper.request(command);
+			if(signal.getIsError()){
+				return result;
+			}
+			result = new ApplyDeliveryResult(signal.getResult());
+			return result;
+		}
+		catch (Throwable throwable)
+		{
+			this.throwableProcess("applyDelivery", throwable);
+			return result;
+		}
+	}
+
 	public PlaceResult place(XmlNode tran)
 	{
 		PlaceResult result = null;
@@ -1314,16 +1373,15 @@ public class TradingConsoleServer implements ITimeSyncService, Scheduler.ISchedu
 		return result;
 	}
 
-	public Guid accountSummaryForJava2(String tradeDay, String IDs, String reportxml)
+	public Guid accountSummaryForJava2(String fromDay, String toDay, String IDs, String reportxml)
 	{
 		Guid result = Guid.empty;
 		try{
-			ComunicationObject command = CommandHelper.buildAccountSummaryForJava2Command(tradeDay, IDs, reportxml);
+			ComunicationObject command = CommandHelper.buildAccountSummaryForJava2Command(fromDay,toDay, IDs, reportxml);
 			SignalObject signal = RequestCommandHelper.request(command);
 			if(!signal.getIsError()){
 				result = RequestCommandHelper.getGuidFromResponse(signal.getResult());
 			}
-
 		}
 		catch(Throwable throwable){
 			this.throwableProcess("accountSummaryForJava2", throwable);
@@ -1827,5 +1885,24 @@ public class TradingConsoleServer implements ITimeSyncService, Scheduler.ISchedu
 	{
 		LoginStatus status= this._tradingConsole.get_LoginInformation().get_LoginStatus();
 		return status.equals(LoginStatus.Ready);
+	}
+
+	public String[] getDeliveryAddress(Guid deliveryPointAddressGroupId)
+	{
+		String[] result = null;
+		try{
+			ComunicationObject command = CommandHelper.buildGetDeliveryAddress(deliveryPointAddressGroupId);
+			SignalObject signal = RequestCommandHelper.request(command);
+			if(signal.getIsError()){
+				return result;
+			}
+			result = RequestCommandHelper.getStringArrayFromResponse(signal.getResult());
+			return result;
+		}
+		catch(Throwable exception)
+		{
+			this.throwableProcess("getDeliveryAddress",exception);
+			return result;
+		}
 	}
 }

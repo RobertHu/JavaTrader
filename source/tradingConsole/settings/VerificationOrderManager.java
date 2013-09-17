@@ -171,6 +171,7 @@ public class VerificationOrderManager
 
 		Transaction transaction = new Transaction(this._tradingConsole, this._settingsManager, transactionDataRow);
 		transaction.set_MakeOrderAccount(makeOrderAccount);
+		transaction.set_InstalmentInfo(makeOrderAccount.get_InstalmentInfo());
 		return transaction;
 	}
 
@@ -246,7 +247,7 @@ public class VerificationOrderManager
 
 						if (isCheckEntrance)
 						{
-							Object[] result = MakeOrder.isAcceptEntrance(this._settingsManager, makeOrderAccount.get_Account(), this._instrument,
+							Object[] result = MakeOrder.isAcceptEntrance(this._settingsManager, makeOrderAccount, this._instrument,
 								this._orderType, isBuy, lot, liqLots2, setPrice, setPrice2, this._operateType == OperateType.Assign);
 							if (! ( (Boolean)result[0]))
 							{
@@ -495,7 +496,7 @@ public class VerificationOrderManager
 					if (isCheckEntrance)
 					{
 						Price entrancePrice = this._instrument.get_LastQuotation().getBuySell(sumBuyLot.compareTo(sumSellLot) > 0);
-						Object[] result = MakeOrder.isAcceptEntrance(this._settingsManager, makeOrderAccount.get_Account(), this._instrument, isOpen, diffSumLot,
+						Object[] result = MakeOrder.isAcceptEntrance(this._settingsManager, makeOrderAccount, this._instrument, isOpen, diffSumLot,
 							entrancePrice);
 						if (! ( (Boolean) result[0]))
 						{
@@ -617,7 +618,7 @@ public class VerificationOrderManager
 					if (isCheckEntrance)
 					{
 						Price entrancePrice = this._instrument.get_LastQuotation().getBuySell(true);
-						Object[] result = MakeOrder.isAcceptEntrance(this._settingsManager, makeOrderAccount.get_Account(), this._instrument, isOpen, lotForBuy,
+						Object[] result = MakeOrder.isAcceptEntrance(this._settingsManager, makeOrderAccount, this._instrument, isOpen, lotForBuy,
 							entrancePrice);
 						if (! ( (Boolean) result[0]))
 						{
@@ -669,7 +670,7 @@ public class VerificationOrderManager
 					if (isCheckEntrance)
 					{
 						Price entrancePrice = this._instrument.get_LastQuotation().getBuySell(false);
-						Object[] result = MakeOrder.isAcceptEntrance(this._settingsManager, makeOrderAccount.get_Account(), this._instrument, isOpen, lotForSell,
+						Object[] result = MakeOrder.isAcceptEntrance(this._settingsManager, makeOrderAccount, this._instrument, isOpen, lotForSell,
 							entrancePrice);
 						if (! ( (Boolean) result[0]))
 						{

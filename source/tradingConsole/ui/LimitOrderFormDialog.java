@@ -8,6 +8,7 @@ import tradingConsole.ui.language.Language;
 import java.math.BigDecimal;
 import tradingConsole.enumDefine.BuySellType;
 import com.jidesoft.swing.JideTabbedPane;
+import framework.StringHelper;
 
 public class LimitOrderFormDialog extends JDialog
 {
@@ -31,7 +32,7 @@ public class LimitOrderFormDialog extends JDialog
 		{
 			JideTabbedPane tabbedPane = new JideTabbedPane();
 
-			this.setSize(500, 420);
+			this.setSize(520, 470);
 			this.getContentPane().add(tabbedPane, java.awt.BorderLayout.CENTER);
 
 			this._limitOrderForm = new LimitOrderForm(this, tradingConsole, settingsManager, instrument, order,  openContractForm, isBuy, true);
@@ -54,7 +55,7 @@ public class LimitOrderFormDialog extends JDialog
 			this._limitOrderForm.setOpaque(false);
 			this.getContentPane().add(this._limitOrderForm, java.awt.BorderLayout.CENTER);
 		}
-		this.setTitle(instrument.get_Description());
+		this.setTitle(instrument.get_DescriptionForTrading());
 
 		MakeOrderWindow makeOrderWindow = new MakeOrderWindow(instrument.get_Id(), this, false);
 		this._settingsManager.setMakeOrderWindow(instrument, makeOrderWindow);

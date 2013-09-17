@@ -464,6 +464,11 @@ public class AssignOrderForm extends FrameBase
 			return null;
 		}
 
+		public boolean isDelivery()
+		{
+			return false;
+		}
+
 		public void addPlaceOrderTypeChangedListener(IPlaceOrderTypeChangedListener placeOrderTypeChangedListener)
 		{
 		}

@@ -9,6 +9,7 @@ public class OutstandingOrderLanguage
 	public static String OpenOrder = "Open Order";
 	public static String LiqLotString = "Lot";
 	public static String IsSelected = "Close";
+	public static String Delivery = "Delivery";
 
 	public static void setValue(XmlNode xmlNode)
 	{
@@ -30,6 +31,10 @@ public class OutstandingOrderLanguage
 			else if (nodeName.equals("IsSelected"))
 			{
 				OutstandingOrderLanguage.IsSelected = nodeValue;
+			}
+			else if (nodeName.equals("Delivery"))
+			{
+				OutstandingOrderLanguage.Delivery = nodeValue;
 			}
 		}
 	}
