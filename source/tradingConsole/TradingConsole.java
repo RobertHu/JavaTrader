@@ -1151,7 +1151,7 @@ public class TradingConsole extends Applet implements Scheduler.ISchedulerCallba
 				try
 				{
 					semaphore.acquire();
-					initData(semaphore,loginResult);
+					initData(semaphore, loginResult);
 				}
 				catch (Exception ex)
 				{
@@ -1160,14 +1160,25 @@ public class TradingConsole extends Applet implements Scheduler.ISchedulerCallba
 			}
 		});
 
+		try
+		{
+			Thread.sleep(10);
+		}
+		catch (InterruptedException e)
+		{
+			this.logger.error(e);
+		}
+
 		executorService.execute(new Runnable()
 		{
 			public void run()
 			{
-				try{
+				try
+				{
 					semaphore.acquire();
 				}
-				catch(Exception ex){}
+				catch (Exception ex)
+				{}
 				SwingUtilities.invokeLater(new Runnable()
 				{
 					public void run()
