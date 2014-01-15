@@ -32,7 +32,7 @@ public class LimitOrderFormDialog extends JDialog
 		{
 			JideTabbedPane tabbedPane = new JideTabbedPane();
 
-			this.setSize(520, 470);
+			this.setSize(570, 520);
 			this.getContentPane().add(tabbedPane, java.awt.BorderLayout.CENTER);
 
 			this._limitOrderForm = new LimitOrderForm(this, tradingConsole, settingsManager, instrument, order,  openContractForm, isBuy, true);

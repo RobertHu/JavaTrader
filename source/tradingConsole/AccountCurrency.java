@@ -14,6 +14,8 @@ public class AccountCurrency
 	private double _balance;
 	private double _necessary;
 	private double _frozenFund;
+	private double _totalPaidAmount;
+	private double _necessaryForPartialPaymentPhysicalOrder;
 
 	private TradingItem _notValuedTradingItem;
 	private TradingItem _floatTradingItem;
@@ -84,6 +86,11 @@ public class AccountCurrency
 		return this._frozenFund;
 	}
 
+	public double get_TotalPaidAmount()
+	{
+		return this._totalPaidAmount;
+	}
+
 	public double get_Usable()
 	{
 		return this.get_Equity() - this.get_Necessary();
@@ -97,8 +104,8 @@ public class AccountCurrency
 	public AccountCurrency(SettingsManager settingsManager, Guid accountId, Guid currencyId)
 	{
 		this._settingsManager = settingsManager;
-		this._notValuedTradingItem = TradingItem.create(0.00, 0.00, 0.00,0.00);
-		this._floatTradingItem = TradingItem.create(0.00, 0.00, 0.00,0.00);
+		this._notValuedTradingItem = TradingItem.create();
+		this._floatTradingItem = TradingItem.create();
 
 		this._account = this._settingsManager.getAccount(accountId);
 		this._currency = this._settingsManager.getCurrency(currencyId);
@@ -122,6 +129,7 @@ public class AccountCurrency
 		this._balance = AppToolkit.convertDBValueToDouble(dataRow.get_Item("Balance"), 0.0);
 		this._necessary = AppToolkit.convertDBValueToDouble(dataRow.get_Item("Necessary"), 0.0);
 		this._frozenFund = AppToolkit.convertDBValueToDouble(dataRow.get_Item("FrozenFund"), 0.0);
+		this._totalPaidAmount = AppToolkit.convertDBValueToDouble(dataRow.get_Item("TotalPaidAmount"), 0.0);
 
 		this._notValuedTradingItem.set_Interest(AppToolkit.convertDBValueToDouble(dataRow.get_Item("InterestPLNotValued"), 0.0));
 		this._notValuedTradingItem.set_Storage(AppToolkit.convertDBValueToDouble(dataRow.get_Item("StoragePLNotValued"), 0.0));
@@ -150,6 +158,10 @@ public class AccountCurrency
 			else if (nodeName.equals("FrozenFund"))
 			{
 				this._frozenFund = Double.valueOf(nodeValue).doubleValue();
+			}
+			else if (nodeName.equals("TotalPaidAmount"))
+			{
+				this._totalPaidAmount = Double.valueOf(nodeValue).doubleValue();
 			}
 			else if (nodeName.equals("ValueAsMargin"))
 			{
@@ -217,14 +229,18 @@ public class AccountCurrency
 			CurrencyRate currencyRate = this._settingsManager.getCurrencyRate(this._currency.get_Id(), this._account.get_Currency().get_Id());
 			this._account.set_Balance(this._account.get_Balance() - currencyRate.exchange(this._balance));
 			this._account.set_Necessary(this._account.get_Necessary() - currencyRate.exchange(this._necessary));
+			this._account.set_NecessaryForPartialPaymentPhysicalOrder(this._account.get_NecessaryForPartialPaymentPhysicalOrder() - currencyRate.exchange(this._necessaryForPartialPaymentPhysicalOrder));
 			this._account.set_FrozenFund(this._account.get_FrozenFund() - currencyRate.exchange(this._frozenFund));
+			this._account.set_TotalPaidAmount(this._account.get_TotalPaidAmount() - currencyRate.exchange(this._totalPaidAmount));
 			this._account.set_UnclearAmount(this._account.get_UnclearAmount() - currencyRate.exchange(this._unclearAmount));
 		}
 		else
 		{
 			this._account.set_Balance(this._account.get_Balance() - this._balance);
 			this._account.set_Necessary(this._account.get_Necessary() - this._necessary);
+			this._account.set_NecessaryForPartialPaymentPhysicalOrder(this._account.get_NecessaryForPartialPaymentPhysicalOrder() - this._necessaryForPartialPaymentPhysicalOrder);
 			this._account.set_FrozenFund(this._account.get_FrozenFund() - this._frozenFund);
+			this._account.set_TotalPaidAmount(this._account.get_TotalPaidAmount() - this._totalPaidAmount);
 			this._account.set_UnclearAmount(this._account.get_UnclearAmount() - this._unclearAmount);
 		}
 		//TradingItem deltaTradingItem = TradingItem.create(0.0 - this._floatTradingItem.get_Interest(), 0.0 - this._floatTradingItem.get_Storage(),
@@ -299,6 +315,7 @@ public class AccountCurrency
 		double necessary = 0.0;
 		double valueAsMargin = 0.0;
 		double frozenFund = 0.0;
+		double totalPaidAmount = 0.0;
 		double interestPLNotValued = 0.0;
 		double storagePLNotValued = 0.0;
 		double tradePLNotValued = 0.0;
@@ -328,6 +345,10 @@ public class AccountCurrency
 			else if (nodeName.equals("FrozenFund"))
 			{
 				frozenFund = Double.valueOf(nodeValue).doubleValue();
+			}
+			else if (nodeName.equals("TotalPaidAmount"))
+			{
+				totalPaidAmount = Double.valueOf(nodeValue).doubleValue();
 			}
 			else if (nodeName.equals("InterestPLNotValued"))
 			{
@@ -371,10 +392,11 @@ public class AccountCurrency
 					accountCurrency._unclearAmount += unclearAmount;
 					accountCurrency._necessary += necessary;
 					accountCurrency._frozenFund += frozenFund;
+					accountCurrency._totalPaidAmount += totalPaidAmount;
 					accountCurrency._notValuedTradingItem = TradingItem.add(accountCurrency._notValuedTradingItem,
-						TradingItem.create(interestPLNotValued, storagePLNotValued, tradePLNotValued, 0.00));
+						TradingItem.create(interestPLNotValued, storagePLNotValued, tradePLNotValued, 0.00,0));
 					accountCurrency._floatTradingItem = TradingItem.add(accountCurrency._floatTradingItem,
-						TradingItem.create(0.00, 0.00, 0.00, valueAsMargin));
+						TradingItem.create(0.00, 0.00, 0.00, valueAsMargin, 0));
 					//TradingItem deltaTradingItem = TradingItem.create(interestPLFloat, storagePLFloat, tradePLFloat);
 					//accountCurrency.calculate(deltaTradingItem);
 				}
@@ -409,15 +431,16 @@ public class AccountCurrency
 				accountCurrency._necessary -= necessary;
 				accountCurrency._frozenFund -= frozenFund;
 				accountCurrency._notValuedTradingItem = TradingItem.add(accountCurrency._notValuedTradingItem,
-					TradingItem.create(0.0 - interestPLNotValued, 0.0 - storagePLNotValued, 0.0 - tradePLNotValued, 0.00));
+					TradingItem.create(0.0 - interestPLNotValued, 0.0 - storagePLNotValued, 0.0 - tradePLNotValued, 0.00,0));
 				accountCurrency._floatTradingItem = TradingItem.add(accountCurrency._floatTradingItem,
-					TradingItem.create(0.0, 0.0, 0.0, 0.0 - valueAsMargin));
+					TradingItem.create(0.0, 0.0, 0.0, 0.0 - valueAsMargin,0));
 				//TradingItem deltaTradingItem = TradingItem.create(0.0 - interestPLFloat, 0.0 - storagePLFloat, 0.0 - tradePLFloat);
 				//accountCurrency.calculate(deltaTradingItem);
 				accountCurrency.updateNode();
 			}
 		}
-		if (account.get_IsMultiCurrency())
+		account.resum();
+		/*if (account.get_IsMultiCurrency())
 		{
 			CurrencyRate currencyRate = settingsManager.getCurrencyRate(accountCurrency.get_Currency().get_Id(), account.get_Currency().get_Id());
 			account.set_Balance(account.get_Balance() + currencyRate.exchange(balance));
@@ -432,7 +455,7 @@ public class AccountCurrency
 			account.set_FrozenFund(account.get_FrozenFund() + frozenFund);
 			account.set_UnclearAmount(account.get_UnclearAmount() + unclearAmount);
 		}
-		account.calculateEquity();
+		account.calculateEquity();*/
 		account.updateNode();
 	}
 
@@ -459,6 +482,16 @@ public class AccountCurrency
 	public void set_Necessary(double necessary)
 	{
 		this._necessary = necessary;
+	}
+
+	public double get_NecessaryForPartialPaymentPhysicalOrder()
+	{
+		return this._necessaryForPartialPaymentPhysicalOrder;
+	}
+
+	public void set_NecessaryForPartialPaymentPhysicalOrder(double value)
+	{
+		this._necessaryForPartialPaymentPhysicalOrder = value;
 	}
 
 	public void addBalance(double deltaBalance)

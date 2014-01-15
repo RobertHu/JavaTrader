@@ -185,6 +185,12 @@ public class PendingInventoryManager
 		return (DeliveryRequest)this.pendingInventories.get(deliveryRequestId);
 	}
 
+	public void cancelScrapDeposit(XmlNode xmlNode)
+	{
+		Guid id = new Guid(xmlNode.get_Attributes().get_ItemOf("Id").get_Value());
+		this.remove(id);
+	}
+
 	public void addOrUpdateScrapDeposit(XmlNode xmlNode)
 	{
 		Guid id = new Guid(xmlNode.get_Attributes().get_ItemOf("Id").get_Value());
@@ -193,20 +199,27 @@ public class PendingInventoryManager
 			ScrapDeposit scrapDeposit = (ScrapDeposit)this.pendingInventories.get(id);
 			scrapDeposit.initialize(xmlNode, tradingConsole.get_SettingsManager());
 			tradingConsole.bindingManager.update(PendingInventory.bindingKey, scrapDeposit);
+			if(scrapDeposit.get_ScrapDepositStatus().equals(ScrapDepositStatus.OrderCreated))
+			{
+				this.remove(id);
+			}
 		}
 		else
 		{
 			ScrapDeposit scrapDeposit = new ScrapDeposit();
 			scrapDeposit.initialize(xmlNode, tradingConsole.get_SettingsManager());
-			this.pendingInventories.put(scrapDeposit.getId(), scrapDeposit);
-			Guid accountId = scrapDeposit.getAccount().get_Id();
-			if (!this.account2PendingInventories.containsKey(accountId))
+			if(scrapDeposit.get_ScrapDepositStatus().equals(ScrapDepositStatus.WaitingForAssay)
+				|| scrapDeposit.get_ScrapDepositStatus().equals(ScrapDepositStatus.Assaied))
 			{
-				this.account2PendingInventories.put(accountId, new ArrayList<PendingInventory> ());
+				this.pendingInventories.put(scrapDeposit.getId(), scrapDeposit);
+				Guid accountId = scrapDeposit.getAccount().get_Id();
+				if (!this.account2PendingInventories.containsKey(accountId))
+				{
+					this.account2PendingInventories.put(accountId, new ArrayList<PendingInventory> ());
+				}
+				this.account2PendingInventories.get(accountId).add(scrapDeposit);
+				tradingConsole.bindingManager.add(PendingInventory.bindingKey, scrapDeposit);
 			}
-			this.account2PendingInventories.get(accountId).add(scrapDeposit);
-
-			tradingConsole.bindingManager.add(PendingInventory.bindingKey, scrapDeposit);
 		}
 	}
 

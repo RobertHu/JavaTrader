@@ -71,7 +71,6 @@ public class RepaymentForm extends JDialog
 			settingsManager.getTradePolicyDetail(account.get_TradePolicyId(), instrument.get_Id());
 		this.instalmentPolicy = settingsManager.getInstalmentPolicy(tadePolicyDetail.get_InstalmentPolicyId());
 		this.instalmentPolicyDetail = this.instalmentPolicy.get_TillPayoffDetail();
-
 		this.jbInit();
 
 		this.confirmButton.addActionListener(new ActionListener()

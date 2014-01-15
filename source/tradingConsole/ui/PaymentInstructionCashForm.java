@@ -199,6 +199,7 @@ public class PaymentInstructionCashForm extends JDialog implements VerifyMarginP
 			this.amountEdit.setForeground(Color.BLACK);
 		}
 
+		boolean needBeneficiary = this._account.get_NeedBeneficiaryInPaymentInstruction();
 		boolean enable = true;
 		if (!EmailInputVerifier.isValidEmail(false, true, email)
 			|| StringHelper.isNullOrEmpty(organizationName)
@@ -206,8 +207,8 @@ public class PaymentInstructionCashForm extends JDialog implements VerifyMarginP
 			|| StringHelper.isNullOrEmpty(currency)
 			|| StringHelper.isNullOrEmpty(amount)
 			|| (!StringHelper.isNullOrEmpty(amount) && AppToolkit.convertStringToDouble(this.amountEdit.getText()) <= 0)
-			|| StringHelper.isNullOrEmpty(beneficiaryName)
-			|| StringHelper.isNullOrEmpty(beneficiaryAddress))
+			|| (needBeneficiary && StringHelper.isNullOrEmpty(beneficiaryName))
+			|| (needBeneficiary && StringHelper.isNullOrEmpty(beneficiaryAddress)))
 		{
 			enable = false;
 		}
@@ -217,7 +218,9 @@ public class PaymentInstructionCashForm extends JDialog implements VerifyMarginP
 
 	private void jbInit()
 	{
-		this.setSize(465, 670);
+		boolean showBeneficiary = this._account.get_NeedBeneficiaryInPaymentInstruction();
+		int height = showBeneficiary ? 670 : 520;
+		this.setSize(465, height);
 		this.setResizable(false);
 		this.setLayout(null);
 		this.setTitle(Language.PaymentInstructionPrompt);
@@ -255,14 +258,11 @@ public class PaymentInstructionCashForm extends JDialog implements VerifyMarginP
 		amountCaptionStaticText.setText("Amount:");
 		this.add(PVStaticText2.createNotNullFlagFor(amountCaptionStaticText));
 
-		separator2CaptionStaticText.setBounds(new Rectangle(16, 585, 428, 2));
 		separator2CaptionStaticText.setBorder(border2);
 		separator2CaptionStaticText.setPreferredSize(new Dimension(428, 2));
 		separator2CaptionStaticText.setToolTipText("");
-		submitButton.setBounds(new Rectangle(155, 605, 70, 23));
 		submitButton.setText("Submit");
 		submitButton.addActionListener(new PaymentInstructionCashForm_submitButton_actionAdapter(this));
-		resetButton.setBounds(new Rectangle(235, 605, 70, 23));
 		resetButton.setText("Reset");
 		resetButton.addActionListener(new PaymentInstructionCashForm_resetButton_actionAdapter(this));
 		messageCaptionStaticText.setBounds(new Rectangle(16, 588, 423, 20));
@@ -280,29 +280,47 @@ public class PaymentInstructionCashForm extends JDialog implements VerifyMarginP
 		amountEdit.addFocusListener(new PaymentInstructionCashForm_amountEdit_focusAdapter(this));
 		currencyChoice.setBounds(new Rectangle(307, 244, 100, 20));
 		currencyChoice.addActionListener(new PaymentInstructionCashForm_currencyChoice_actionAdapter(this));
-		beneficiaryNameCaptionStaticText.setBounds(new Rectangle(16, 283, 166, 20));
-		beneficiaryNameCaptionStaticText.setText("Name of beneficiary:");
-		this.add(PVStaticText2.createNotNullFlagFor(beneficiaryNameCaptionStaticText));
 
-		beneficiaryAddressCaptionStaticText.setBounds(new Rectangle(16, 351, 166, 20));
-		beneficiaryAddressCaptionStaticText.setText("Address of Beneficiary:");
-		this.add(PVStaticText2.createNotNullFlagFor(beneficiaryAddressCaptionStaticText));
+		if(showBeneficiary)
+		{
+			beneficiaryNameCaptionStaticText.setBounds(new Rectangle(16, 283, 166, 20));
+			beneficiaryNameCaptionStaticText.setText("Name of beneficiary:");
+			this.add(PVStaticText2.createNotNullFlagFor(beneficiaryNameCaptionStaticText));
 
-		specialInstructionCaptionStaticText.setBounds(new Rectangle(16, 396, 166, 20));
-		specialInstructionCaptionStaticText.setText("Special Instruction:");
-		remarksCaptionStaticText.setBounds(new Rectangle(16, 483, 170, 20));
+			beneficiaryAddressCaptionStaticText.setBounds(new Rectangle(16, 351, 166, 20));
+			beneficiaryAddressCaptionStaticText.setText("Address of Beneficiary:");
+			this.add(PVStaticText2.createNotNullFlagFor(beneficiaryAddressCaptionStaticText));
+
+			beneficiaryNameTextArea.setBounds(new Rectangle(196, 268, 249, 60));
+			beneficiaryAddressTextArea.setBounds(new Rectangle(196, 333, 249, 58));
+
+			specialInstructionCaptionStaticText.setBounds(new Rectangle(16, 396, 166, 20));
+			specialInstructionCaptionStaticText.setText("Special Instruction:");
+			specialInstructionEdit.setBounds(new Rectangle(196, 396, 249, 20));
+			specialInstructionEdit.setFont(new Font("SansSerif", Font.BOLD, 11));
+			specialInstructionEdit.setText("Please pay in Cash to the Beneficiary above");
+			specialInstructionEdit.setEditable(false);
+
+			remarksCaptionStaticText.setBounds(new Rectangle(16, 483, 170, 20));
+			remarksTextArea.setBounds(new Rectangle(196, 420, 249, 145));
+
+			separator2CaptionStaticText.setBounds(new Rectangle(16, 585, 428, 2));
+			submitButton.setBounds(new Rectangle(155, 605, 70, 23));
+			resetButton.setBounds(new Rectangle(235, 605, 70, 23));
+		}
+		else
+		{
+			remarksCaptionStaticText.setBounds(new Rectangle(16, 283, 170, 20));
+			remarksTextArea.setBounds(new Rectangle(196, 280, 249, 145));
+
+			separator2CaptionStaticText.setBounds(new Rectangle(16, 445, 428, 2));
+			submitButton.setBounds(new Rectangle(155, 455, 70, 23));
+			resetButton.setBounds(new Rectangle(235, 455, 70, 23));
+		}
 		remarksCaptionStaticText.setFont(new Font("SansSerif", Font.BOLD, 11));
 		remarksCaptionStaticText.setText("DECLARATION AND WARRANTY:");
-		beneficiaryNameTextArea.setBounds(new Rectangle(196, 268, 249, 60));
-		beneficiaryAddressTextArea.setBounds(new Rectangle(196, 333, 249, 58));
-
-		remarksTextArea.setBounds(new Rectangle(196, 420, 249, 145));
 		remarksTextArea.setEditable(false);
 
-		specialInstructionEdit.setBounds(new Rectangle(196, 396, 249, 20));
-		specialInstructionEdit.setFont(new Font("SansSerif", Font.BOLD, 11));
-		specialInstructionEdit.setText("Please pay in Cash to the Beneficiary above");
-		specialInstructionEdit.setEditable(false);
 		this.add(paymentInstructionCaptionStaticText);
 		this.add(paymentInstructionCaptionStaticText2);
 		this.add(reportDateStaticText);
@@ -325,16 +343,20 @@ public class PaymentInstructionCashForm extends JDialog implements VerifyMarginP
 		this.add(emailCaptionStaticText);
 		this.add(amountCaptionStaticText);
 		//this.add(clientCaptionStaticText);
-		this.add(beneficiaryAddressCaptionStaticText);
-		this.add(specialInstructionCaptionStaticText);
-		this.add(specialInstructionEdit);
-		specialInstructionEdit.addKeyListener(keyAdapter);
-		this.add(beneficiaryAddressTextArea);
-		beneficiaryAddressTextArea.addKeyAdapter(keyAdapter);
+		if(showBeneficiary)
+		{
+			this.add(beneficiaryAddressCaptionStaticText);
+			this.add(specialInstructionCaptionStaticText);
+			this.add(specialInstructionEdit);
+			specialInstructionEdit.addKeyListener(keyAdapter);
+			this.add(beneficiaryAddressTextArea);
+			beneficiaryAddressTextArea.addKeyAdapter(keyAdapter);
+			this.add(beneficiaryNameCaptionStaticText);
+		}
+
 		this.add(remarksTextArea);
 		remarksTextArea.addKeyAdapter(keyAdapter);
 		this.add(remarksCaptionStaticText);
-		this.add(beneficiaryNameCaptionStaticText);
 		this.add(separator2CaptionStaticText);
 		this.add(resetButton);
 		this.add(messageCaptionStaticText);
@@ -389,6 +411,7 @@ public class PaymentInstructionCashForm extends JDialog implements VerifyMarginP
 			this.amountEdit.setForeground(Color.BLACK);
 		}
 
+		boolean needBeneficiary = this._account.get_NeedBeneficiaryInPaymentInstruction();
 		boolean canSubmit = true;
 		if (!EmailInputVerifier.isValidEmail(false, true, email)
 			|| StringHelper.isNullOrEmpty(organizationName)
@@ -396,8 +419,8 @@ public class PaymentInstructionCashForm extends JDialog implements VerifyMarginP
 			|| StringHelper.isNullOrEmpty(currency)
 			|| StringHelper.isNullOrEmpty(amount)
 			|| (!StringHelper.isNullOrEmpty(amount) && AppToolkit.convertStringToDouble(this.amountEdit.getText()) <= 0)
-			|| StringHelper.isNullOrEmpty(beneficiaryName)
-			|| StringHelper.isNullOrEmpty(beneficiaryAddress))
+			|| (needBeneficiary && StringHelper.isNullOrEmpty(beneficiaryName))
+			|| (needBeneficiary && StringHelper.isNullOrEmpty(beneficiaryAddress)))
 		{
 			canSubmit = false;
 		}

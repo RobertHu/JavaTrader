@@ -67,12 +67,16 @@ public class Order
 
 	private Guid _instalmentPolicyId;
 	private InstalmentType _physicalInstalmentType;
-	private int _period;
+	private InstalmentPeriod _instalmentPeriod;
 	private BigDecimal _instalmentFee;
 	private BigDecimal _downPayment;
 	private RecalculateRateType	_recalculateRateType;
 	private BigDecimal _physicalOriginValue;
+	private BigDecimal _physicalOriginValueBalance;
 	private BigDecimal _physicalPaidValue;
+	private BigDecimal _physicalUnpaidValue = BigDecimal.ZERO;
+	private BigDecimal _paidPledge = BigDecimal.ZERO;
+	private BigDecimal _paidPledgeBalance = BigDecimal.ZERO;
 
 	private boolean _isInstalmentOverdue;
 
@@ -714,7 +718,7 @@ public class Order
 
 	public String get_TradePLString()
 	{
-		return AppToolkit.format(this._pLTradingItem.get_Trade(), this._displayDecimals);
+		return AppToolkit.format(this._pLTradingItem.get_Trade() + this._pLTradingItem.get_PhysicalTrade(), this._displayDecimals);
 	}
 
 	public double get_MarketValue()
@@ -725,6 +729,42 @@ public class Order
 	public String get_MarketValueString()
 	{
 		return AppToolkit.format(this._marketValue, this._displayDecimals);
+	}
+
+	public BigDecimal get_UnpaidValue()
+	{
+		return this._physicalUnpaidValue;
+	}
+
+	public String get_UnpaidValueString()
+	{
+		return this._physicalUnpaidValue == null || this._physicalUnpaidValue.compareTo(BigDecimal.ZERO) == 0 ? "" : AppToolkit.format(this._physicalUnpaidValue, this._displayDecimals);
+	}
+
+	public BigDecimal get_PaidValue()
+	{
+		return this._paidPledgeBalance;
+	}
+
+	public String get_PaidValueString()
+	{
+		BigDecimal paidValue = this.get_PaidValue();
+		return paidValue == null || paidValue.compareTo(BigDecimal.ZERO) == 0 ? "" : AppToolkit.format(paidValue, this._displayDecimals);
+	}
+
+	public String get_ValueAsMarginString()
+	{
+		return AppToolkit.format(this._valueAsMargin, this._displayDecimals);
+	}
+
+	public String get_PaidPledgeString()
+	{
+		return AppToolkit.format((this.isPayOff() ? BigDecimal.ZERO : this._paidPledgeBalance.abs()), this._displayDecimals);
+	}
+
+	public double get_ValueAsMargin()
+	{
+		return this._valueAsMargin;
 	}
 
 	public String get_CommissionSumString()
@@ -931,7 +971,15 @@ public class Order
 
 	public String get_TradePLFloatString()
 	{
-		return AppToolkit.format(this._floatTradingItem.get_Trade(), this._displayDecimals);
+		InstrumentCategory category = this._transaction.get_Instrument().get_Category();
+		if(this._isBuy && this.isPayOff() && category.equals(InstrumentCategory.Physical))
+		{
+			return "";
+		}
+		else
+		{
+			return AppToolkit.format(this._floatTradingItem.get_Trade(), this._displayDecimals);
+		}
 	}
 
 	public double get_InterestPLFloat()
@@ -990,11 +1038,39 @@ public class Order
 		return (StringHelper.isNullOrEmpty(relationString)) ? this._peerOrderCodes : relationString;
 	}
 
+	public void subtractClosedPhysicalValue(BigDecimal closedPhysicalValue)
+	{
+		this._physicalOriginValueBalance = this._physicalOriginValueBalance.subtract(closedPhysicalValue);
+		this.caculatePhysicalUnpaidValue();
+		this.update();
+	}
+
+	public void subtractPaybackPledge(BigDecimal payBackPledge)
+	{
+		this._paidPledgeBalance = this._paidPledgeBalance.add(payBackPledge);
+		this.caculatePhysicalUnpaidValue();
+		this.update();
+	}
+
 	public void set_LotBalance(BigDecimal value)
 	{
-		if (this._lotBalance.compareTo(value) != 0)
+		this.set_LotBalance(value, false);
+	}
+
+	public void set_LotBalance(BigDecimal value, boolean isDelivery)
+	{
+		boolean changed = isDelivery ? this._deliveryLockedLot.compareTo(value) != 0 : this._lotBalance.compareTo(value) != 0;
+		if (changed)
 		{
-			this._lotBalance = value;
+			if(!isDelivery)
+			{
+				this._lotBalance = value;
+			}
+			else
+			{
+				this._deliveryLockedLot = value;
+			}
+
 			RelationOrder.get_OrderStateReceiver().lotBanlanceChanged(this);
 
 			Guid instrumentId = this.get_Transaction().get_Instrument().get_Id();
@@ -1054,9 +1130,9 @@ public class Order
 		this._sequence = 0;
 
 		this._displayDecimals = Short.MIN_VALUE;
-		this._pLTradingItem = TradingItem.create(0.00, 0.00, 0.00, 0.00);
-		this._floatTradingItem = TradingItem.create(0.00, 0.00, 0.00, 0.00);
-		this._notValuedTradingItem = TradingItem.create(0.00, 0.00, 0.00, 0.00);
+		this._pLTradingItem = TradingItem.create();
+		this._floatTradingItem = TradingItem.create();
+		this._notValuedTradingItem = TradingItem.create();
 		this._isAssignOrder = false;
 
 		this._code = "";
@@ -1086,7 +1162,7 @@ public class Order
 		this._displayDecimals = this.getDisplayDecimals();
 		this.setValue(dataRow);
 		this.initInstalmentInfo();
-		this.caculateValueAsMarginForInstalment();
+		//this.caculateValueAsMarginForInstalment();
 
 		//Modified by Michael on 2008-04-22
 		//this._livePrice = this._transaction.get_Instrument().get_LastQuotation().getBuySell(!this._isBuy);
@@ -1111,7 +1187,7 @@ public class Order
 		{
 			InstalmentInfo instalmentInfo = this._transaction.get_InstalmentInfo();
 			this._instalmentPolicyId = instalmentInfo.get_InstalmentPolicyId();
-			this._period = instalmentInfo.get_Period();
+			this._instalmentPeriod = instalmentInfo.get_Period();
 			this._downPayment = instalmentInfo.get_DownPayment();
 			this._recalculateRateType = instalmentInfo.get_RecalculateRateType();
 			this._physicalInstalmentType = instalmentInfo.get_InstalmentType();
@@ -1217,13 +1293,15 @@ public class Order
 
 		if(dataRow.get_Table().get_Columns().contains("Period"))
 		{
-			if (dataRow.get_Item("Period") == DBNull.value)
+			if (dataRow.get_Item("Period") != DBNull.value)
 			{
-				this._period = 0;
-			}
-			else
-			{
-				this._period = (Integer)dataRow.get_Item("Period");
+				int period = (Integer)dataRow.get_Item("Period");
+				InstalmentFrequence frequence = InstalmentFrequence.Month;
+				if(dataRow.get_Table().get_Columns().contains("InstalmentFrequence"))
+				{
+					frequence = Enum.valueOf(InstalmentFrequence.class, (Integer)dataRow.get_Item("InstalmentFrequence"));
+				}
+				this._instalmentPeriod = InstalmentPeriod.create(period, frequence);
 			}
 		}
 
@@ -1249,6 +1327,34 @@ public class Order
 			{
 				this._recalculateRateType = Enum.valueOf(RecalculateRateType.class, (Integer)dataRow.get_Item("RecalculateRateType"));
 			}
+		}
+
+		if (dataRow.get_Table().get_Columns().contains("PaidPledge") && dataRow.get_Item("PaidPledge") != DBNull.value)
+		{
+			this._paidPledge = (BigDecimal)dataRow.get_Item("PaidPledge");
+		}
+		else
+		{
+			this._paidPledge = BigDecimal.ZERO;
+		}
+
+
+		if (dataRow.get_Table().get_Columns().contains("PaidPledgeBalance") && dataRow.get_Item("PaidPledgeBalance") != DBNull.value)
+		{
+			this._paidPledgeBalance = (BigDecimal)dataRow.get_Item("PaidPledgeBalance");
+		}
+		else
+		{
+			this._paidPledgeBalance = BigDecimal.ZERO;
+		}
+
+		if (dataRow.get_Table().get_Columns().contains("PhysicalOriginValueBalance") && dataRow.get_Item("PhysicalOriginValueBalance") != DBNull.value)
+		{
+			this._physicalOriginValueBalance = (BigDecimal)dataRow.get_Item("PhysicalOriginValueBalance");
+		}
+		else
+		{
+			this._physicalOriginValueBalance = BigDecimal.ZERO;
 		}
 
 		if(dataRow.get_Table().get_Columns().contains("PhysicalOriginValue"))
@@ -1287,9 +1393,9 @@ public class Order
 			}
 		}
 
-		if(dataRow.get_Table().get_Columns().contains("PhysicalPaidAmount"))
+		if(dataRow.get_Table().get_Columns().contains("IsInstalmentOverdue"))
 		{
-			if (dataRow.get_Item("PhysicalPaidAmount") == DBNull.value)
+			if (dataRow.get_Item("IsInstalmentOverdue") == DBNull.value)
 			{
 				this._isInstalmentOverdue = false;
 			}
@@ -1298,6 +1404,8 @@ public class Order
 				this._isInstalmentOverdue = (Boolean)dataRow.get_Item("IsInstalmentOverdue");
 			}
 		}
+
+		this.caculatePhysicalUnpaidValue();
 
 		this._commissionSum = AppToolkit.convertDBValueToBigDecimal(dataRow.get_Item("CommissionSum"), 0.0);
 		this._levySum = AppToolkit.convertDBValueToBigDecimal(dataRow.get_Item("LevySum"), 0.0);
@@ -1432,7 +1540,10 @@ public class Order
 			}
 			else if(nodeName.equals("Period"))
 			{
-				this._period = Integer.parseInt(nodeValue);
+				int period = Integer.parseInt(nodeValue);
+				nodeValue = orderCollection.get_ItemOf("InstalmentFrequence").get_Value();
+				InstalmentFrequence frequence = Enum.valueOf(InstalmentFrequence.class, Integer.parseInt(nodeValue));
+				this._instalmentPeriod = InstalmentPeriod.create(period, frequence);
 			}
 			else if(nodeName.equals("DownPayment"))
 			{
@@ -1446,11 +1557,23 @@ public class Order
 			{
 				this._physicalOriginValue = new BigDecimal(nodeValue);
 			}
+			else if(nodeName.equals("PhysicalOriginValueBalance"))
+			{
+				this._physicalOriginValueBalance = new BigDecimal(nodeValue);
+			}
+			else if(nodeName.equals("PaidPledge"))
+			{
+				this._paidPledge = new BigDecimal(nodeValue);
+			}
+			else if(nodeName.equals("PaidPledgeBalance"))
+			{
+				this._paidPledgeBalance = new BigDecimal(nodeValue);
+			}
 			else if(nodeName.equals("InstalmentAdministrationFee"))
 			{
 				this._instalmentFee = new BigDecimal(nodeValue);
 			}
-			else if(nodeName.equals("PhysicalPaidValue"))
+			else if(nodeName.equals("PhysicalPaidAmount"))
 			{
 				this._physicalPaidValue = new BigDecimal(nodeValue);
 			}
@@ -1522,6 +1645,8 @@ public class Order
 
 			this._tradingConsole.refreshSummary();
 		}
+
+		this.caculatePhysicalUnpaidValue();
 
 		//maybe has error...........
 		//Modified by Michael on 2008-04-22
@@ -1951,7 +2076,7 @@ public class Order
 
 	public static PropertyDescriptor[] getPropertyDescriptorsForShortSell()
 	{
-		PropertyDescriptor[] propertyDescriptors = new PropertyDescriptor[9];
+		PropertyDescriptor[] propertyDescriptors = new PropertyDescriptor[10];
 
 		int index = 0;
 		PropertyDescriptor propertyDescriptor = PropertyDescriptor.create(Order.class, OpenOrderColKey.AccountCode, true, null, OpenOrderLanguage.AccountCode,
@@ -1972,6 +2097,10 @@ public class Order
 
 		propertyDescriptor = PropertyDescriptor.create(Order.class, PhysicalInventoryColKey.Unit, true, null, PhysicalInventoryLanguage.Unit,
 			80, SwingConstants.CENTER, null, null, null, null);
+		propertyDescriptors[index++] = propertyDescriptor;
+
+		propertyDescriptor = PropertyDescriptor.create(Order.class, PhysicalInventoryColKey.PaidPledgeString, true, null, PhysicalInventoryLanguage.PledgeValue,
+					80, SwingConstants.CENTER, null, null);
 		propertyDescriptors[index++] = propertyDescriptor;
 
 		propertyDescriptor = PropertyDescriptor.create(Order.class, PhysicalInventoryColKey.Currency, true, null, AccountSingleLanguage.CurrencyCode,
@@ -1995,7 +2124,7 @@ public class Order
 
 	public static PropertyDescriptor[] getPropertyDescriptorsForPhysical()
 	{
-		PropertyDescriptor[] propertyDescriptors = new PropertyDescriptor[5];
+		PropertyDescriptor[] propertyDescriptors = new PropertyDescriptor[10];
 
 		int index = 0;
 		PropertyDescriptor propertyDescriptor = PropertyDescriptor.create(Order.class, OpenOrderColKey.ShortCode, false, null, OpenOrderLanguage.ShortCode,
@@ -2016,7 +2145,28 @@ public class Order
 
 		propertyDescriptor = PropertyDescriptor.create(Order.class, PhysicalInventoryColKey.Weight, true, null, PhysicalInventoryLanguage.Weight,
 			120, SwingConstants.CENTER, null, null);
+
 		propertyDescriptors[index++] = propertyDescriptor;
+		propertyDescriptor = PropertyDescriptor.create(Order.class, OpenOrderColKey.TradePLFloatString, true, null, OpenOrderLanguage.TradePLFloatString,
+			80, SwingConstants.CENTER, null, null);
+		propertyDescriptors[index++] = propertyDescriptor;
+
+		propertyDescriptor = PropertyDescriptor.create(Order.class, PhysicalInventoryColKey.MarketValueString, true, null, PhysicalInventoryLanguage.MarketValue,
+			120, SwingConstants.CENTER, null, null);
+		propertyDescriptors[index++] = propertyDescriptor;
+
+		propertyDescriptor = PropertyDescriptor.create(Order.class, PhysicalInventoryColKey.PaidPledgeString, true, null, PhysicalInventoryLanguage.PledgeValue,
+			120, SwingConstants.CENTER, null, null);
+		propertyDescriptors[index++] = propertyDescriptor;
+
+		propertyDescriptor = PropertyDescriptor.create(Order.class, PhysicalInventoryColKey.UnpaidValueString, true, null, PhysicalInventoryLanguage.UnpaidValue,
+			120, SwingConstants.CENTER, null, null);
+		propertyDescriptors[index++] = propertyDescriptor;
+
+		propertyDescriptor = PropertyDescriptor.create(Order.class, PhysicalInventoryColKey.ValueAsMarginString, true, null, AccountSingleLanguage.ValueAsMargin,
+			120, SwingConstants.CENTER, null, null);
+		propertyDescriptors[index++] = propertyDescriptor;
+
 
 		return propertyDescriptors;
 	}
@@ -2345,6 +2495,8 @@ public class Order
 			if (this._tradingConsole.getWorkingOrder(this._id) != null)
 			{
 				TradingConsole.bindingManager.update(Order.workingOrdersKey, this, propertyName, value);
+				TradingConsole.bindingManager.update(Order.notConfirmedPendingOrdersKey, this, propertyName, value);
+
 				if (this._transaction.get_OrderType().equals(OrderType.Limit)
 					|| this._transaction.get_OrderType().equals(OrderType.Stop)
 					|| this._transaction.get_OrderType().equals(OrderType.OneCancelOther))
@@ -2403,10 +2555,11 @@ public class Order
 			|| operateWhichOrderUI.equals(OperateWhichOrderUI.WorkingOrderList))
 		{
 			TradingConsole.bindingManager.update(Order.workingOrdersKey, this);
+			TradingConsole.bindingManager.update(Order.notConfirmedPendingOrdersKey, this);
 			this.orderStyleWorkingOrderList();
 			if (this._tradingConsole.getWorkingOrder(this._id) != null)
 			{
-				if (this.get_Phase() != Phase.Placed && this.get_Phase() != Phase.Placing)
+				//if (this.get_Phase() != Phase.Placed && this.get_Phase() != Phase.Placing)
 				{
 					if (CloseOrder.CloseOrderHelper.getCreatedCloseOrders(this) != null)
 					{
@@ -2673,7 +2826,7 @@ public class Order
 	{
 		if (this._isOpen)
 		{
-			TradingItem tradingItem = TradingItem.create(0.00, 0.00, 0.00, 0.00);
+			TradingItem tradingItem = TradingItem.create();
 
 			Price close = null;
 			if (this._isBuy)
@@ -2691,9 +2844,8 @@ public class Order
 				sell = this._executePrice.clone();
 			}
 
-			boolean needCaculateTradePLAndMargin
-				= this._physicalTradeSide.equals(PhysicalTradeSide.None) || this._physicalTradeSide.equals(PhysicalTradeSide.ShortSell);
-			this._margin = needCaculateTradePLAndMargin ? this.calculateMargin(close) : 0;
+			boolean isRisky = this.isRisky();
+			this._margin = isRisky ? this.calculateMargin(close) : 0;
 
 			//Modified by Michael on 2008-04-22
 			//this._livePrice = Price.clone(close);
@@ -2709,7 +2861,7 @@ public class Order
 			short decimals = this._transaction.get_Instrument().get_Currency().get_Decimals();
 			tradingItem.set_Interest(AppToolkit.round(this._lotBalance.doubleValue() * this._interestPerLot.doubleValue(), decimals));
 			tradingItem.set_Storage(AppToolkit.round(this._lotBalance.doubleValue() * this._storagePerLot.doubleValue(), decimals));
-			tradingItem.set_Trade(needCaculateTradePLAndMargin ? this.calculateTradePL2(this.get_Transaction().get_Instrument().get_TradePLFormula(), this._lotBalance,
+			tradingItem.set_Trade(isRisky ? this.calculateTradePL2(this.get_Transaction().get_Instrument().get_TradePLFormula(), this._lotBalance,
 				this.get_Transaction().get_ContractSize(), buy, sell, close, decimals) : 0);
 
 			this.caculateMarketValue(close);
@@ -2747,14 +2899,14 @@ public class Order
 			if (livePrice == null)	livePrice = this._executePrice;
 
 			this.caculateMarketValue(livePrice);
-			double valueAsMargin = AppToolkit.round(this._valueAsMargin, decimals);
-			if (this._transaction.get_Account().get_IsMultiCurrency() == false)
+			double valueAsMargin = this._valueAsMargin;
+			/*if (this._transaction.get_Account().get_IsMultiCurrency() == false)
 			{
 				Guid instrumentCurrencyId = this._transaction.get_Instrument().get_Currency().get_Id();
 				Guid accountCurrencyId = this._transaction.get_Account().get_Currency().get_Id();
 				CurrencyRate currencyRate = this._settingsManager.getCurrencyRate(instrumentCurrencyId, accountCurrencyId);
 				valueAsMargin = currencyRate.exchange(valueAsMargin);
-			}
+			}*/
 			this._floatTradingItem.set_ValueAsMargin(AppToolkit.round(valueAsMargin, this._displayDecimals));
 		}
 	}
@@ -2782,16 +2934,6 @@ public class Order
 		return marketValue;
 	}
 
-	private void caculateValueAsMarginForInstalment()
-	{
-		if(this._instalmentPolicyId != null && !this.IsPayOff() && this._physicalPaidValue != null)
-		{
-			InstalmentPolicy instalmentPolicy
-				= this.get_Account().get_TradingConsole().get_SettingsManager().getInstalmentPolicy(this._instalmentPolicyId);
-			this._valueAsMargin = this._physicalPaidValue.abs().doubleValue() * instalmentPolicy.get_ValueDiscountAsMargin().doubleValue();
-		}
-	}
-
 	private void caculateMarketValue(Price livePirce)
 	{
 		//if(livePirce.equals(this._livePrice) && this._marketValue != 0) return this._floatTradingItem.get_ValueAsMargin();
@@ -2809,11 +2951,6 @@ public class Order
 			short tradePLFormula = this.get_Instrument().get_TradePLFormula();
 			marketValue = Order.caculateMarketValue(livePirce, tradePLFormula, lot, this._transaction.get_ContractSize().doubleValue(), oddDiscount);
 
-			if(this._instalmentPolicyId == null || this.IsPayOff())
-			{
-				this._valueAsMargin = marketValue * tradePolicyDetail.get_ValueDiscountAsMargin().doubleValue();
-			}
-
 			if (this._transaction.get_Account().get_IsMultiCurrency() == false)
 			{
 				Guid instrumentCurrencyId = this._transaction.get_Instrument().get_Currency().get_Id();
@@ -2822,6 +2959,11 @@ public class Order
 				marketValue = currencyRate.exchange(marketValue);
 			}
 			this._marketValue = marketValue;
+
+			if(this._instalmentPolicyId == null || this.isPayOff())
+			{
+				this._valueAsMargin = marketValue * tradePolicyDetail.get_ValueDiscountAsMargin().doubleValue();
+			}
 		}
 	}
 
@@ -3065,6 +3207,8 @@ public class Order
 			String[] str2 = StringHelper.split(str1[i], TradingConsole.delimiterCol);
 			Guid relationId = new Guid(str2[0]);
 			BigDecimal relationLiqLot = AppToolkit.convertStringToBigDecimal(str2[1]);
+			BigDecimal payBackPledge = AppToolkit.convertStringToBigDecimal(str2[3]);
+			BigDecimal closedPhysicalValue = AppToolkit.convertStringToBigDecimal(str2[4]);
 
 			Order openOrder = tradingConsole.getOrder(relationId);
 			if (openOrder == null)
@@ -3092,8 +3236,7 @@ public class Order
 					? previousRelationPeerOrderIDs + TradingConsole.delimiterRow : "";
 				currenctRelationPeerOrderIDs += closedOrder._id.toString() + TradingConsole.delimiterCol +
 					AppToolkit.getFormatLot(relationLiqLot, openOrder._transaction.get_Account(), openOrder._transaction.get_Instrument()) +
-					TradingConsole.delimiterCol +
-					Price.toString(newOrderExecutePrice);
+					TradingConsole.delimiterCol + Price.toString(newOrderExecutePrice);
 				openOrder.set_PeerOrderIDs(currenctRelationPeerOrderIDs);
 
 				String currenctRelationPeerOrderCodes = "";
@@ -3106,6 +3249,8 @@ public class Order
 
 				Instrument instrument = openOrder.get_Transaction().get_Instrument();
 				BigDecimal lotBalance = relationLotBalance.subtract(relationLiqLot);
+				openOrder.subtractClosedPhysicalValue(closedPhysicalValue);
+				//openOrder.subtractPaybackPledge(payBackPledge); //update by OrderUpdate Command
 				boolean shouldRemove = lotBalance.compareTo(BigDecimal.ZERO) <= 0;
 				if(isDelivery) shouldRemove &= openOrder.get_LotBalance().compareTo(BigDecimal.ZERO) <= 0;
 				if (shouldRemove)
@@ -3116,14 +3261,14 @@ public class Order
 					openOrder.calculateForDeleteOrder();
 					Order.removeFromOpenOrderList(openOrder);
 
-					openOrder.set_LotBalance(lotBalance);
+					openOrder.set_LotBalance(lotBalance, isDelivery);
 					instrument.reCalculateTradePLFloat();
 					openOrder.get_FloatTradingItem().clear();
 					openOrder.update();
 				}
 				else
 				{
-					openOrder.set_LotBalance(lotBalance);
+					openOrder.set_LotBalance(lotBalance, isDelivery);
 					instrument.reCalculateTradePLFloat();
 					/*if (openOrder.get_Transaction().needCalculateSummary())
 						  {
@@ -3200,9 +3345,9 @@ public class Order
 		return this._physicalInstalmentType;
 	}
 
-	public int get_Period()
+	public InstalmentPeriod get_Period()
 	{
-		return this._period;
+		return this._instalmentPeriod;
 	}
 
 	public BigDecimal get_DownPayment()
@@ -3230,10 +3375,25 @@ public class Order
 		return this._isInstalmentOverdue;
 	}
 
-	public boolean IsPayOff()
+	public boolean isRisky()
 	{
-		if(this._physicalPaidValue == null || this._physicalOriginValue == null) return false;
-		return this._physicalPaidValue.abs().compareTo(this._physicalOriginValue) == 0;
+		InstrumentCategory category = this._transaction.get_Instrument().get_Category();
+		return category.equals(InstrumentCategory.Margin)
+			||(category.equals(InstrumentCategory.Physical) &&
+			   (this._physicalTradeSide.equals(PhysicalTradeSide.ShortSell)
+				|| (this._physicalTradeSide.equals(PhysicalTradeSide.Buy) && !this.isPayOff())));
+	}
+
+	public boolean isPayOff()
+	{
+		if(this._paidPledgeBalance == null) return false;
+		return this._paidPledgeBalance.abs().compareTo(this._physicalOriginValueBalance) == 0;
+	}
+
+	public boolean isPartialPaymentPhysicalOrder()
+	{
+		return (this._physicalTradeSide.equals(PhysicalTradeSide.Buy) && !this.isPayOff())
+			|| (this._physicalTradeSide.equals(PhysicalTradeSide.ShortSell) && this._paidPledgeBalance.compareTo(BigDecimal.ZERO) != 0);
 	}
 
 	public BigDecimal get_InstalmentFee()
@@ -3332,7 +3492,8 @@ public class Order
 				+ (this._dQMaxMove == 0 ? "" : space + Language.OrderSingleDQlblDQMaxMove + space + this._dQMaxMove);
 		}
 
-		String instalmentInfo = this._transaction.get_InstalmentInfo() == null ? "" : TradingConsole.enterLine + this._transaction.get_InstalmentInfo().getVerificationInfo();
+
+		String instalmentInfo = this._transaction.get_InstalmentInfo() == null ? "" : TradingConsole.enterLine + this._transaction.get_InstalmentInfo().getVerificationInfo(this._lot, this._displayDecimals);
 
 		if (this._isOpen)
 		{
@@ -3533,8 +3694,9 @@ public class Order
 			if(instalmentInfo != null)
 			{
 				xml += "InstalmentPolicyId=\'" + instalmentInfo.get_InstalmentPolicyId().toString() + "\' ";
-				xml += "Period=\'" + Integer.toString(instalmentInfo.get_Period()) + "\' ";
-				xml += "DownPayment=\'" + instalmentInfo.get_DownPaymentInFormat() + "\' ";
+				xml += "Period=\'" + Integer.toString(instalmentInfo.get_Period().get_Period()) + "\' ";
+				xml += "InstalmentFrequence=\'" + Integer.toString(instalmentInfo.get_Period().get_Frequence().value()) + "\' ";
+				xml += "DownPayment=\'" + instalmentInfo.get_DownPaymentInFormat().replace(",", "") + "\' ";
 				xml += "PhysicalInstalmentType=\'" + Integer.toString(instalmentInfo.get_InstalmentType().value()) + "\' ";
 				xml += "RecalculateRateType=\'" + Integer.toString(instalmentInfo.get_RecalculateRateType().value()) + "\' ";
 			}
@@ -3692,7 +3854,7 @@ public class Order
 		}
 
 		String instalmentInfo = "";
-		if(isLastOrder) instalmentInfo = this._transaction.get_InstalmentInfo() == null ? "" : "  " + InstalmentLanguage.Instalment + ":" + this._transaction.get_InstalmentInfo().getVerificationInfo();
+		if(isLastOrder) instalmentInfo = this._transaction.get_InstalmentInfo() == null ? "" : "  " + InstalmentLanguage.Instalment + ":" + this._transaction.get_InstalmentInfo().getVerificationInfo(this._lot, this._displayDecimals);
 
 		if (this._isOpen)
 		{
@@ -4003,7 +4165,7 @@ public class Order
 			this._lot = value;
 			if (this._isOpen)
 			{
-				this.set_LotBalance(value);
+				this.set_LotBalance(value, false);
 			}
 		}
 		return this._lot;
@@ -4121,8 +4283,20 @@ public class Order
 
 	public boolean canDelivery()
 	{
-		return (this._physicalTradeSide.equals(PhysicalTradeSide.Buy) && this.IsPayOff() )
-			|| this._physicalTradeSide.equals(PhysicalTradeSide.Deposit);
+		return this.get_Account().getIsAllowTrade() && ((this._physicalTradeSide.equals(PhysicalTradeSide.Buy) && this.isPayOff())
+			|| this._physicalTradeSide.equals(PhysicalTradeSide.Deposit));
+	}
+
+	public boolean isInstalment()
+	{
+		return (this.get_InstalmentPolicyId() != null
+				&& !this.get_Period().get_Frequence().equals(InstalmentFrequence.TillPayoff));
+	}
+
+	public boolean isPrepayment()
+	{
+		return (this.get_InstalmentPolicyId() != null
+				&& this.get_Period().get_Frequence().equals(InstalmentFrequence.TillPayoff));
 	}
 
 	public boolean canClose()
@@ -4133,7 +4307,7 @@ public class Order
 		}
 		else
 		{
-			if (this.IsPayOff())
+			if (this.isPayOff())
 			{
 				return true;
 			}
@@ -4153,9 +4327,20 @@ public class Order
 		}
 	}
 
-	public void set_PhysicalPaidAmount(BigDecimal physicalPaidAmount)
+	public void updatePaidPledgeBalance(BigDecimal paidPledgeBalance)
 	{
-		this._physicalPaidValue = physicalPaidAmount;
+		this._paidPledgeBalance = paidPledgeBalance;
+		this.caculatePhysicalUnpaidValue();
+		this.recaculateValueAsMargin();
+		this.update();
+	}
+
+	private void caculatePhysicalUnpaidValue()
+	{
+		if(this._paidPledgeBalance != null && this._physicalOriginValueBalance != null)
+		{
+			this._physicalUnpaidValue = this._physicalOriginValueBalance.add(this._paidPledgeBalance);
+		}
 	}
 
 	public void set_InstalmentOverdue(boolean isInstalmentOverdue)

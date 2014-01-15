@@ -61,6 +61,10 @@ public class MakeOrderAccount
 	private Instrument _instrument;
 	private boolean _isForDelivery;
 	private HashMap<Guid, RelationOrder> _outstandingOrders;
+	private boolean canInstalment = false;
+	private boolean canAdvancePayment = false;
+	private boolean canFullPayment = true;
+	private InstalmentPolicy instalmentPolicy = null;
 	//private IOpenCloseRelationBaseSite _site;
 
 	public static MakeOrderAccount create(TradingConsole tradingConsole, SettingsManager settingsManager, Guid accountId, Guid instrumentId)
@@ -107,6 +111,7 @@ public class MakeOrderAccount
 		this._buyTradeOption2 = TradeOption.None;
 		this._sellTradeOption2 = TradeOption.None;
 		this._buyLot = this._sellLot = this.getDefaultLot();
+		this.initInstalmentStatus();
 
 		/*if(this._settingsManager.get_Accounts().size() > 1
 		   && !this._account.get_IsLocked() && !this._instrument.get_Code().startsWith("#"))
@@ -124,6 +129,49 @@ public class MakeOrderAccount
 			}
 		}*/
 		//this._site = site;
+	}
+
+	public boolean get_CanInstalment()
+	{
+		return this.canInstalment;
+	}
+
+	public boolean get_CanAdvancePayment()
+	{
+		return this.canAdvancePayment;
+	}
+
+	public boolean get_CanFullPayment()
+	{
+		return this.canFullPayment;
+	}
+
+	public boolean hasMultiPayment()
+	{
+		return (this.canFullPayment && this.canAdvancePayment)
+			|| (this.canFullPayment && this.canInstalment)
+			|| (this.canAdvancePayment && this.canInstalment);
+	}
+
+	public InstalmentPolicy get_InstalmentPolicy()
+	{
+		return this.instalmentPolicy;
+	}
+
+	private void initInstalmentStatus()
+	{
+		if(this._instrument.get_Category().equals(InstrumentCategory.Physical))
+		{
+			TradePolicyDetail tradePolicyDetail = this.getTradePolicyDetail();
+			Guid instalmentPolicyId = tradePolicyDetail.get_InstalmentPolicyId();
+			if(instalmentPolicyId != null)
+			{
+				this.instalmentPolicy = this._settingsManager.getInstalmentPolicy(instalmentPolicyId);
+				this.canFullPayment = tradePolicyDetail.isAllowed(PaymentForm.FullPayment);
+				this.canInstalment = tradePolicyDetail.isAllowed(PaymentForm.Instalment) && this.instalmentPolicy.getActivePeriods().size() > 0;
+				this.canAdvancePayment = tradePolicyDetail.isAllowed(PaymentForm.Prepay) && this.instalmentPolicy.get_TillPayoffDetail() != null && this.instalmentPolicy.get_TillPayoffDetail().get_IsActive();
+			}
+		}
 	}
 
 	private BigDecimal getDefaultLot()
@@ -365,6 +413,7 @@ public class MakeOrderAccount
 		for (Iterator<Order> iterator = this._tradingConsole.get_OpenOrders().values().iterator(); iterator.hasNext(); )
 		{
 			Order order = iterator.next();
+			if(!order.canClose()) continue;
 
 			if (order.get_Transaction().get_Instrument() == instrument && order.get_Transaction().get_Account() == this._account)
 			{

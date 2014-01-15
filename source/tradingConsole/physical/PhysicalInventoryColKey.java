@@ -12,4 +12,10 @@ public class PhysicalInventoryColKey
 	public static String SettlementTime = "SettlementTime";
 	public static String AveragePrice = "AveragePrice";
 	public static String MarketValue = "MarketValue";
+	public static String MarketValueString = "MarketValueString";
+	public static String UnpaidValueString = "UnpaidValueString";
+	public static String PaidValueString = "PaidValueString";
+	public static String PedgeValueString = "ValueAsMarginString";
+	public static String PaidPledgeString = "PaidPledgeString";
+	public static String ValueAsMarginString="ValueAsMarginString";
 }

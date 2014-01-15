@@ -7,11 +7,12 @@ import tradingConsole.*;
 import tradingConsole.enumDefine.*;
 import tradingConsole.enumDefine.physical.*;
 import tradingConsole.ui.*;
+import tradingConsole.ui.IColumnVisibilityProvider.*;
+import tradingConsole.ui.colorHelper.*;
+import tradingConsole.ui.columnKey.*;
 import tradingConsole.ui.grid.*;
-import tradingConsole.ui.colorHelper.NumericColor;
-import tradingConsole.ui.columnKey.OpenOrderColKey;
 
-public class InventoryManager
+public class InventoryManager implements IColumnVisibilityProvider
 {
 	public static InventoryManager instance = new InventoryManager();
 
@@ -148,12 +149,16 @@ public class InventoryManager
 					DeliveryRequest request = PendingInventoryManager.instance.getDeliveryRequest(order.get_PhysicalRequestId());
 					if(request != null)
 					{
-						request.setStatus(DeliveryStatus.OrderCreated);
-						request.update();
+						TradingConsole.bindingManager.remove(PendingInventory.bindingKey, request);
+						/*request.setStatus(DeliveryStatus.OrderCreated);
+						request.update();*/
 					}
 				}
 
-				if(!order.get_Phase().equals(Phase.Executed) || order.get_LotBalance().compareTo(BigDecimal.ZERO) <= 0) continue;
+				if(!order.get_Phase().equals(Phase.Executed) || order.get_LotBalance().compareTo(BigDecimal.ZERO) <= 0)
+				{
+					continue;
+				}
 
 				int inventoryType = this.getInventoryType(order);
 				if (inventoryType == InventoryManager.OpenInventoryType)
@@ -161,6 +166,7 @@ public class InventoryManager
 					if(inventory == null) inventory = this.getOrCreateInventory(transaction.get_Account(), transaction.get_Instrument(), isInit);
 					inventory.add(order);
 					PendingInventoryManager.instance.remove(order.get_PhysicalRequestId());
+					this.tryToFireColumnVisibilityChangedEvent(inventory, order);
 				}
 				else if (inventoryType == InventoryManager.ShortSellInventoryType)
 				{
@@ -246,6 +252,7 @@ public class InventoryManager
 			if (inventory != null)
 			{
 				inventory.update(order, propertyName, value);
+				this.tryToFireColumnVisibilityChangedEvent(inventory, order);
 			}
 			else
 			{
@@ -284,6 +291,7 @@ public class InventoryManager
 				else
 				{
 					TradingConsole.bindingManager.update(Inventory.bindingKey, inventory);
+					this.tryToFireColumnVisibilityChangedEvent(inventory, order);
 				}
 			}
 			else
@@ -304,6 +312,85 @@ public class InventoryManager
 			if(order.get_Instrument() == instrument) return true;
 		}
 		return false;
+	}
+
+	public boolean isVisible(BindingSource bindingSource, String columnName)
+	{
+		for(Inventory inventory : this.inventories)
+		{
+			if(inventory.get_BindingSource() == bindingSource)
+			{
+				if(columnName.equalsIgnoreCase(PhysicalInventoryColKey.UnpaidValueString))
+				{
+					for(Order order : inventory.get_Orders())
+					{
+						if(order.get_UnpaidValue() != null && order.get_UnpaidValue().compareTo(BigDecimal.ZERO) > 0)
+						{
+							return true;
+						}
+					}
+					return false;
+				}
+				if(columnName.equalsIgnoreCase(PhysicalInventoryColKey.PaidValueString))
+				{
+					for(Order order : inventory.get_Orders())
+					{
+						if(order.get_PaidValue() != null && order.get_PaidValue().compareTo(BigDecimal.ZERO) != 0)
+						{
+							return true;
+						}
+					}
+					return false;
+				}
+				else if(columnName.equalsIgnoreCase(PhysicalInventoryColKey.PedgeValueString))
+				{
+					for(Order order : inventory.get_Orders())
+					{
+						if(order.get_ValueAsMargin() > 0)
+						{
+							return true;
+						}
+					}
+					return false;
+
+				}
+				else
+				{
+					return true;
+				}
+			}
+		}
+		return true;
+	}
+
+	private ArrayList<IColumnVisibilityChangedHandler> _columnVisibilityChangedHandlers = new ArrayList<IColumnVisibilityChangedHandler>();
+	public void addColumnVisibilityChangedHandler(IColumnVisibilityChangedHandler handler)
+	{
+		this._columnVisibilityChangedHandlers.add(handler);
+	}
+
+	private void fireColumnVisibilityChangedEvent(BindingSource model, String columnName, boolean isVisible)
+	{
+		for(IColumnVisibilityChangedHandler handler : this._columnVisibilityChangedHandlers)
+		{
+			handler.handleColumnVisibilityChanged(model, columnName, isVisible);
+		}
+	}
+
+	private void tryToFireColumnVisibilityChangedEvent(Inventory inventory, Order order)
+	{
+		if(this._columnVisibilityChangedHandlers != null
+		   && this._columnVisibilityChangedHandlers.size() > 0)
+		{
+			if(order.get_UnpaidValue() != null && order.get_UnpaidValue().compareTo(BigDecimal.ZERO) > 0)
+			{
+				this.fireColumnVisibilityChangedEvent(inventory.get_BindingSource(), PhysicalInventoryColKey.UnpaidValueString, true);
+			}
+			if(order.get_ValueAsMargin() > 0)
+			{
+				this.fireColumnVisibilityChangedEvent(inventory.get_BindingSource(), PhysicalInventoryColKey.PedgeValueString, true);
+			}
+		}
 	}
 
 	public static class RemoveTransactionResult

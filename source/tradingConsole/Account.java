@@ -66,11 +66,14 @@ public class Account implements Scheduler.ISchedulerCallback
 	private boolean _allowSalesTrading;
 	private boolean _isTradingAllowedOnAccount;
 	private boolean _allowChangePasswordInTrader;
+	private boolean _needBeneficiaryInPaymentInstruction;
 
 	private double _balance;
 	private double _necessary;
 	private double _equity;
 	private double _frozenFund;
+	private double _totalPaidAmount;
+	private double _necessaryForPartialPaymentPhysicalOrder;
 
 	private double _creditAmount;
 	private double _unclearAmount;
@@ -349,6 +352,11 @@ public class Account implements Scheduler.ISchedulerCallback
 		return this._allowChangePasswordInTrader;
 	}
 
+	public boolean get_NeedBeneficiaryInPaymentInstruction()
+	{
+		return this._needBeneficiaryInPaymentInstruction;
+	}
+
 	public void set_AgentEmail(String value)
 	{
 		this._agentEmail = value;
@@ -417,6 +425,16 @@ public class Account implements Scheduler.ISchedulerCallback
 		this._necessary = value;
 	}
 
+	public double get_NecessaryForPartialPaymentPhysicalOrder()
+	{
+		return this._necessaryForPartialPaymentPhysicalOrder;
+	}
+
+	public void set_NecessaryForPartialPaymentPhysicalOrder(double value)
+	{
+		this._necessaryForPartialPaymentPhysicalOrder = value;
+	}
+
 	public double get_FrozenFund()
 	{
 		return this._frozenFund;
@@ -425,6 +443,16 @@ public class Account implements Scheduler.ISchedulerCallback
 	public void set_FrozenFund(double value)
 	{
 		this._frozenFund = value;
+	}
+
+	public double get_TotalPaidAmount()
+	{
+		return this._totalPaidAmount;
+	}
+
+	public void set_TotalPaidAmount(double value)
+	{
+		this._totalPaidAmount = value;
 	}
 
 	public double get_Equity()
@@ -544,8 +572,8 @@ public class Account implements Scheduler.ISchedulerCallback
 
 	private Account()
 	{
-		this._notValuedTradingItem = TradingItem.create(0.00, 0.00, 0.00, 0.00);
-		this._floatTradingItem = TradingItem.create(0.00, 0.00, 0.00, 0.00);
+		this._notValuedTradingItem = TradingItem.create();
+		this._floatTradingItem = TradingItem.create();
 
 		this._transactions = new HashMap<Guid, Transaction> ();
 		this._accountCurrencies = new HashMap<CompositeKey2<Guid, Guid>, AccountCurrency> ();
@@ -597,7 +625,10 @@ public class Account implements Scheduler.ISchedulerCallback
 		{
 			this._allowChangePasswordInTrader = ( (Boolean)dataRow.get_Item("AllowChangePasswordInTrader")).booleanValue();
 		}
-
+		if (dataRow.get_Table().get_Columns().contains("NeedBeneficiaryInPaymentInstruction"))
+		{
+			this._needBeneficiaryInPaymentInstruction = ( (Boolean)dataRow.get_Item("NeedBeneficiaryInPaymentInstruction")).booleanValue();
+		}
 		this._rateLotMin = AppToolkit.convertDBValueToBigDecimal(dataRow.get_Item("RateLotMin"), 1);
 		this._rateLotMultiplier = AppToolkit.convertDBValueToBigDecimal(dataRow.get_Item("RateLotMultiplier"), 1);
 		this._rateDefaultLot = AppToolkit.convertDBValueToBigDecimal(dataRow.get_Item("RateDefaultLot"), 1);
@@ -656,6 +687,7 @@ public class Account implements Scheduler.ISchedulerCallback
 		this._necessary = AppToolkit.convertDBValueToDouble(dataRow.get_Item("Necessary"),0.0);
 
 		this._frozenFund = AppToolkit.convertDBValueToDouble(dataRow.get_Item("FrozenFund"), 0.0);
+		this._totalPaidAmount = AppToolkit.convertDBValueToDouble(dataRow.get_Item("TotalPaidAmount"), 0.0);
 
 		this._notValuedTradingItem.set_Interest(AppToolkit.convertDBValueToDouble(dataRow.get_Item("InterestPLNotValued"),0.0));
 		this._notValuedTradingItem.set_Storage(AppToolkit.convertDBValueToDouble(dataRow.get_Item("StoragePLNotValued"),0.0));
@@ -861,6 +893,10 @@ public class Account implements Scheduler.ISchedulerCallback
 			else if (nodeName.equals("FrozenFund"))
 			{
 				this._frozenFund = Double.valueOf(nodeValue).doubleValue();
+			}
+			else if (nodeName.equals("TotalPaidAmount"))
+			{
+				this._totalPaidAmount = Double.valueOf(nodeValue).doubleValue();
 			}
 			else if (nodeName.equals("ValueAsMargin"))
 			{
@@ -1565,9 +1601,53 @@ public class Account implements Scheduler.ISchedulerCallback
 		}
 	}
 
+	public void resum()
+	{
+		double balance = 0.0;
+		double unclearAmount = 0.0;
+		double necessary = 0.0;
+		double frozenFund = 0.0;
+		double necessaryForPartialPaymentPhysicalOrder = 0.0;
+		double totalPaidAmount = 0.0;
+
+		SettingsManager settingsManager = this._settingsManager;
+
+		for(AccountCurrency accountCurrency : this._accountCurrencies.values())
+		{
+			if (this.get_IsMultiCurrency())
+			{
+				CurrencyRate currencyRate = settingsManager.getCurrencyRate(accountCurrency.get_Currency().get_Id(), this.get_Currency().get_Id());
+				balance += currencyRate.exchange(accountCurrency.get_Balance());
+				necessary += currencyRate.exchange(accountCurrency.get_Necessary());
+				necessaryForPartialPaymentPhysicalOrder += currencyRate.exchange(accountCurrency.get_NecessaryForPartialPaymentPhysicalOrder());
+				frozenFund += currencyRate.exchange(accountCurrency.get_FrozenFund());
+				unclearAmount += currencyRate.exchange(accountCurrency.get_UnclearAmount());
+				totalPaidAmount += currencyRate.exchange(accountCurrency.get_TotalPaidAmount());
+			}
+			else
+			{
+				balance += accountCurrency.get_Balance();
+				necessary += accountCurrency.get_Necessary();
+				necessaryForPartialPaymentPhysicalOrder += accountCurrency.get_NecessaryForPartialPaymentPhysicalOrder();
+				frozenFund += accountCurrency.get_FrozenFund();
+				unclearAmount += accountCurrency.get_UnclearAmount();
+				totalPaidAmount += accountCurrency.get_TotalPaidAmount();
+			}
+			this.set_Balance(balance);
+			this.set_Necessary(necessary);
+			this.set_NecessaryForPartialPaymentPhysicalOrder(necessaryForPartialPaymentPhysicalOrder);
+			this.set_FrozenFund(frozenFund);
+			this.set_UnclearAmount(unclearAmount);
+			this.set_TotalPaidAmount(totalPaidAmount);
+		}
+		this.calculateEquity();
+	}
+
 	public void calculateEquity()
 	{
-		this._equity = this._balance + TradingItem.sum(this._notValuedTradingItem) + TradingItem.sum(this._floatTradingItem);
+		this._equity = this._balance
+			+ TradingItem.sum(this._notValuedTradingItem) + TradingItem.sum(this._floatTradingItem)
+			+ this._totalPaidAmount;
 
 		//Modified by Michael on 2008-04-09
 		/*

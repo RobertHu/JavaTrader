@@ -654,7 +654,11 @@ public class TradingConsole extends Applet implements Scheduler.ISchedulerCallba
 						else
 						{
 							DeliveryCharge deliveryCharge = tradingConsole.get_SettingsManager().getDeliveryCharge(deliveryChargeId);
-							if (deliveryCharge.get_PriceType().equals(MarketValuePriceType.DayOpenPrice))
+							if (deliveryCharge.get_PriceType().equals(MarketValuePriceType.UnitFixAmount))
+							{
+								return true;
+							}
+							else if (deliveryCharge.get_PriceType().equals(MarketValuePriceType.DayOpenPrice))
 							{
 								if (instrument.get_LastQuotation() != null && instrument.get_LastQuotation().get_Open() != null)
 									return true;
@@ -671,6 +675,22 @@ public class TradingConsole extends Applet implements Scheduler.ISchedulerCallba
 
 			return false;
 		}
+
+		public static boolean hasCanDeliveryInventory(TradingConsole tradingConsole, Account account, Instrument instrument)
+		{
+			for(Order order : tradingConsole._orders.values())
+			{
+				if(order.get_Instrument() == instrument && order.get_Account() == account
+				   && order.get_Transaction().get_Instrument().get_Category().equals(InstrumentCategory.Physical)
+					&& order.get_IsOpen() && order.get_LotBalance().compareTo(BigDecimal.ZERO) > 0
+					&& order.canDelivery())
+				{
+					return true;
+				}
+			}
+			return false;
+		}
+
 
 		public static boolean hasInventory(TradingConsole tradingConsole, Account account, Instrument instrument)
 		{
@@ -1090,7 +1110,7 @@ public class TradingConsole extends Applet implements Scheduler.ISchedulerCallba
 
 	public void enterMainForm(final LoginResult loginResult)
 	{
-	try
+		try
 		{
 			ColumnUIInfoManager.load(AppToolkit.getColumnVisibilityPersistentFileName());
 		}
@@ -1099,6 +1119,7 @@ public class TradingConsole extends Applet implements Scheduler.ISchedulerCallba
 			TradingConsole.traceSource.trace(TraceType.Error, "[TradingConsole.enterMainForm] " + FrameworkException.getStackTrace(ex));
 		}
 
+		TradingConsoleServer.appTime.start();
 		TradingConsole.traceSource.trace(TraceType.Information, "TradingConsole.enterMainForm()");
 
 		if (Login.getRiskDisclosureStatementType().equals(RiskDisclosureStatementType.Common)
@@ -1137,7 +1158,7 @@ public class TradingConsole extends Applet implements Scheduler.ISchedulerCallba
 					TradingConsole.traceSource.trace(TraceType.Error, "[TradingConsole.enterMainForm] " + FrameworkException.getStackTrace(ex));
 				}
 			}
-	});
+		});
 
 		executorService.execute(new Runnable()
 		{
@@ -1156,8 +1177,7 @@ public class TradingConsole extends Applet implements Scheduler.ISchedulerCallba
 					}
 				});
 			}
-	});
-
+		});
 	}
 
 	private void enterMainFormHelper(){
@@ -1185,6 +1205,11 @@ public class TradingConsole extends Applet implements Scheduler.ISchedulerCallba
 		if (!StringHelper.isNullOrEmpty(this._serviceManager.get_PlacardUrl()))
 		{
 			BrowserControl.displayURL(this._serviceManager.get_PlacardUrl(), true);
+		}
+
+		if(!this._settingsManager.get_SystemParameter().get_ShowChartAsDefultInTrader())
+		{
+			this._mainForm.getDockingManager().hideFrame("ChartFrame1");
 		}
 
 		if(this._settingsManager.get_IsForRSZQ())
@@ -1221,7 +1246,7 @@ public class TradingConsole extends Applet implements Scheduler.ISchedulerCallba
 		try
 		{
 			DataSet ds ;
-			if(semaphore== null && loginResult == null){
+			if(loginResult == null){
 				GetInitDataResult getInitDataResult = this._tradingConsoleServer.getInitData(this._commandSequence);
 				ds= getInitDataResult.get_DataSet();
 				this._commandSequence = getInitDataResult.get_CommandSequence();
@@ -1231,6 +1256,7 @@ public class TradingConsole extends Applet implements Scheduler.ISchedulerCallba
 				this._commandSequence = loginResult.getCommandSequence();
 			}
 			this.initialize(ds, false,semaphore);
+			if(firstShowInstrumentSelection) return;
 			this._bankAccountHelper = new BankAccountHelper(this);
 			this._bankAccountHelper.refresh();
 		}
@@ -2260,6 +2286,8 @@ public class TradingConsole extends Applet implements Scheduler.ISchedulerCallba
 			this._settingsManager.accountAlert();
 		}
 		this.initialize2(dataSet);
+		if(firstShowInstrumentSelection) return;
+
 		this.initializePhysical(dataSet);
 		//Remarked by Michael on 2008-04-09
 		//this._settingsManager.checkAccountsForCut();
@@ -2319,7 +2347,7 @@ public class TradingConsole extends Applet implements Scheduler.ISchedulerCallba
 		DataGrid grid = this._mainForm.get_PhysicalInventoryTable();
 		grid.setModel(InventoryManager.instance.get_BindingSource(false));
 		grid.setHierarchicalColumn(0);
-		grid.setComponentFactory(new HierarchicalOpenOrderTableComponentFactory(this._mainForm.get_PhysicalInventoryTableActionListener()));
+		grid.setComponentFactory(new HierarchicalOpenOrderTableComponentFactory(this._mainForm.get_PhysicalInventoryTableActionListener(), InventoryManager.instance));
 		grid.addFilter(new AccountInstrumentFilter(grid.get_BindingSource(), false));
 		grid.filter();
 
@@ -2694,7 +2722,7 @@ public class TradingConsole extends Applet implements Scheduler.ISchedulerCallba
 		if (!this._isInitialized)
 		{
 			this.ready();
-			if (this._settingsManager.get_Accounts().size() <= 0)
+			if (!firstShowInstrumentSelection && this._settingsManager.get_Accounts().size() <= 0)
 			{
 				this.messageNotify(Language.AccountIsNotTrading, false);
 			}
@@ -2746,11 +2774,19 @@ public class TradingConsole extends Applet implements Scheduler.ISchedulerCallba
 		{
 			this.showAccountSelection();
 		}
-		this.firstShowInstrumentSelection();
+		if (this._settingsManager.getInstruments().values().size() == 0)
+		{
+			firstShowInstrumentSelection = true;
+			this.firstShowInstrumentSelection();
+			return;
+		}
+		else
+		{
+			firstShowInstrumentSelection = false;
+		}
 
 		//Start GetCommands of the TradingConsoleServer
 		this._commandsManager = new CommandsManager(this, this._settingsManager);
-
 		this._tradingConsoleServer.schedulerStart();
 
 		TradingConsole.traceSource.trace(TraceType.Warning, "ready()_End");
@@ -2913,12 +2949,10 @@ public class TradingConsole extends Applet implements Scheduler.ISchedulerCallba
 		accountSelectionForm.toFront();
 	}
 
+	private boolean firstShowInstrumentSelection = false;
 	private void firstShowInstrumentSelection()
 	{
-		if (this._settingsManager.getInstruments().values().size() > 0)
-		{
-			return;
-		}
+		firstShowInstrumentSelection = true;
 		InstrumentSelectionForm instrumentSelectionUi = new InstrumentSelectionForm(this._mainForm, this, this._settingsManager);
 		instrumentSelectionUi.exitOnConfirm();
 		instrumentSelectionUi.show();
@@ -3167,9 +3201,11 @@ public class TradingConsole extends Applet implements Scheduler.ISchedulerCallba
 		for (Account account : this._settingsManager.get_Accounts().values())
 		{
 			account.set_Necessary(0);
+			account.set_NecessaryForPartialPaymentPhysicalOrder(0);
 			for(AccountCurrency item : account.get_AccountCurrencies().values())
 			{
 				item.set_Necessary(0);
+				item.set_NecessaryForPartialPaymentPhysicalOrder(0);
 			}
 		}
 
@@ -3200,6 +3236,29 @@ public class TradingConsole extends Applet implements Scheduler.ISchedulerCallba
 					account.set_Necessary(margin);
 				}
 			}
+			margins = instrument.get_PartialPaymentPhysicalMargins();
+			for (Iterator<Guid> iterator2 = margins.keySet().iterator(); iterator2.hasNext(); )
+			{
+				Guid accountId = iterator2.next();
+				Account account = this._settingsManager.getAccount(accountId);
+				double margin = margins.get(accountId);
+				if(account.get_IsMultiCurrency())
+				{
+					Guid currencyId = instrument.get_Currency().get_Id();
+					CompositeKey2<Guid, Guid> key = new CompositeKey2<Guid,Guid>(accountId, currencyId);
+					if(account.get_AccountCurrencies().containsKey(key))
+					{
+						AccountCurrency accountCurrency = account.get_AccountCurrencies().get(key);
+						margin += accountCurrency.get_NecessaryForPartialPaymentPhysicalOrder();
+						accountCurrency.set_NecessaryForPartialPaymentPhysicalOrder(margin);
+					}
+				}
+				else
+				{
+					margin += account.get_NecessaryForPartialPaymentPhysicalOrder();
+					account.set_NecessaryForPartialPaymentPhysicalOrder(margin);
+				}
+			}
 		}
 
 		for (Account account : this._settingsManager.get_Accounts().values())
@@ -3216,6 +3275,12 @@ public class TradingConsole extends Applet implements Scheduler.ISchedulerCallba
 					margin = AppToolkit.round(margin, account.get_Currency().get_Decimals());
 					margin += account.get_Necessary();
 					account.set_Necessary(margin);
+
+					margin = AppToolkit.round(accountCurrency.get_NecessaryForPartialPaymentPhysicalOrder(), accountCurrency.get_Currency().get_Decimals());
+					margin = currencyRate.exchange(margin);
+					margin = AppToolkit.round(margin, account.get_Currency().get_Decimals());
+					margin += account.get_NecessaryForPartialPaymentPhysicalOrder();
+					account.set_NecessaryForPartialPaymentPhysicalOrder(margin);
 				}
 				accountCurrency.updateNode();
 			}

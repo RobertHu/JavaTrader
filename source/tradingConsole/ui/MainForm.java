@@ -62,11 +62,7 @@ public class MainForm extends MainFormBase
 	{
 		super.addChildFrames();
 		this.floatChildFrames();
-		/*if(this._settingsManager.get_IsForRSZQ())
-		{
-			this.loadCharts();
-		}
-		else if(!this.loadCharts())*/
+		if(this._settingsManager.get_SystemParameter().get_ShowChartAsDefultInTrader())
 		{
 			this.showFirstChart();
 		}
@@ -108,7 +104,8 @@ public class MainForm extends MainFormBase
 		{
 			this.getDockingManager().floatFrame("AccountStatusFrame", this.getFloatingRectangle("AccountStatusFrame"), false);
 		}
-		this.getDockingManager().floatFrame("TradingPanelListFrame", this.getFloatingRectangle("TradingPanelListFrame"), false);
+
+		this.getDockingManager().floatFrame("TradingPanelListFrame", this.getFloatingRectangle("TradingPanelListFrame", this._settingsManager.get_SystemParameter().get_ShowChartAsDefultInTrader()), false);
 		if(this._settingsManager.hasInstrumentOf(InstrumentCategory.Margin))
 		{
 			this.getDockingManager().floatFrame("OpenOrderListFrame", this.getFloatingRectangle("OpenOrderListFrame"), false);
@@ -116,8 +113,20 @@ public class MainForm extends MainFormBase
 		this.getDockingManager().floatFrame("QueryOrderListFrame", this.getFloatingRectangle("QueryOrderListFrame"), false);
 		if(this._settingsManager.hasInstrumentOf(InstrumentCategory.Physical))
 		{
+			if(this.getDockingManager().getFrame("PhysicalStokFrame") == null)
+			{
+				this.getDockingManager().addFrame(this._physicalFrame);
+			}
 			this.getDockingManager().floatFrame("PhysicalStokFrame", this.getFloatingRectangle("PhysicalStokFrame"), false);
 		}
+		else
+		{
+			if(this.getDockingManager().getFrame("PhysicalStokFrame") != null)
+			{
+				this.getDockingManager().removeFrame("PhysicalStokFrame");
+			}
+		}
+		if(!this._settingsManager.get_SystemParameter().get_ShowChartAsDefultInTrader()) this.getDockingManager().floatFrame("TradingPanelListFrame", this.getFloatingRectangle("TradingPanelListFrame", false), false);
 		if(this._settingsManager.get_IsForRSZQ()) this.getDockingManager().floatFrame("WorkingOrderListFrame", this.getFloatingRectangle("WorkingOrderListFrame"), false);
 		for(String key : this.getDockingManager().getAllFrames())
 		{
@@ -334,6 +343,12 @@ public class MainForm extends MainFormBase
 		{
 			this.showNews(false);
 		}
+
+		if(!this._settingsManager.get_SystemParameter().get_ShowChartAsDefultInTrader())
+		{
+			this.getDockingManager().hideFrame("ChartFrame1");
+		}
+
 		if(this._settingsManager.get_IsForRSZQ())
 		{
 			this.getDockingManager().hideFrame("NewsFrame");
@@ -736,6 +751,14 @@ public class MainForm extends MainFormBase
 				if(this._floatingChildFrames)
 				{
 					this.getDockingManager().floatFrame("TradingPanelListFrame", this.getFloatingRectangle("TradingPanelListFrame", false), false);
+				}
+			}
+
+			if(!this._settingsManager.get_SystemParameter().get_ShowChartAsDefultInTrader())
+			{
+				if(!isFirstChartHidden)
+				{
+					this.getDockingManager().showFrame("ChartFrame1");
 				}
 			}
 
@@ -1212,7 +1235,8 @@ public class MainForm extends MainFormBase
 			else
 			{
 				Guid instrumentId = order.get_Transaction().get_Instrument().get_Id();
-				if (order.get_LotBalance().compareTo(BigDecimal.ZERO) > 0)
+				if (order.get_LotBalance().compareTo(BigDecimal.ZERO) > 0
+					&& (order.canClose() || order.canDelivery() || order.isInstalment()))
 				{
 					if (this._settingsManager.containsOpenContractFormOf(instrumentId))
 					{

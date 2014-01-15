@@ -328,6 +328,14 @@ public final class CommandHelper
 		return request;
 	}
 
+	public static ComunicationObject buildUpdatePassword2Command(String loginId, String oldPassword, String newPassword, String[][] recoverPasswordDatas){
+		RequestWithRootAndArgumentNode target = newRootElementWithArgument();
+		String passwordDatas = StringHelper.join2(recoverPasswordDatas,StringConstants.ArrayItem2DSeprator,StringConstants.ArrayItemSeparator);
+		buildRequestArgumentsHelper(target.args,loginId, oldPassword,newPassword,passwordDatas);
+		ComunicationObject request = RequestCommandHelper.newCommandWithSession("UpdatePassword2",target.root);
+		return request;
+	}
+
 
 	public static ComunicationObject buildChangeMarginPinCommand(Guid accountId, String oldMarginPin, String newMarginPin){
 		RequestWithRootAndArgumentNode target = newRootElementWithArgument();
@@ -460,6 +468,20 @@ public final class CommandHelper
 		ComunicationObject request = RequestCommandHelper.newCommandWithSession("GetDeliveryAddress",target.root);
 		return request;
 	}
+
+	public static ComunicationObject buildInstalmentPayoff(Guid accountId, Guid currencyId,
+		Double sumSourcePaymentAmount, Double sumSourceTerminateFee,
+		XmlNode instalmentXml, XmlNode terminateXml)
+	{
+		RequestWithRootAndArgumentNode target = newRootElementWithArgument();
+		String instalmentString = instalmentXml==null? "" : instalmentXml.get_OuterXml();
+		String terminateString = terminateXml == null? "" : terminateXml.get_OuterXml();
+		buildRequestArgumentsHelper(target.args,accountId.toString(),currencyId.toString(),sumSourcePaymentAmount.toString(),
+			sumSourceTerminateFee.toString(),instalmentString,terminateString);
+		ComunicationObject request = RequestCommandHelper.newCommandWithSession("InstalmentPayoff", target.root);
+		return request;
+	}
+
 
 
 	private static void buildRequestArgumentsHelper(Element argElement,String... args){

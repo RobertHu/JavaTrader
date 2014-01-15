@@ -48,7 +48,11 @@ public class AccountDetail
 		}
 		else if (this._type == AccountDetailCategory.Necessary)
 		{
-			return AppToolkit.format(account.get_Necessary(), decimals);
+			return AppToolkit.format(account.get_Necessary() - account.get_NecessaryForPartialPaymentPhysicalOrder(), decimals);
+		}
+		else if (this._type == AccountDetailCategory.NecessaryForPartialPaymentPhysicalOrder)
+		{
+			return AppToolkit.format(account.get_NecessaryForPartialPaymentPhysicalOrder(), decimals);
 		}
 		else if (this._type == AccountDetailCategory.TradePLFloat)
 		{
@@ -61,6 +65,10 @@ public class AccountDetail
 		else if (this._type == AccountDetailCategory.FrozenFund)
 		{
 				return AppToolkit.format(account.get_FrozenFund(), decimals);
+		}
+		else if (this._type == AccountDetailCategory.TotalPaidAmount)
+		{
+				return AppToolkit.format(account.get_TotalPaidAmount(), decimals);
 		}
 		else if (this._type == AccountDetailCategory.TotalUnrealisedSwap)
 		{
@@ -175,6 +183,10 @@ public class AccountDetail
 		{
 			return AccountSingleLanguage.Necessary;
 		}
+		else if (this._type == AccountDetailCategory.NecessaryForPartialPaymentPhysicalOrder)
+		{
+			return AccountSingleLanguage.NecessaryForPartialPaymentPhysicalOrder;
+		}
 		else if (this._type == AccountDetailCategory.TradePLFloat)
 		{
 			return AccountSingleLanguage.TradePLFloat;
@@ -214,6 +226,10 @@ public class AccountDetail
 		else if (this._type == AccountDetailCategory.ValueAsMargin)
 		{
 			return AccountSingleLanguage.ValueAsMargin;
+		}
+		else if (this._type == AccountDetailCategory.TotalPaidAmount)
+		{
+			return AccountSingleLanguage.TotalPledge;
 		}
 		else if (this._type == AccountDetailCategory.FrozenFund)
 		{

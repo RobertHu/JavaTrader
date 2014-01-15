@@ -301,6 +301,11 @@ public class CommandsManager
 		PendingInventoryManager.instance.addOrUpdateScrapDeposit(xmlNode);
 	}
 
+	public void handleScrapDepositCanceled(XmlNode xmlNode)
+	{
+		PendingInventoryManager.instance.cancelScrapDeposit(xmlNode);
+	}
+
 	private Guid applyDelivery(XmlNode xmlNode)
 	{
 		DeliveryRequest deliveryRequest = new DeliveryRequest();
@@ -1530,6 +1535,10 @@ public class CommandsManager
 			{
 				this.handleScrapDeposit(xmlNode);
 			}
+			else if(localName.equalsIgnoreCase("NotifyScrapDepositCanceled"))
+			{
+				this.handleScrapDepositCanceled(xmlNode);
+			}
 			else if(localName.equalsIgnoreCase("CancleDelivery"))
 			{
 				Guid accountId = this.cancelDelivery(xmlNode);
@@ -1916,7 +1925,7 @@ public class CommandsManager
 			Guid orderId = Guid.empty;
 			String autoLimitPrice = null;
 			String autoStopPrice = null;
-			BigDecimal physicalPaidAmount = null;
+			BigDecimal paidPledgeBalance = null;
 			Boolean isInstalmentOverdue = null;
 
 			for (int index2 = 0; index2 < attributes.get_Count(); index2++)
@@ -1936,11 +1945,11 @@ public class CommandsManager
 				{
 					autoStopPrice = value;
 				}
-				else if (name.equalsIgnoreCase("PhysicalPaidAmount"))
+				else if (name.equalsIgnoreCase("PaidPledgeBalance"))
 				{
-					physicalPaidAmount = new BigDecimal(value);
+					paidPledgeBalance = new BigDecimal(value);
 				}
-				else if (name.equalsIgnoreCase("AutoStopPrice"))
+				else if (name.equalsIgnoreCase("IsInstalmentOverdue"))
 				{
 					isInstalmentOverdue = Boolean.parseBoolean(value);
 				}
@@ -1960,9 +1969,11 @@ public class CommandsManager
 					order.update("AutoStopPriceString", autoStopPrice);
 				}
 
-				if(physicalPaidAmount != null)
+				if(paidPledgeBalance != null)
 				{
-					order.set_PhysicalPaidAmount(physicalPaidAmount);
+					order.updatePaidPledgeBalance(paidPledgeBalance);
+					order.get_Account().resum();
+					order.get_Account().updateNode();
 				}
 				if(isInstalmentOverdue != null)
 				{
@@ -1979,7 +1990,6 @@ public class CommandsManager
 		XmlAttribute exceptionAttribute = attributes.get_ItemOf("InnerException");
 		String errorMessage = exceptionAttribute == null ? "" : exceptionAttribute.get_Value();
 		attributes = xmlNode.get_FirstChild().get_Attributes();
-		System.out.println(attributes.get_ItemOf("Id").get_Value());
 		Guid asyncResultId = new Guid(attributes.get_ItemOf("Id").get_Value());
 		String methodName = attributes.get_ItemOf("MethodName").get_Value();
 

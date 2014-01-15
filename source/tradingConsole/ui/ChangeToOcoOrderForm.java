@@ -28,6 +28,8 @@ import java.util.Iterator;
 import javax.swing.event.ChangeListener;
 import javax.swing.event.ChangeEvent;
 import com.jidesoft.swing.JideSwingUtilities;
+import tradingConsole.enumDefine.physical.PaymentMode;
+import tradingConsole.enumDefine.physical.InstalmentFrequence;
 
 public class ChangeToOcoOrderForm  extends JDialog implements IPriceSpinnerSite
 {
@@ -67,6 +69,11 @@ public class ChangeToOcoOrderForm  extends JDialog implements IPriceSpinnerSite
 
 	private JButton _submitButton = new JButton();
 	private JButton _exitButton = new JButton();
+
+	private PVStaticText2 paymentModeStaticText = new PVStaticText2();
+	private JCheckBox fullAmountCheckBox = new JCheckBox();
+	private JCheckBox advancePaymentCheckBox = new JCheckBox();
+	private PVButton2 advancePaymentButton = new PVButton2();
 	private JCheckBox _instalmentCheckBox =  new JCheckBox();
 	private JButton _instalmentButton =  new JButton();
 	private boolean _isCanceled = false;
@@ -111,8 +118,22 @@ public class ChangeToOcoOrderForm  extends JDialog implements IPriceSpinnerSite
 		this._originalOrder = originalOrder;
 		if(originalOrder.get_InstalmentPolicyId() != null)
 		{
+			PaymentMode paymentMode =
+				originalOrder.get_Period().get_Frequence().equals(InstalmentFrequence.TillPayoff) ? PaymentMode.AdvancePayment : PaymentMode.Instalment;
 			this.instalmentInfo = new InstalmentInfo(originalOrder.get_InstalmentPolicyId(), originalOrder.get_Period(), originalOrder.get_DownPayment(),
-				originalOrder.get_PhysicalInstalmentType(), originalOrder.get_RecalculateRateType(), originalOrder.get_InstalmentFee(), true);
+				originalOrder.get_PhysicalInstalmentType(), originalOrder.get_RecalculateRateType(), originalOrder.get_InstalmentFee(), paymentMode);
+			if(this.instalmentInfo.isAdvancePayment())
+			{
+				this.advancePaymentCheckBox.setSelected(true);
+			}
+			else
+			{
+				this._instalmentCheckBox.setSelected(true);
+			}
+		}
+		else
+		{
+			this.fullAmountCheckBox.setSelected(true);
 		}
 
 		this._stopPriceField = new PriceSpinner(this);
@@ -348,6 +369,7 @@ public class ChangeToOcoOrderForm  extends JDialog implements IPriceSpinnerSite
 		Guid tradePolicyId = this._originalOrder.get_Account().get_TradePolicyId();
 		TradePolicyDetail tradePolicyDetail
 			= this._tradingConsole.get_SettingsManager().getTradePolicyDetail(tradePolicyId, instrument.get_Id());
+		if(tradePolicyDetail.get_InstalmentPolicyId() != null) height += 60;
 
 		if(!StringHelper.isNullOrEmpty(instrument.get_QuoteDescription()))
 		{
@@ -557,6 +579,9 @@ public class ChangeToOcoOrderForm  extends JDialog implements IPriceSpinnerSite
 
 		_instalmentCheckBox.setFont(font);
 		_expireTimeField.setEditable(false);
+		fullAmountCheckBox.setFont(font);
+		advancePaymentCheckBox.setFont(font);
+		paymentModeStaticText.setFont(font);
 
 		_submitButton.setText(Language.OrderLMTbtnSubmit);
 		ActionListener submitButtonActionListener = new ActionListener()
@@ -580,8 +605,23 @@ public class ChangeToOcoOrderForm  extends JDialog implements IPriceSpinnerSite
 		_exitButton.addActionListener(exitButtonActionListener);
 
 		_instalmentCheckBox.setText(InstalmentLanguage.Instalment);
-		_instalmentCheckBox.setSelected(this._originalOrder.get_InstalmentPolicyId() != null);
+		if(this._originalOrder.get_Period()!= null)
+		{
+			_instalmentCheckBox.setSelected(!this._originalOrder.get_Period().get_Frequence().equals(InstalmentFrequence.TillPayoff));
+			advancePaymentCheckBox.setSelected(this._originalOrder.get_Period().get_Frequence().equals(InstalmentFrequence.TillPayoff));
+		}
+		this._instalmentButton.setEnabled(this._instalmentCheckBox.isSelected());
+		this.advancePaymentButton.setEnabled(this.advancePaymentCheckBox.isSelected());
+
 		_instalmentButton.setText(InstalmentLanguage.Setup);
+		advancePaymentCheckBox.setText(InstalmentLanguage.AdvancePayment);
+		advancePaymentButton.setText(InstalmentLanguage.Setup);
+		paymentModeStaticText.setText(InstalmentLanguage.PaymentMode);
+		fullAmountCheckBox.setText(InstalmentLanguage.FullAmount);
+		ButtonGroup group = new ButtonGroup();
+		group.add(advancePaymentCheckBox);
+		group.add(fullAmountCheckBox);
+		group.add(_instalmentCheckBox);
 
 		this.getContentPane().add(_instrumentLabel, new GridBagConstraints(0, 0, 2, 1, 0.0, 0.0
 			, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(10, 5, 0, 0), 80, 0));
@@ -688,19 +728,29 @@ public class ChangeToOcoOrderForm  extends JDialog implements IPriceSpinnerSite
 		this.getContentPane().add(_expireTimeField, new GridBagConstraints(1, 9, 1, 1, 0.0, 0.0
 			, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, new Insets(2, 2, 0, 0), 135, 5));
 
-		this.getContentPane().add(this._instalmentCheckBox, new GridBagConstraints(0, 10, 1, 1, 0.0, 0.0
+		this.getContentPane().add(this.paymentModeStaticText, new GridBagConstraints(0, 10, 1, 1, 0.0, 0.0
 			, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(2, 5, 0, 0), 10, 0));
-		this.getContentPane().add(this._instalmentButton, new GridBagConstraints(1, 10, 1, 1, 0.0, 0.0
-			, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, new Insets(2, 2, 0, 0), 0, 5));
+		this.getContentPane().add(this.fullAmountCheckBox, new GridBagConstraints(0, 11, 1, 1, 0.0, 0.0
+			, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(0, 15, 0, 0), 10, 0));
+
+		this.getContentPane().add(this.advancePaymentCheckBox, new GridBagConstraints(0, 12, 1, 1, 0.0, 0.0
+			, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(0, 15, 0, 0), 10, 0));
+		this.getContentPane().add(this.advancePaymentButton, new GridBagConstraints(1, 12, 1, 1, 0.0, 0.0
+			, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, new Insets(0, 2, 0, 0), 0, 5));
+
+		this.getContentPane().add(this._instalmentCheckBox, new GridBagConstraints(0, 13, 1, 1, 0.0, 0.0
+			, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(0, 15, 0, 0), 10, 0));
+		this.getContentPane().add(this._instalmentButton, new GridBagConstraints(1, 13, 1, 1, 0.0, 0.0
+			, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, new Insets(0, 2, 0, 0), 0, 5));
 
 		_closeOrdersGrid.setFont(font);
 		openOrdersPanel = new JScrollPane(_closeOrdersGrid);
-		this.getContentPane().add(openOrdersPanel, new GridBagConstraints(2, 1, 2, 10, 1.0, 1.0
+		this.getContentPane().add(openOrdersPanel, new GridBagConstraints(2, 1, 2, 13, 1.0, 1.0
 			, GridBagConstraints.CENTER, GridBagConstraints.BOTH, new Insets(10, 10, 0, 10), 0, 0));
 
 		ifDonePanel = new JPanel();
 		ifDonePanel.setBackground(null);
-		this.add(ifDonePanel, new GridBagConstraints(2, 3, 2, 10, 1.0, 1.0
+		this.add(ifDonePanel, new GridBagConstraints(2, 3, 2, 13, 1.0, 1.0
 			, GridBagConstraints.CENTER, GridBagConstraints.BOTH, new Insets(5, 10, 0, 10), 0, 0));
 		ifDonePanel.setVisible(this._originalOrder.get_IsOpen());
 		openOrdersPanel.setVisible(!this._originalOrder.get_IsOpen());
@@ -711,63 +761,153 @@ public class ChangeToOcoOrderForm  extends JDialog implements IPriceSpinnerSite
 		ifDonePanel.add(ifStopDonePanel, new GridBagConstraints(0, 1, 1, 1, 1.0, 0.5
 			, GridBagConstraints.CENTER, GridBagConstraints.BOTH, new Insets(0, 0, 0, 0), 0, 0));
 
-		this.getContentPane().add(_submitButton, new GridBagConstraints(0, 12, 1, 1, 0.0, 0.0
+		this.getContentPane().add(_submitButton, new GridBagConstraints(0, 16, 1, 1, 0.0, 0.0
 			, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(10, 10, 10, 0), 20, 0));
-		this.getContentPane().add(_exitButton, new GridBagConstraints(3, 12, 1, 1, 0.0, 0.0
+		this.getContentPane().add(_exitButton, new GridBagConstraints(3, 16, 1, 1, 0.0, 0.0
 			, GridBagConstraints.EAST, GridBagConstraints.NONE, new Insets(10, 0, 10, 10), 20, 0));
 
 		if(tradePolicyDetail.get_InstalmentPolicyId() == null)
 		{
+			this.paymentModeStaticText.setVisible(false);
+			this.fullAmountCheckBox.setVisible(false);
+
 			this._instalmentCheckBox.setVisible(false);
 			this._instalmentButton.setVisible(false);
+
+			this.advancePaymentCheckBox.setVisible(false);
+			this.advancePaymentButton.setVisible(false);
 		}
 		else
 		{
-			this._instalmentButton.addActionListener(new ActionListener()
+			this.fullAmountCheckBox.setVisible(tradePolicyDetail.isAllowed(PaymentForm.FullPayment));
+			if(this.fullAmountCheckBox.isVisible())
 			{
-				public void actionPerformed(ActionEvent e)
+				fullAmountCheckBox.addChangeListener(new ChangeListener()
 				{
-					setupInstalment();
-				}
-			});
+					public void stateChanged(ChangeEvent e)
+					{
+						if (fullAmountCheckBox.isSelected() && instalmentInfo != null)
+						{
+							instalmentInfo.set_PaymentMode(PaymentMode.FullAmount);
+						}
+					}
+				});
+			}
 
-			this._instalmentCheckBox.addChangeListener(new ChangeListener()
+			InstalmentPolicy instalmentPolicy =
+				this._settingsManager.getInstalmentPolicy(tradePolicyDetail.get_InstalmentPolicyId());
+			if(instalmentPolicy.get_TillPayoffDetail() != null && instalmentPolicy.get_TillPayoffDetail().get_IsActive())
 			{
-				public void stateChanged(ChangeEvent e)
+				this.advancePaymentButton.addActionListener(new ActionListener()
 				{
-					handleInstalmentCheckBoxChanged();
-				}
-			});
+					public void actionPerformed(ActionEvent e)
+					{
+						setupInstalment(PaymentMode.AdvancePayment);
+					}
+				});
+
+				this.advancePaymentCheckBox.addChangeListener(new ChangeListener()
+				{
+					public void stateChanged(ChangeEvent e)
+					{
+						handleInstalmentCheckBoxChanged(PaymentMode.AdvancePayment);
+					}
+				});
+
+			}
+			else
+			{
+				this.advancePaymentCheckBox.setVisible(false);
+				this.advancePaymentButton.setVisible(false);
+			}
+
+			if(instalmentPolicy.getActivePeriods().size() > 0)
+			{
+				this._instalmentButton.addActionListener(new ActionListener()
+				{
+					public void actionPerformed(ActionEvent e)
+					{
+						setupInstalment(PaymentMode.Instalment);
+					}
+				});
+
+				this._instalmentCheckBox.addChangeListener(new ChangeListener()
+				{
+					public void stateChanged(ChangeEvent e)
+					{
+						handleInstalmentCheckBoxChanged(PaymentMode.Instalment);
+					}
+				});
+			}
+			else
+			{
+				this._instalmentCheckBox.setVisible(false);
+				this._instalmentButton.setVisible(false);
+			}
 		}
 	}
 
-	private void handleInstalmentCheckBoxChanged()
+	private void handleInstalmentCheckBoxChanged(PaymentMode paymentMode)
 	{
-		if(this.instalmentInfo != null)
+		if(paymentMode.equals(PaymentMode.Instalment))
 		{
-			this.instalmentInfo.setEnabled(this._instalmentCheckBox.isSelected());
-			this.instalmentInfoChanged = true;
-			this.updateSubmitButtonStatus();
+			if (this.instalmentInfo != null
+				&& !this.instalmentInfo.get_Period().get_Frequence().equals(InstalmentFrequence.TillPayoff))
+			{
+				if(this._instalmentCheckBox.isSelected())
+				{
+					this.instalmentInfo.set_PaymentMode(PaymentMode.Instalment);
+				}
+				this.instalmentInfoChanged = true;
+				this.updateSubmitButtonStatus();
+			}
+			else if(this._instalmentCheckBox.isSelected())
+			{
+				this.setupInstalment(PaymentMode.Instalment);
+			}
+			this._instalmentButton.setEnabled(this._instalmentCheckBox.isSelected());
 		}
-		this._instalmentButton.setEnabled(this._instalmentCheckBox.isSelected());
+		else if(paymentMode.equals(PaymentMode.AdvancePayment))
+		{
+			if (this.instalmentInfo != null
+				&& this.instalmentInfo.get_Period().get_Frequence().equals(InstalmentFrequence.TillPayoff))
+			{
+				if(this.advancePaymentCheckBox.isSelected())
+				{
+					this.instalmentInfo.set_PaymentMode(PaymentMode.AdvancePayment);
+				}
+				this.instalmentInfoChanged = true;
+				this.updateSubmitButtonStatus();
+			}
+			else if(this.advancePaymentCheckBox.isSelected())
+			{
+				this.setupInstalment(PaymentMode.AdvancePayment);
+			}
+
+			this.advancePaymentButton.setEnabled(this.advancePaymentCheckBox.isSelected());
+		}
 	}
 
-	private void setupInstalment()
+	private InstalmentForm instalmentForm = null;
+	private void setupInstalment(PaymentMode paymentMode)
 	{
+		if(this.instalmentForm != null) return;
+
 		Account account = this._originalOrder.get_Account();
 		Instrument instrument = this._originalOrder.get_Instrument();
 		Price limitPrice = Price.parse(this._limitPriceField.getText(), instrument.get_NumeratorUnit(), instrument.get_Denominator());
 		Price stopPrice = Price.parse(this._stopPriceField.getText(), instrument.get_NumeratorUnit(), instrument.get_Denominator());
 
-		InstalmentForm form = new InstalmentForm(this, account, this._originalOrder.get_Lot(), instrument, this._settingsManager,
-			limitPrice, stopPrice, this.instalmentInfo);
-		JideSwingUtilities.centerWindow(form);
-		form.show();
-		form.toFront();
-		if(form.get_IsConfirmed())
+		this.instalmentForm = new InstalmentForm(this, account, this._originalOrder.get_Lot(), instrument, this._settingsManager,
+			limitPrice, stopPrice, this.instalmentInfo, paymentMode, true);
+		JideSwingUtilities.centerWindow(instalmentForm);
+		this.instalmentForm.show();
+		this.instalmentForm.toFront();
+		if(this.instalmentForm.get_IsConfirmed())
 		{
-			InstalmentInfo instalmentInfo = form.get_InstalmentInfoList().get(this._originalOrder.get_Account().get_Id());
-			if(this.instalmentInfo.get_Period() != instalmentInfo.get_Period()
+			InstalmentInfo instalmentInfo = instalmentForm.get_InstalmentInfoList().get(this._originalOrder.get_Account().get_Id());
+			if(this.instalmentInfo == null
+			   || this.instalmentInfo.get_Period() != instalmentInfo.get_Period()
 			   || this.instalmentInfo.get_DownPayment() != instalmentInfo.get_DownPayment()
 			   || this.instalmentInfo.get_InstalmentType() != instalmentInfo.get_InstalmentType()
 			   || this.instalmentInfo.get_RecalculateRateType() != instalmentInfo.get_RecalculateRateType())
@@ -777,6 +917,25 @@ public class ChangeToOcoOrderForm  extends JDialog implements IPriceSpinnerSite
 				this.updateSubmitButtonStatus();
 			}
 		}
+		else
+		{
+			if(this.instalmentInfo != null)
+			{
+				if(this.instalmentInfo.isAdvancePayment())
+				{
+					this.advancePaymentCheckBox.setSelected(true);
+				}
+				else
+				{
+					this._instalmentCheckBox.setSelected(true);
+				}
+			}
+			else
+			{
+				this.fullAmountCheckBox.setSelected(true);
+			}
+		}
+		this.instalmentForm = null;
 	}
 
 	private void limitCheckBoxForIfLimitDoneChanged()
@@ -1189,7 +1348,7 @@ public class ChangeToOcoOrderForm  extends JDialog implements IPriceSpinnerSite
 
 			Transaction transaction = new Transaction(this._tradingConsole, this._settingsManager, this._originalOrder, this.ocoCheckBox.isSelected());
 			transaction.set_IfDoneInfo(this.ifDoneInfo);
-			if(this.instalmentInfo != null && this.instalmentInfo.isEnabled())
+			if(this.instalmentInfo != null && !this.instalmentInfo.isFullPayment())
 			{
 				transaction.set_InstalmentInfo(this.instalmentInfo);
 			}

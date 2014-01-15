@@ -42,6 +42,7 @@ public class SystemParameter
 	private boolean _showPriceChangedBeforeCloseConfirmWindow = false;
 	private DateTime _tradeDayBeginTime = null;
 	private boolean _closingUseCustomerQuotePolicy = false;
+	private boolean _showChartAsDefultInTrader = true;
 
 	private Guid _RMBCurrencyId = null;
 
@@ -83,6 +84,11 @@ public class SystemParameter
 	public boolean get_ClosingUseCustomerQuotePolicy()
 	{
 		return this._closingUseCustomerQuotePolicy;
+	}
+
+	public boolean get_ShowChartAsDefultInTrader()
+	{
+		return this._showChartAsDefultInTrader;
 	}
 
 	public boolean get_DisplayLmtStopPoints()
@@ -330,6 +336,12 @@ public class SystemParameter
 			&& dataRow.get_Item("ClosingUseCustomerQuotePolicy") != DBNull.value)
 		{
 			this._closingUseCustomerQuotePolicy = (Boolean)dataRow.get_Item("ClosingUseCustomerQuotePolicy");
+		}
+
+		if (dataRow.get_Table().get_Columns().contains("ShowChartAsDefultInTrader")
+			&& dataRow.get_Item("ShowChartAsDefultInTrader") != DBNull.value)
+		{
+			this._showChartAsDefultInTrader = (Boolean)dataRow.get_Item("ShowChartAsDefultInTrader");
 		}
 
 		if (dataRow.get_Table().get_Columns().contains("TOITLACW")

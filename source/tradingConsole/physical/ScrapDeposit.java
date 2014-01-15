@@ -18,7 +18,6 @@ public class ScrapDeposit extends PendingInventory
 	private String scrapInstrumentCode;
 	private ScrapDepositStatus scrapDepositStatus;
 	private DateTime settlementTime;
-	private Guid instrumentId;
 	private Instrument instrument;
 	private int decimals;
 
@@ -40,6 +39,11 @@ public class ScrapDeposit extends PendingInventory
 	public int get_Decimals()
 	{
 		return this.decimals;
+	}
+
+	public ScrapDepositStatus get_ScrapDepositStatus()
+	{
+		return this.scrapDepositStatus;
 	}
 
 	@Override

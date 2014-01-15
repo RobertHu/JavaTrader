@@ -7,17 +7,18 @@ import javax.swing.SwingConstants;
 import com.jidesoft.grid.BooleanCheckBoxCellEditor;
 import tradingConsole.ui.language.Language;
 import com.jidesoft.grid.BooleanCheckBoxCellRenderer;
+import tradingConsole.enumDefine.physical.PaymentMode;
 
 public class InstalmentAccount
 {
-	private boolean enableInstalment;
+	private PaymentMode paymentMode;
 	private Account account;
 	private String lot;
 
-	public InstalmentAccount(boolean enableInstalment, Account account, String lot)
+	public InstalmentAccount(PaymentMode paymentMode, Account account, String lot)
 	{
 		this.account = account;
-		this.enableInstalment = enableInstalment;
+		this.paymentMode = paymentMode;
 		this.lot = lot;
 	}
 
@@ -26,8 +27,8 @@ public class InstalmentAccount
 		PropertyDescriptor[] propertyDescriptors = new PropertyDescriptor[3];
 		int i = 0;
 
-		PropertyDescriptor propertyDescriptor = PropertyDescriptor.create(InstalmentAccount.class, "Enable",
-			false, null, InstalmentLanguage.Instalment, 30, SwingConstants.LEFT, null, null, new BooleanCheckBoxCellEditor(), new BooleanCheckBoxCellRenderer());
+		PropertyDescriptor propertyDescriptor = PropertyDescriptor.create(InstalmentAccount.class, "PaymentModeString",
+			true, null, InstalmentLanguage.PaymentMode, 50, SwingConstants.LEFT, null, null, null, null);
 		propertyDescriptors[i++] = propertyDescriptor;
 
 		propertyDescriptor = PropertyDescriptor.create(InstalmentAccount.class, "AccountCode", true, null,
@@ -35,20 +36,25 @@ public class InstalmentAccount
 		propertyDescriptors[i++] = propertyDescriptor;
 
 		propertyDescriptor = PropertyDescriptor.create(InstalmentAccount.class, "Lot", true, null,
-			Language.Lots, 50, SwingConstants.CENTER, null, null);
+			InstalmentLanguage.Lot, 50, SwingConstants.CENTER, null, null);
 		propertyDescriptors[i++] = propertyDescriptor;
 
 		return propertyDescriptors;
 	}
 
-	public boolean get_Enable()
+	public String get_PaymentModeString()
 	{
-		return this.enableInstalment;
+		return this.paymentMode.toLocalString();
 	}
 
-	public void set_Enable(boolean value)
+	public PaymentMode get_PaymentMode()
 	{
-		this.enableInstalment = value;
+		return this.paymentMode;
+	}
+
+	public void set_PaymentMode(PaymentMode paymentMode)
+	{
+		this.paymentMode = paymentMode;
 	}
 
 	public String get_AccountCode()
@@ -60,7 +66,6 @@ public class InstalmentAccount
 	{
 		return this.lot;
 	}
-
 
 	public Account get_Account()
 	{

@@ -29,6 +29,10 @@ import tradingConsole.TradePolicyDetail;
 import tradingConsole.ui.columnKey.MakeOrderLiquidationGridColKey;
 import tradingConsole.physical.InventoryManager;
 import tradingConsole.physical.Inventory;
+import tradingConsole.ui.grid.TableColumnChooser;
+import tradingConsole.ui.grid.ISelectedRowChangedListener;
+import com.jidesoft.grid.SpinnerCellEditor;
+import javax.swing.ListSelectionModel;
 
 public class MakeLiquidationOrder extends MakeSpotTradeOrder
 {
@@ -247,25 +251,79 @@ public class MakeLiquidationOrder extends MakeSpotTradeOrder
 			this._bindingSourceForLiquidation.addPropertyChangedListener(propertyChangedListener);
 		}
 		RelationOrder.initializeLiquidation(grid, this._liquidationKey, this._dataSourceForLiquidations.values(), this._bindingSourceForLiquidation, site, enableEditLot);
+		boolean hideMaxMoveColumn = true;
 		for (Iterator<RelationOrder> iterator = this._dataSourceForLiquidations.values().iterator(); iterator.hasNext(); )
 		{
 			RelationOrder relationOrder = iterator.next();
+			Account account = relationOrder.get_OpenOrder().get_Account();
+			TradePolicyDetail tradePolicyDetail
+				= this._settingsManager.getTradePolicyDetail(account.get_TradePolicyId(), relationOrder.get_OpenOrder().get_Transaction().get_Instrument().get_Id());
+
 			if(this._dataSourceForLiquidations.values().size() == 1)
 			{
-				Account account = relationOrder.get_OpenOrder().get_Account();
-				TradePolicyDetail tradePolicyDetail
-					= this._settingsManager.getTradePolicyDetail(account.get_TradePolicyId(), relationOrder.get_OpenOrder().get_Transaction().get_Instrument().get_Id());
 				BigDecimal lot = relationOrder.get_LiqLot();
 				lot = AppToolkit.fixCloseLot(lot, lot, tradePolicyDetail, account);
 				//lot = AppToolkit.fixLot(lot, false, tradePolicyDetail, account);
 				relationOrder.set_LiqLot(lot);
 			}
 			relationOrder.updateLiquidation(this._liquidationKey);
+			int maxMove = tradePolicyDetail.get_DQMaxMove();
+			int stepSize = this._instrument.get_NumeratorUnit();
+			if((maxMove > 0 && maxMove > stepSize))
+			{
+				hideMaxMoveColumn = false;
+				relationOrder.set_DQMaxMove(maxMove);
+				MakeOrderAccount makeOrderAccount = _makeOrderAccounts.get(relationOrder.get_OpenOrder().get_Account().get_Id());
+				makeOrderAccount.set_DQMaxMove(relationOrder.get_DQMove());
+
+				relationOrder.setDQMoveChangedListener(new RelationOrder.DQMoveChangedListener()
+				{
+					public void OnDQMoveChanged(RelationOrder source)
+					{
+						MakeOrderAccount makeOrderAccount = _makeOrderAccounts.get(source.get_OpenOrder().get_Account().get_Id());
+						makeOrderAccount.set_DQMaxMove(source.get_DQMove());
+
+						for (Iterator<RelationOrder> iterator2 = _dataSourceForLiquidations.values().iterator(); iterator2.hasNext(); )
+						{
+							RelationOrder relationOrder2 = iterator2.next();
+							if(source == relationOrder2) continue;
+							if(source.get_OpenOrder().get_Account() == relationOrder2.get_OpenOrder().get_Account())
+							{
+								relationOrder2.setDQMoveWithoutFireEvent(source.get_DQMove());
+								relationOrder2.update(_liquidationKey);
+							}
+						}
+					}
+				});
+			}
 		}
+
 		//According to the return of method RelationOrder.getPropertyDescriptorsForLiquidation, no column OutstandingOrderColKey.IsBuy
 		/*int column = this._bindingSourceForLiquidation.getColumnByName(OutstandingOrderColKey.IsBuy);
 		grid.sortColumn(column, ascend);
 		TableColumnChooser.hideColumn(grid, column);*/
+
+		if(hideMaxMoveColumn)
+		{
+			int column = this._bindingSourceForLiquidation.getColumnByName(MakeOrderLiquidationGridColKey.DQMove);
+			TableColumnChooser.hideColumn(grid, column);
+		}
+		else
+		{
+			grid.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+			grid.addSelectedRowChangedListener(new ISelectedRowChangedListener()
+			{
+				public void selectedRowChanged(DataGrid source)
+				{
+					if(source.getSelectedRow() < 0) return;
+
+					RelationOrder relationOrder = (RelationOrder)source.get_BindingSource().getObject(source.getSelectedRow());
+					SpinnerCellEditor spinnerCellEditor = (SpinnerCellEditor) (source.getColumn(MakeOrderLiquidationGridColKey.DQMove).getCellEditor());
+					int stepSize = relationOrder.get_OpenOrder().get_Instrument().get_NumeratorUnit();
+					JDQMoveSpinnerHelper.applyMaxDQMove(spinnerCellEditor.getSpinner(), relationOrder.get_DQMove(), relationOrder.get_DQMaxMove(), stepSize);
+				}
+			});
+		}
 	}
 
 	public void closeAll()

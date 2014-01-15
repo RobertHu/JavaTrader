@@ -74,6 +74,8 @@ public class TransactionError extends Enum<TransactionError>
 	public static final TransactionError ReplacedWithMaxLot = new TransactionError("ReplacedWithMaxLot", 112);
 	public static final TransactionError ExceedMaxPhysicalValue = new TransactionError("ExceedMaxPhysicalValue", 113);
 	public static final TransactionError BalanceOrEquityIsShort = new TransactionError("BalanceOrEquityIsShort", 114);
+	public static final TransactionError SplittedForHasShortSell = new TransactionError("SplittedForHasShortSell", 115);
+	public static final TransactionError AdjustedToFullPaidOrderForHasShortSell = new TransactionError("AdjustedToFullPaidOrderForHasShortSell", 116);
 
 	//define, tradingconsole only
 	public static final TransactionError RiskMonitorDelete = new TransactionError("RiskMonitorDelete", 20000);
@@ -293,6 +295,14 @@ public class TransactionError extends Enum<TransactionError>
 		else if(transactionError.equals(TransactionError.BalanceOrEquityIsShort))
 		{
 			message = Language.BalanceOrEquityIsShort;
+		}
+		else if(transactionError.equals(TransactionError.SplittedForHasShortSell))
+		{
+			message = Language.SplittedForHasShortSell;
+		}
+		else if(transactionError.equals(TransactionError.AdjustedToFullPaidOrderForHasShortSell))
+		{
+			message = Language.AdjustedToFullPaidOrderForHasShortSell;
 		}
 		else if (transactionError.equals(TransactionError.DealerCanceled))
 		{

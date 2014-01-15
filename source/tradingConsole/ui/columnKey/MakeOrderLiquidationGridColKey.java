@@ -8,4 +8,5 @@ public class MakeOrderLiquidationGridColKey
 	public static final String SetPriceStringDirectLiq = "SetPriceStringDirectLiq";
 	public static final String LiqLotString = "LiqLotString";
 	public static final String IsSelected = "IsSelected";
+	public static final String DQMove = "DQMove";
 }

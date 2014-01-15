@@ -25,20 +25,30 @@ import tradingConsole.ui.language.*;
 
 public class RelationOrder
 {
+	public static interface DQMoveChangedListener
+	{
+		void OnDQMoveChanged(RelationOrder source);
+	}
+
 	public static RelationOrder.ComparatorForAdjustingLot comparatorForAdjustingLot = new ComparatorForAdjustingLot();
 	private static RelationBindingManager _relationBindingManager = new RelationBindingManager();
 	private static OrderStateReceiver _orderStateReceiver = new OrderStateReceiver(RelationOrder._relationBindingManager);
 
+	private DQMoveChangedListener _DQMoveChangedListener;
 	private TradingConsole _tradingConsole;
 	private SettingsManager _settingsManager;
 
 	private Guid _openOrderId;
 	private BigDecimal _liqLot = BigDecimal.ZERO;
+	private String _closedPhysicalValue = "";
+	private String _payBackPledge = "";
 	private BigDecimal _closeLot = null;
 	private boolean _isSelected;
 	private Boolean _isPlacingSpotTrade;
 	private Boolean _isMakeLimitOrder;
 	private boolean _isDelivery = false;
+	private int _DQMove = 0;
+	private int _DQMaxMove = 0;
 
 	private Order _owner;
 	private Order _openOrder;
@@ -71,6 +81,11 @@ public class RelationOrder
 		this._isMakeLimitOrder = isMakeLimitOrder;
 		this._isDelivery = isDelivery;
 		this._liqLot = this._isDelivery ? this._openOrder.getAvailableDeliveryLot() : this._openOrder.getAvailableLotBanlance(this._isPlacingSpotTrade, this._isMakeLimitOrder);
+	}
+
+	public void setDQMoveChangedListener(DQMoveChangedListener dqMoveChangedListener)
+	{
+		this._DQMoveChangedListener = dqMoveChangedListener;
 	}
 
 	public void resetLiqLot()
@@ -134,7 +149,8 @@ public class RelationOrder
 	{
 		String[] peerOrders = new String[]{"", ""};
 		peerOrders[0] = this._openOrderId.toString() + TradingConsole.delimiterCol + this.get_LiqLotString() + TradingConsole.delimiterCol +
-			this._openOrder.get_ExecutePriceString();
+			this._openOrder.get_ExecutePriceString() + TradingConsole.delimiterCol + this._payBackPledge + TradingConsole.delimiterCol
+			+ this._closedPhysicalValue;
 		peerOrders[1] = this.toString();
 		return peerOrders;
 	}
@@ -147,6 +163,16 @@ public class RelationOrder
 	public BigDecimal get_LiqLot()
 	{
 		return this._liqLot;
+	}
+
+	public void set_PaybackPledge(String payBackPledge)
+	{
+		this._payBackPledge = payBackPledge;
+	}
+
+	public void set_ClosedPhysicalValue(String closedPhysicalValue)
+	{
+		this._closedPhysicalValue = closedPhysicalValue;
 	}
 
 	public void set_LiqLot(BigDecimal value)
@@ -501,7 +527,7 @@ public class RelationOrder
 	//Direct Liq
 	public static PropertyDescriptor[] getPropertyDescriptorsForLiquidation(boolean enableEditLot)
 	{
-		PropertyDescriptor[] propertyDescriptors = new PropertyDescriptor[3];
+		PropertyDescriptor[] propertyDescriptors = new PropertyDescriptor[4];
 
 		//PropertyDescriptor propertyDescriptor = PropertyDescriptor.create(RelationOrder.class, MakeOrderLiquidationGridColKey.AccountCode, true, null,
 		//	MakeOrderLiquidationLanguage.AccountCode,
@@ -528,6 +554,11 @@ public class RelationOrder
 		propertyDescriptor = PropertyDescriptor.create(RelationOrder.class, MakeOrderLiquidationGridColKey.LiqLotString, !enableEditLot, null,
 			MakeOrderLiquidationLanguage.LiqLotString, 60, SwingConstants.CENTER, null, null);
 		propertyDescriptors[2] = propertyDescriptor;
+
+		SpinnerCellEditor spinnerCellEditor = new SpinnerCellEditor();
+		propertyDescriptor = PropertyDescriptor.create(RelationOrder.class, MakeOrderLiquidationGridColKey.DQMove, false, null,
+			MakeOrderAccountGridLanguage.DQMaxMove, 50, SwingConstants.CENTER, null, null, spinnerCellEditor, null);
+		propertyDescriptors[3] = propertyDescriptor;
 
 		return propertyDescriptors;
 	}
@@ -628,6 +659,39 @@ public class RelationOrder
 	public boolean get_IsDelivery()
 	{
 		return this._isDelivery;
+	}
+
+	public void set_DQMove(int dqMove)
+	{
+		if(this._DQMove != dqMove)
+		{
+			this._DQMove = dqMove;
+			if(this._DQMoveChangedListener != null)
+			{
+				this._DQMoveChangedListener.OnDQMoveChanged(this);
+			}
+		}
+	}
+
+	public void set_DQMaxMove(int dqMaxMove)
+	{
+		this._DQMaxMove = dqMaxMove;
+	}
+
+	public int get_DQMaxMove()
+	{
+		return this._DQMaxMove;
+	}
+
+
+	public int get_DQMove()
+	{
+		return this._DQMove;
+	}
+
+	public void setDQMoveWithoutFireEvent(int maxMove)
+	{
+		this._DQMove = maxMove;
 	}
 
 	public static class ComparatorForAdjustingLot implements Comparator<RelationOrder>
@@ -1365,7 +1429,8 @@ class RelationOrderPropertyChangedListener implements IPropertyChangedListener
 			RelationOrder relationOrder = (RelationOrder)table.get_BindingSource().getObject(row);
 			if(relationOrder.get_IsSelected()/* && relationOrder.get_LiqLot().compareTo(BigDecimal.ZERO) > 0*/)
 			{
-				relationOrder.resetLiqLot();
+				//relationOrder.resetLiqLot();
+				//relationOrder.updateLiquidation(table.get_DataSourceKey());
 				if(this._openCloseRelationSite.getCloseLotEditor() != null &&
 				   this._openCloseRelationSite.getTotalLotEditor() != this._openCloseRelationSite.getCloseLotEditor())
 				{

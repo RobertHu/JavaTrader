@@ -22,6 +22,7 @@ public class DealingPolicyDetail
 	private int _acceptLmtVariation;
 	private int _acceptCloseLmtVariation;
 	private int _cancelLmtVariation;
+	private int _priceValidTime;
 	private AllowedOrderSides _allowAddNewPosition = AllowedOrderSides.AllowAll;
 
 	public DealingPolicyDetail(DataRow dataRow)
@@ -55,6 +56,11 @@ public class DealingPolicyDetail
 	public BigDecimal get_MaxOtherLot()
 	{
 		return this._maxOtherLot;
+	}
+
+	public int get_PriceValidTime()
+	{
+		return this._priceValidTime;
 	}
 
 	public BigDecimal get_DQQuoteMinLot()
@@ -109,6 +115,7 @@ public class DealingPolicyDetail
 		this._acceptLmtVariation = AppToolkit.convertStringToInteger(dataRow.get_Item("AcceptLmtVariation"), 0);
 		this._acceptCloseLmtVariation = AppToolkit.convertStringToInteger(dataRow.get_Item("AcceptCloseLmtVariation"), 0);
 		this._cancelLmtVariation = AppToolkit.convertStringToInteger(dataRow.get_Item("CancelLmtVariation"), 0);
+		this._priceValidTime = (Integer)dataRow.get_Item("PriceValidTime");
 		this._allowAddNewPosition = Enum.valueOf(AllowedOrderSides.class, (Short)dataRow.get_Item("AllowedNewTradeSides"));
 	}
 
@@ -133,6 +140,10 @@ public class DealingPolicyDetail
 			else if (nodeName.equals("AcceptDQVariation"))
 			{
 				this._acceptDQVariation = Integer.valueOf(nodeValue).intValue();
+			}
+			else if (nodeName.equals("PriceValidTime"))
+			{
+				this._priceValidTime = Integer.parseInt(nodeValue);
 			}
 			else if (nodeName.equals("AcceptLmtVariation"))
 			{

@@ -54,7 +54,7 @@ public class MainFormBase extends DefaultDockableBarDockableHolder implements Mo
 	private DockableFrame _openOrderListFrame;
 	private DockableFrame _orderQueryFrame;
 
-	private DockableFrame _physicalFrame;
+	protected DockableFrame _physicalFrame;
 	private MainForm_physicalInvetoryTable_AdjustmentListener _physicalInventoryTableActionListener;
 
 	protected boolean _floatingChildFrames = true;
@@ -313,6 +313,7 @@ public class MainFormBase extends DefaultDockableBarDockableHolder implements Mo
 				dockingManager.addFrame(this._openOrderListFrame);
 			}
 			dockingManager.addFrame(this._orderQueryFrame);
+
 			if(this._settingsManager.hasInstrumentOf(InstrumentCategory.Physical))
 			{
 				dockingManager.addFrame(this._physicalFrame);

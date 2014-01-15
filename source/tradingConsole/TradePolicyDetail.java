@@ -10,6 +10,7 @@ import framework.xml.XmlAttributeCollection;
 import framework.StringHelper;
 import framework.DBNull;
 import tradingConsole.enumDefine.physical.PhysicalTradeSide;
+import tradingConsole.enumDefine.PaymentForm;
 
 public class TradePolicyDetail
 {
@@ -62,8 +63,12 @@ public class TradePolicyDetail
 	private int _allowedPhysicalTradeSides;
 	private BigDecimal _discountOfOdd;
 	private BigDecimal _valueDiscountAsMargin;
+	private BigDecimal _instalmentPledgeDiscount;
 	private BigDecimal _physicalMinDeliveryQuantity;
 	private BigDecimal _physicalDeliveryIncremental;
+	private BigDecimal _shortSellDownPayment;
+	private BigDecimal _partPaidPhysicalNecessary;
+	private int _paymentForm;
 
 	public boolean get_GoodTillDate()
 	{
@@ -156,6 +161,11 @@ public class TradePolicyDetail
 	public BigDecimal get_MarginD()
 	{
 		return this._marginD;
+	}
+
+	public BigDecimal get_PartPaidPhysicalNecessary()
+	{
+		return this._partPaidPhysicalNecessary;
 	}
 
 	public int get_NecessaryRound()
@@ -278,6 +288,11 @@ public class TradePolicyDetail
 		return (physicalTradeSide.value() & this._allowedPhysicalTradeSides) == physicalTradeSide.value();
 	}
 
+	public boolean isAllowed(PaymentForm paymentForm)
+	{
+		return (paymentForm.value() & this._paymentForm) == paymentForm.value();
+	}
+
 	public BigDecimal get_DiscountOfOdd()
 	{
 		return this._discountOfOdd;
@@ -286,6 +301,16 @@ public class TradePolicyDetail
 	public BigDecimal get_ValueDiscountAsMargin()
 	{
 		return this._valueDiscountAsMargin;
+	}
+
+	public BigDecimal get_ShortSellDownPayment()
+	{
+		return this._shortSellDownPayment;
+	}
+
+	public BigDecimal get_InstalmentPledgeDiscount()
+	{
+		return this._instalmentPledgeDiscount;
 	}
 
 	public BigDecimal get_PhysicalMinDeliveryQuantity()
@@ -365,14 +390,26 @@ public class TradePolicyDetail
 		this._goodTillMonthGTF = (Boolean) dataRow.get_Item("GoodTillMonthGTF");
 		this._canPlaceMatchOrder = (Boolean) dataRow.get_Item("CanPlaceMatchOrder");
 		this._allowNewOCO = (Boolean) dataRow.get_Item("AllowNewOCO");
+		this._paymentForm = (Integer)dataRow.get_Item("PaymentForm");
 
 		this._allowedPhysicalTradeSides = (Integer)dataRow.get_Item("AllowedPhysicalTradeSides");
 		this._discountOfOdd = (BigDecimal) dataRow.get_Item("DiscountOfOdd");
 		this._valueDiscountAsMargin = (BigDecimal) dataRow.get_Item("ValueDiscountAsMargin");
+
+		this._shortSellDownPayment = dataRow.get_Item("ShortSellDownPayment") != DBNull.value ? (BigDecimal) dataRow.get_Item("ShortSellDownPayment") : BigDecimal.ZERO;
+		this._partPaidPhysicalNecessary = dataRow.get_Item("PartPaidPhysicalNecessary") != DBNull.value ? (BigDecimal) dataRow.get_Item("PartPaidPhysicalNecessary") : BigDecimal.ZERO;
+
+		if(dataRow.get_Table().get_Columns().contains("InstalmentPledgeDiscount")
+			&& dataRow.get_Item("InstalmentPledgeDiscount") != DBNull.value)
+		{
+			this._instalmentPledgeDiscount = (BigDecimal)dataRow.get_Item("InstalmentPledgeDiscount");
+		}
+		else
+		{
+			this._instalmentPledgeDiscount = BigDecimal.ZERO;
+		}
 		this._physicalMinDeliveryQuantity = (BigDecimal) dataRow.get_Item("PhysicalMinDeliveryQuantity");
 		this._physicalDeliveryIncremental = (BigDecimal) dataRow.get_Item("PhysicalDeliveryIncremental");
-
-
 	}
 
 	private void setValue(XmlAttributeCollection tradePolicyDetailCollection)
@@ -552,6 +589,18 @@ public class TradePolicyDetail
 			{
 				this._valueDiscountAsMargin = new BigDecimal(nodeValue);
 			}
+			else if (nodeName.equals("ShortSellDownPayment"))
+			{
+				this._shortSellDownPayment = new BigDecimal(nodeValue);
+			}
+			else if (nodeName.equals("PartPaidPhysicalNecessary"))
+			{
+				this._partPaidPhysicalNecessary = new BigDecimal(nodeValue);
+			}
+			else if (nodeName.equals("InstalmentPledgeDiscount"))
+			{
+				this._instalmentPledgeDiscount = new BigDecimal(nodeValue);
+			}
 			else if (nodeName.equals("PhysicalMinDeliveryQuantity"))
 			{
 				this._physicalMinDeliveryQuantity = new BigDecimal(nodeValue);
@@ -567,6 +616,10 @@ public class TradePolicyDetail
 			else if(nodeName.equals("AllowNewOCO"))
 			{
 				this._allowNewOCO = Boolean.valueOf(nodeValue);
+			}
+			else if(nodeName.equals("PaymentForm"))
+			{
+				this._paymentForm = Integer.parseInt(nodeValue);
 			}
 		}
 	}

@@ -2,7 +2,6 @@ package tradingConsole.service;
 
 import java.math.BigDecimal;
 import nu.xom.Element;
-import Util.CommandConstants;
 import Packet.StringConstants;
 
 public class ChangeLeverageResult

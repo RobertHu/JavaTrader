@@ -59,12 +59,19 @@ import tradingConsole.physical.InstalmentAccount;
 import tradingConsole.enumDefine.OrderType;
 import tradingConsole.ui.grid.IPropertyChangedListener;
 import tradingConsole.TradeDay;
+import tradingConsole.settings.InstalmentPeriod;
+import tradingConsole.enumDefine.physical.PaymentMode;
+import tradingConsole.enumDefine.physical.InstalmentFrequence;
+import tradingConsole.settings.MakeOrderAccount;
+import tradingConsole.enumDefine.physical.DownPaymentBasis;
 
 public class InstalmentForm extends JDialog
 {
 	private Account[] accounts;
+	private HashMap<Guid, MakeOrderAccount> makeOrderAccounts = null;
 	private HashMap<Guid, BigDecimal> lots;
 	private HashMap<Guid, InstalmentInfo> instalmentInfoList;
+	private PaymentMode paymentMode = null;
 	private Instrument instrument;
 	private SettingsManager settingsManager;
 	private Price limitPrice = null, stopPrice = null;
@@ -86,6 +93,9 @@ public class InstalmentForm extends JDialog
 	private PVStaticText2 periodLable = new PVStaticText2();
 	private JTextField periodText = new JTextField();
 	private JAdvancedComboBox periodChoice = new JAdvancedComboBox();
+
+	private PVStaticText2 lotLable = new PVStaticText2();
+	private PVStaticText2 lotText = new PVStaticText2();
 
 	private PVStaticText2 downPaymentLable = new PVStaticText2();
 	private PVStaticText2 downPaymentPercentLable = new PVStaticText2();
@@ -143,6 +153,10 @@ public class InstalmentForm extends JDialog
 	private PVStaticText2 totalInterest =  new PVStaticText2();
 	private PVStaticText2 totalAmount =  new PVStaticText2();
 
+	private JRadioButton fullAmountRadioButton = new JRadioButton();
+	private JRadioButton advancePaymentRadioButton = new JRadioButton();
+	private JRadioButton instalmentRadioButton = new JRadioButton();
+
 	private DataGrid instalmentAccountTable = new DataGrid("InstalmentAccount");
 	private DataGrid instalmentDetailTable = new DataGrid("InstalmentDetail");
 
@@ -151,6 +165,7 @@ public class InstalmentForm extends JDialog
 	private boolean isConfirmed = false;
 
 	private Account currentAccount = null;
+	private PaymentMode currentPaymentMode = null;
 	private InstalmentPolicy currentInstalmentPolicy = null;
 	private InstalmentPolicyDetail currentInstalmentPolicyDetail = null;
 
@@ -166,9 +181,11 @@ public class InstalmentForm extends JDialog
 		HashMap<Guid, InstalmentInfo> instalmentInfoList = new HashMap<Guid, InstalmentInfo> ();
 		if(order.get_InstalmentPolicyId() != null)
 		{
+
+			PaymentMode paymentMode = order.get_Period().get_Frequence().equals(InstalmentFrequence.TillPayoff)? PaymentMode.AdvancePayment : PaymentMode.Instalment;
 			InstalmentInfo instalmentInfo
 				= new InstalmentInfo(order.get_InstalmentPolicyId(), order.get_Period(), order.get_DownPayment(),
-									 order.get_PhysicalInstalmentType(), order.get_RecalculateRateType(), order.get_InstalmentFee(), true);
+									 order.get_PhysicalInstalmentType(), order.get_RecalculateRateType(), order.get_InstalmentFee(), paymentMode);
 			instalmentInfoList.put(account.get_Id(), instalmentInfo);
 		}
 		this.isForExecutedOrder = order.get_Phase().equals(Phase.Executed);
@@ -199,13 +216,27 @@ public class InstalmentForm extends JDialog
 
 	public InstalmentForm(Window parent, Account account, BigDecimal lot,
 		Instrument instrument, SettingsManager settingsManager,	Price limitPrice, Price stopPrice,
-		InstalmentInfo instalmentInfo)
+		InstalmentInfo instalmentInfo, PaymentMode paymentMode, boolean isForModifyOrder)
 	{
 		super(parent);
 
 		HashMap<Guid, BigDecimal> lots = new HashMap<Guid,BigDecimal>();
 		lots.put(account.get_Id(), lot);
 		HashMap<Guid, InstalmentInfo> instalmentInfoList = new HashMap<Guid, InstalmentInfo>();
+
+		this.paymentMode = paymentMode;
+		if(!isForModifyOrder && instalmentInfo != null)
+		{
+			if(instalmentInfo.isAdvancePayment())
+			{
+				instalmentInfo = paymentMode == PaymentMode.AdvancePayment ? instalmentInfo : null;
+			}
+			else
+			{
+				instalmentInfo = paymentMode == PaymentMode.Instalment ? instalmentInfo : null;
+			}
+		}
+
 		if(instalmentInfo != null)
 		{
 			instalmentInfoList.put(account.get_Id(), instalmentInfo.clone());
@@ -214,7 +245,7 @@ public class InstalmentForm extends JDialog
 		this.init(new Account[]{account}, lots, instrument, settingsManager, limitPrice, stopPrice, instalmentInfoList, null);
 	}
 
-	public InstalmentForm(Window parent, Account[] accounts, HashMap<Guid, BigDecimal> lots,
+	public InstalmentForm(Window parent, MakeOrderAccount[] accounts, HashMap<Guid, BigDecimal> lots,
 		Instrument instrument, SettingsManager settingsManager,
 		HashMap<Guid, InstalmentInfo> instalmentInfoList)
 	{
@@ -228,7 +259,26 @@ public class InstalmentForm extends JDialog
 				instalmentInfoList2.put(id, instalmentInfoList.get(id).clone());
 			}
 		}
-		this.init(accounts, lots, instrument, settingsManager, null, null, instalmentInfoList2, null);
+		else
+		{
+			for(MakeOrderAccount account : accounts)
+			{
+				if(account.get_CanAdvancePayment())
+				{
+					instalmentInfoList2.put(account.get_Account().get_Id(), InstalmentInfo.createDefaultAdvancePaymentInfo(account));
+				}
+			}
+		}
+
+		Account[] accounts2 = new Account[accounts.length];
+		this.makeOrderAccounts = new HashMap<Guid,MakeOrderAccount>(accounts.length);
+		for(int index = 0; index < accounts.length; index++)
+		{
+			MakeOrderAccount account = accounts[index];
+			makeOrderAccounts.put(account.get_Account().get_Id(), account);
+			accounts2[index] = account.get_Account();
+		}
+		this.init(accounts2, lots, instrument, settingsManager, null, null, instalmentInfoList2, null);
 	}
 
 	private void init(Account[] accounts, HashMap<Guid, BigDecimal> lots,
@@ -368,16 +418,90 @@ public class InstalmentForm extends JDialog
 		return this.instalmentInfoList;
 	}
 
+	private void handlePaymentChanged()
+	{
+		PaymentMode paymentMode = PaymentMode.FullAmount;
+		if(this.advancePaymentRadioButton.isSelected())
+		{
+			paymentMode = PaymentMode.AdvancePayment;
+		}
+		else if(this.instalmentRadioButton.isSelected())
+		{
+			paymentMode = PaymentMode.Instalment;
+		}
+		int row = instalmentAccountTable.getSelectedRow();
+		if (row != -1)
+		{
+			row = TableModelWrapperUtils.getActualRowAt(instalmentAccountTable.getModel(), row);
+			InstalmentAccount instalmentAccount = (InstalmentAccount)instalmentAccountTable.get_BindingSource().getObject(row);
+			instalmentAccount.set_PaymentMode(paymentMode);
+			TradingConsole.bindingManager.update("InstalmentAccount", instalmentAccount);
+
+			this.setCurrentAccount(instalmentAccount.get_Account(), paymentMode);
+			if(paymentMode.equals(PaymentMode.FullAmount))
+			{
+				this.instalmentInfoList.remove(instalmentAccount.get_Account().get_Id());
+			}
+			else
+			{
+				this.tryCaculateAndUpdateUI();
+			}
+		}
+	}
+
 	private void jbInit()
 	{
-		this.setTitle(InstalmentLanguage.Instalment);
-		if(this.accounts != null && this.accounts.length > 1)
+		boolean needShowInstalmentDetail = true;
+		boolean hasAccountCanPlaceInstalment = false;
+		boolean hasAccountCanAdvancePayment = false;
+
+		if(this.makeOrderAccounts != null)
 		{
-			this.setSize(520, 420);
+			this.setTitle(InstalmentLanguage.PaymentMode);
+
+			for(MakeOrderAccount makeOrderAccount : this.makeOrderAccounts.values())
+			{
+				if(makeOrderAccount.get_CanInstalment())
+				{
+					hasAccountCanPlaceInstalment = true;
+				}
+				if(makeOrderAccount.get_CanAdvancePayment())
+				{
+					hasAccountCanAdvancePayment = true;
+				}
+				if(hasAccountCanPlaceInstalment && hasAccountCanAdvancePayment) break;
+			}
+
+			if(hasAccountCanPlaceInstalment)
+			{
+				this.setSize(520, 480);
+			}
+			else
+			{
+				needShowInstalmentDetail = false;
+				this.setSize(280, 370);
+			}
 		}
 		else
 		{
-			this.setSize(this.isForExecutedOrder ? 650 : 520, this.isForExecutedOrder ? 432 : 360);
+			if(this.paymentMode != null)
+			{
+				this.setTitle(this.paymentMode.toLocalString());
+				if(this.paymentMode.equals(PaymentMode.Instalment))
+				{
+					this.setSize(520, 420);
+				}
+				else
+				{
+					needShowInstalmentDetail = false;
+					this.setSize(300, 320);
+				}
+			}
+			else
+			{
+				this.setTitle(InstalmentLanguage.Instalment);
+				this.setSize(650 , 432);
+			}
 		}
 
 		this.interestRateText.setEditable(false);
@@ -389,6 +513,10 @@ public class InstalmentForm extends JDialog
 		this.accountCodeLable.setFont(font);
 		this.accountCodeLable.setText(Language.Account);
 		this.accountText.setFont(font);
+
+		this.lotLable.setFont(font);
+		this.lotLable.setText(InstalmentLanguage.Lot);
+		this.lotText.setFont(font);
 
 		this.priceLable.setFont(font);
 		this.priceLable.setText(TimeAndSaleLanguage.Price);
@@ -482,6 +610,15 @@ public class InstalmentForm extends JDialog
 		this.remainInterestLable.setFont(font);
 		this.remainInterestLable.setText(InstalmentLanguage.RemainInterest);
 		this.remainInterestText.setFont(font);
+
+		this.fullAmountRadioButton.setFont(font);
+		this.fullAmountRadioButton.setText(InstalmentLanguage.FullAmount);
+
+		this.advancePaymentRadioButton.setFont(font);
+		this.advancePaymentRadioButton.setText(InstalmentLanguage.AdvancePayment);
+
+		this.instalmentRadioButton.setFont(font);
+		this.instalmentRadioButton.setText(InstalmentLanguage.Instalment);
 
 		this.summaryLable.setFont(font);
 		this.totalPrincipal.setFont(font);
@@ -580,18 +717,61 @@ public class InstalmentForm extends JDialog
 		}
 		else
 		{
-			if (this.accounts.length == 1)
+			if (this.makeOrderAccounts == null)
 			{
 				this.add(this.accountCodeLable, new GridBagConstraints(0, y, 1, 1, 0.0, 0.0
 					, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(5, 5, 0, 0), 0, 0));
 				this.add(this.accountText, new GridBagConstraints(1, y, 1, 1, 0.0, 0.0
 					, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(5, 2, 0, 0), 0, 0));
 				this.accountText.setText(this.accounts[0].get_Code());
+				y++;
+
+				this.add(this.lotLable, new GridBagConstraints(0, y, 1, 1, 0.0, 0.0
+					, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(5, 5, 0, 0), 0, 0));
+				this.add(this.lotText, new GridBagConstraints(1, y, 1, 1, 0.0, 0.0
+					, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(5, 2, 0, 0), 0, 0));
+				BigDecimal lot = this.lots.get(this.accounts[0].get_Id());
+
+				String lotStr = AppToolkit.format(lot, this.instrument.get_PhysicalLotDecimal());
+				this.lotText.setText(lotStr);
 			}
 			else
 			{
 				this.add(new JScrollPane(this.instalmentAccountTable), new GridBagConstraints(0, y, 2, 1, 0.0, 0.0
-					, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, new Insets(10, 5, 5, 0), 0, 60));
+					, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, new Insets(10, 5, 0, 0), 0, 50));
+				y++;
+
+				JPanel panel = new JPanel();
+				panel.setLayout(new GridBagLayout());
+				panel.add(this.fullAmountRadioButton, new GridBagConstraints(0, 0, 1, 1, 0.5, 0.0
+					, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, new Insets(0, 0, 0, 0), 0, 0));
+				if(hasAccountCanAdvancePayment)
+				{
+					panel.add(this.advancePaymentRadioButton, new GridBagConstraints(1, 0, 1, 1, 0.5, 0.0
+						, GridBagConstraints.CENTER, GridBagConstraints.HORIZONTAL, new Insets(0, 0, 0, 0), 0, 0));
+				}
+				if(hasAccountCanPlaceInstalment)
+				{
+					panel.add(this.instalmentRadioButton, new GridBagConstraints(2, 0, 1, 1, 0.1, 0.0
+						, GridBagConstraints.EAST, GridBagConstraints.NONE, new Insets(0, 0, 0, 0), 0, 0));
+				}
+				ButtonGroup group = new ButtonGroup();
+				group.add(fullAmountRadioButton);
+				group.add(advancePaymentRadioButton);
+				group.add(instalmentRadioButton);
+				ChangeListener changeListener = new ChangeListener()
+				{
+					public void stateChanged(ChangeEvent e)
+					{
+						if(stateChangedEventsEnabled) handlePaymentChanged();
+					}
+				};
+				fullAmountRadioButton.addChangeListener(changeListener);
+				advancePaymentRadioButton.addChangeListener(changeListener);
+				instalmentRadioButton.addChangeListener(changeListener);
+
+				this.add(panel, new GridBagConstraints(0, y, 2, 1, 1.0, 0.0
+					, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, new Insets(2, 5, 0, 0), 0, 0));
 			}
 			y++;
 
@@ -612,23 +792,26 @@ public class InstalmentForm extends JDialog
 			}
 			y++;
 
-			this.add(this.instalmentTypeLable, new GridBagConstraints(0, y, 1, 1, 0.0, 0.0
-				, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(2, 5, 0, 0), 40, 0));
-			this.add(this.instalmentTypeChoice, new GridBagConstraints(1, y, 1, 1, 0.0, 0.0
-				, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(2, 2, 0, 0), 40, 0));
-			y++;
+			if(needShowInstalmentDetail)
+			{
+				this.add(this.instalmentTypeLable, new GridBagConstraints(0, y, 1, 1, 0.0, 0.0
+					, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(2, 5, 0, 0), 40, 0));
+				this.add(this.instalmentTypeChoice, new GridBagConstraints(1, y, 1, 1, 0.0, 0.0
+					, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(2, 2, 0, 0), 40, 0));
+				y++;
 
-			this.add(this.periodLable, new GridBagConstraints(0, y, 1, 1, 0.0, 0.0
-				, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(2, 5, 0, 0), 40, 0));
-			this.add(this.periodChoice, new GridBagConstraints(1, y, 1, 1, 0.0, 0.0
-				, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, new Insets(2, 2, 0, 0), 40, 0));
-			y++;
+				this.add(this.periodLable, new GridBagConstraints(0, y, 1, 1, 0.0, 0.0
+					, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(2, 5, 0, 0), 40, 0));
+				this.add(this.periodChoice, new GridBagConstraints(1, y, 1, 1, 0.0, 0.0
+					, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, new Insets(2, 2, 0, 0), 40, 0));
+				y++;
 
-			this.add(this.interestRateLable, new GridBagConstraints(0, y, 1, 1, 0.0, 0.0
-				, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(2, 5, 0, 0), 40, 0));
-			this.add(this.interestRateText, new GridBagConstraints(1, y, 1, 1, 0.0, 0.0
-				, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, new Insets(2, 2, 0, 0), 40, 0));
-			y++;
+				this.add(this.interestRateLable, new GridBagConstraints(0, y, 1, 1, 0.0, 0.0
+					, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(2, 5, 0, 0), 40, 0));
+				this.add(this.interestRateText, new GridBagConstraints(1, y, 1, 1, 0.0, 0.0
+					, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, new Insets(2, 2, 0, 0), 40, 0));
+				y++;
+			}
 
 			this.add(this.downPaymentLable, new GridBagConstraints(0, y, 1, 1, 0.0, 0.0
 				, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(2, 5, 0, 0), 40, 0));
@@ -641,11 +824,14 @@ public class InstalmentForm extends JDialog
 				, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, new Insets(2, 2, 0, 0), 40, 0));
 			y++;
 
-			this.add(this.recalculateRateTypeLable, new GridBagConstraints(0, y, 1, 1, 0.0, 0.0
-				, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(2, 5, 0, 0), 40, 0));
-			this.add(this.recalculateRateTypeChoice, new GridBagConstraints(1, y, 1, 1, 0.0, 0.0
-				, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, new Insets(2, 2, 0, 0), 40, 0));
-			y++;
+			if(needShowInstalmentDetail)
+			{
+				this.add(this.recalculateRateTypeLable, new GridBagConstraints(0, y, 1, 1, 0.0, 0.0
+					, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(2, 5, 0, 0), 40, 0));
+				this.add(this.recalculateRateTypeChoice, new GridBagConstraints(1, y, 1, 1, 0.0, 0.0
+					, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, new Insets(2, 2, 0, 0), 40, 0));
+				y++;
+			}
 
 			this.add(this.totalAmountLable, new GridBagConstraints(0, y, 1, 1, 0.0, 0.0
 				, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(2, 5, 0, 0), 40, 0));
@@ -663,32 +849,50 @@ public class InstalmentForm extends JDialog
 				, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(2, 5, 0, 0), 40, 0));
 			this.add(this.loanAmountText, new GridBagConstraints(1, y, 1, 1, 0.0, 0.0
 				, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, new Insets(2, 2, 0, 0), 40, 0));
-
-			this.add(new JScrollPane(this.instalmentDetailTable), new GridBagConstraints(2, 0, 1, y, 0.0, 0.0
-				, GridBagConstraints.WEST, GridBagConstraints.BOTH, new Insets(10, 5, 0, 5), 0, 0));
-
-			JPanel summaryPanel = new JPanel(new GridBagLayout());
-			summaryPanel.add(this.summaryLable, new GridBagConstraints(0, 0, 1, 1, 0.0, 0.0
-				, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(0, 0, 0, 5), 40, 0));
-			summaryPanel.add(this.totalPrincipal, new GridBagConstraints(1, 0, 1, 1, 0.0, 0.0
-				, GridBagConstraints.EAST, GridBagConstraints.NONE, new Insets(0, 5, 0, 2), 30, 0));
-			summaryPanel.add(this.totalInterest, new GridBagConstraints(2, 0, 1, 1, 0.0, 0.0
-				, GridBagConstraints.EAST, GridBagConstraints.NONE, new Insets(0, 5, 0, 5), 30, 0));
-			summaryPanel.add(this.totalAmount, new GridBagConstraints(3, 0, 1, 1, 0.0, 0.0
-				, GridBagConstraints.EAST, GridBagConstraints.NONE, new Insets(0, 5, 0, 5), 30, 0));
-
-			this.add(summaryPanel, new GridBagConstraints(2, y, 1, 1, 0.0, 0.0
-				, GridBagConstraints.SOUTHWEST, GridBagConstraints.HORIZONTAL, new Insets(8, 5, 0, 5), 0, 0));
 			y++;
 
-			this.add(this.instalmentWarningLable, new GridBagConstraints(0, y, 3, 1, 0.0, 0.0
-				, GridBagConstraints.SOUTHWEST, GridBagConstraints.HORIZONTAL, new Insets(10, 5, 0, 5), 0, 0));
+			this.add(this.instalmentFeeLable, new GridBagConstraints(0, y, 1, 1, 0.0, 0.0
+				, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(2, 5, 0, 0),40, 0));
+			this.add(this.instalmentFeeText, new GridBagConstraints(1, y, 1, 1, 0.0, 0.0
+				, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, new Insets(2, 2, 0, 0),40, 0));
+			this.instalmentFeeText.setEditable(false);
+			y++;
+
+			if(needShowInstalmentDetail)
+			{
+				this.add(new JScrollPane(this.instalmentDetailTable), new GridBagConstraints(2, 0, 1, y, 1.0, 0.0
+					, GridBagConstraints.WEST, GridBagConstraints.BOTH, new Insets(10, 5, 0, 5), 200, 0));
+
+				JPanel summaryPanel = new JPanel(new GridBagLayout());
+				summaryPanel.add(this.summaryLable, new GridBagConstraints(0, 0, 1, 1, 0.0, 0.0
+					, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(0, 0, 0, 5), 40, 0));
+				summaryPanel.add(this.totalPrincipal, new GridBagConstraints(1, 0, 1, 1, 0.0, 0.0
+					, GridBagConstraints.EAST, GridBagConstraints.NONE, new Insets(0, 5, 0, 2), 30, 0));
+				summaryPanel.add(this.totalInterest, new GridBagConstraints(2, 0, 1, 1, 0.0, 0.0
+					, GridBagConstraints.EAST, GridBagConstraints.NONE, new Insets(0, 5, 0, 5), 30, 0));
+				summaryPanel.add(this.totalAmount, new GridBagConstraints(3, 0, 1, 1, 0.0, 0.0
+					, GridBagConstraints.EAST, GridBagConstraints.NONE, new Insets(0, 5, 0, 5), 30, 0));
+
+				this.add(summaryPanel, new GridBagConstraints(2, y, 1, 1, 0.0, 0.0
+															  , GridBagConstraints.SOUTHWEST, GridBagConstraints.HORIZONTAL, new Insets(8, 5, 0, 5), 0, 0));
+				y++;
+			}
+			else
+			{
+				this.add(new JPanel(), new GridBagConstraints(2, 0, 1, y, 0.0, 0.0
+					, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(10, -4, 0, 0), 0, 0));
+			}
+
+			JScrollPane pane = new JScrollPane(this.instalmentWarningLable);
+			pane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+			pane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_NEVER);
+			pane.setBorder(null);
+			this.add(pane, new GridBagConstraints(0, y, 3, 1, 0.0, 0.0
+				, GridBagConstraints.SOUTHWEST, GridBagConstraints.HORIZONTAL, new Insets(5, 5, 0, 5), 0, 10));
 			y++;
 		}
 
 		JPanel buttonPanel = new JPanel();
-		this.add(buttonPanel, new GridBagConstraints(0, y, 3, 1, 0.0, 0.0
-				, GridBagConstraints.SOUTHWEST, GridBagConstraints.HORIZONTAL, new Insets(10, 5, 2, 5), 0, 0));
 		buttonPanel.setLayout(new GridBagLayout());
 		if(!this.isForExecutedOrder)
 		{
@@ -697,6 +901,9 @@ public class InstalmentForm extends JDialog
 		}
 		buttonPanel.add(cancelButton, new GridBagConstraints(1, 0, 1, 1, 0.0, 0.0
 				, GridBagConstraints.EAST, GridBagConstraints.NONE, new Insets(0, 2, 0, 0), 40, 0));
+
+		this.add(buttonPanel, new GridBagConstraints(0, y, 3, 1, 0.0, 0.0
+				, GridBagConstraints.SOUTHWEST, GridBagConstraints.HORIZONTAL, new Insets(10, 5, 2, 5), 0, 0));
 	}
 
 	private void initData()
@@ -715,41 +922,35 @@ public class InstalmentForm extends JDialog
 			this.stopPriceCheckbox.setText(Price.toString(this.stopPrice));
 		}
 
-		if(this.accounts.length > 1)
+		if(this.makeOrderAccounts != null)
 		{
 			BindingSource bindingSource = new BindingSource();
-			TradingConsole.bindingManager.bind("", new Vector(), bindingSource, InstalmentAccount.getPropertyDescriptors());
+			bindingSource.setBackground(Color.WHITE);
+			TradingConsole.bindingManager.bind("InstalmentAccount", new Vector(), bindingSource, InstalmentAccount.getPropertyDescriptors());
 			this.instalmentAccountTable.setModel(bindingSource);
-			bindingSource.addPropertyChangedListener(new IPropertyChangedListener()
-			{
-				public void propertyChanged(Object owner, PropertyDescriptor propertyDescriptor, Object oldValue, Object newValue, int row, int column)
-				{
-					if(propertyDescriptor.get_Name().equalsIgnoreCase("Enable"))
-					{
-						Account account = ((InstalmentAccount)owner).get_Account();
-						boolean enable = (Boolean)newValue;
-						if (instalmentInfoList.containsKey(account.get_Id()))
-						{
-							InstalmentInfo instalmentInfo = instalmentInfoList.get(account.get_Id());
-							instalmentInfo.setEnabled(enable);
-						}
-					}
-				}
-			});
 
 			for (int index = 0; index < this.accounts.length; index++)
 			{
 				Account account = accounts[index];
-				boolean enable = false;
+				PaymentMode paymentMode = PaymentMode.FullAmount;
 				if(this.instalmentInfoList.containsKey(account.get_Id()))
 				{
 					InstalmentInfo instalmentInfo = this.instalmentInfoList.get(account.get_Id());
-					enable = instalmentInfo.isEnabled();
+					if(instalmentInfo.isAdvancePayment())
+					{
+						paymentMode = PaymentMode.AdvancePayment;
+					}
+					else
+					{
+						paymentMode = PaymentMode.Instalment;
+					}
 				}
 				BigDecimal lot = this.lots.get(account.get_Id());
 				String lotStr = AppToolkit.getFormatLot(lot, account, instrument);
-				bindingSource.add(new InstalmentAccount(enable, account, lotStr));
+
+				bindingSource.add(new InstalmentAccount(paymentMode, account, lotStr));
 			}
+			this.instalmentAccountTable.sortColumn("AccountCode");
 
 			this.instalmentAccountTable.addSelectedRowChangedListener(new ISelectedRowChangedListener()
 			{
@@ -761,15 +962,16 @@ public class InstalmentForm extends JDialog
 						row = TableModelWrapperUtils.getActualRowAt(instalmentAccountTable.getModel(), row);
 						InstalmentAccount instalmentAccount = (InstalmentAccount)instalmentAccountTable.get_BindingSource().getObject(row);
 
-						setCurrentAccount(instalmentAccount.get_Account(), true);
+						setCurrentAccount(instalmentAccount.get_Account(), instalmentAccount.get_PaymentMode());
 					}
 				}
 			});
 			this.instalmentAccountTable.changeSelection(0, 1, false, false);
 		}
-		else
+		else if(!this.isForExecutedOrder)
 		{
-			this.setCurrentAccount(this.accounts[0], true);
+			Account account = this.accounts[0];
+			this.setCurrentAccount(account, this.paymentMode);
 		}
 
 		if(this.isForExecutedOrder)
@@ -784,7 +986,7 @@ public class InstalmentForm extends JDialog
 			{
 				public void itemStateChanged(ItemEvent e)
 				{
-					if(stateChangedEventsEnabled) handlePeriodChanged(false);
+					if(stateChangedEventsEnabled) handlePeriodChanged(true);
 				}
 			});
 
@@ -822,25 +1024,33 @@ public class InstalmentForm extends JDialog
 		{
 			String livePrice = Price.toString(this.instrument.get_Quotation().getBuy());
 			this.priceText.setText(livePrice);
-
-			this.tryCaculateAndUpdateUI();
 		}
+
+		this.tryCaculateAndUpdateUI();
 	}
 
-	private void handlePeriodChanged(boolean isForInit)
+	private void handlePeriodChanged(boolean needRecaculate)
 	{
 		if(this.periodChoice.getSelectedIndex() < 0) return;
 
-		int period = (Integer)this.periodChoice.getSelectedValue();
+		InstalmentPeriod period = (InstalmentPeriod)this.periodChoice.getSelectedValue();
 		this.currentInstalmentPolicyDetail = this.currentInstalmentPolicy.get_InstalmentPolicyDetail(period);
 		this.interestRateText.setText(AppToolkit.format(this.currentInstalmentPolicyDetail.get_InterestRate(), 2));
 
 		this.downPaymentField.setEnabled(true);
 		double maxDownPayment = this.currentInstalmentPolicyDetail.get_MaxDownPayment().doubleValue();
 		double minDownPayment = this.currentInstalmentPolicyDetail.get_MinDownPayment().doubleValue();
-		this.downPaymentField.setModel(new SpinnerNumberModel(minDownPayment * 100, minDownPayment * 100, maxDownPayment * 100, 0.1));
-
-		if(!isForInit) this.tryCaculateAndUpdateUI();
+		if(this.currentInstalmentPolicyDetail.get_DownPaymentBasis().equals(DownPaymentBasis.PercentageOfAmount))
+		{
+			this.downPaymentField.setModel(new SpinnerNumberModel((double)(minDownPayment * 100), (double)(minDownPayment * 100), maxDownPayment * 100, 0.1));
+			this.downPaymentPercentLable.setText("%");
+		}
+		else
+		{
+			this.downPaymentField.setModel(new SpinnerNumberModel(minDownPayment, minDownPayment, maxDownPayment, 1.0));
+			this.downPaymentPercentLable.setText(InstalmentLanguage.PerLot);
+		}
+		if(needRecaculate) this.tryCaculateAndUpdateUI();
 	}
 
 	private void handleDownPaymentChanged()
@@ -855,38 +1065,60 @@ public class InstalmentForm extends JDialog
 
 	public void tryCaculateAndUpdateUI()
 	{
-		if(this.isForExecutedOrder) return;
+		if (this.isForExecutedOrder)
+			return;
 
-		if(this.currentAccount == null) return;
-		if(!this.lots.containsKey(this.currentAccount.get_Id())) return;
+		if (this.currentAccount == null)
+			return;
+		if (!this.lots.containsKey(this.currentAccount.get_Id()))
+			return;
 		BigDecimal lot = this.lots.get(this.currentAccount.get_Id());
-		if(lot.compareTo(BigDecimal.ZERO) <= 0) return;
+		if (lot.compareTo(BigDecimal.ZERO) <= 0)
+			return;
 
-		if(this.currentInstalmentPolicyDetail == null) return;
-		InstalmentType instalmentType = this.getCurrentInstalmentType();
-		if(instalmentType == null) return;
+		if (this.currentInstalmentPolicyDetail == null)
+		{
+			if(this.currentPaymentMode.equals(PaymentMode.AdvancePayment))
+			{
+				this.currentInstalmentPolicyDetail = this.currentInstalmentPolicy.get_TillPayoffDetail();
+			}
+			else
+			{
+				return;
+			}
+		}
+		boolean isInstalmentPaymentMode = this.currentPaymentMode.equals(PaymentMode.Instalment);
+		InstalmentType instalmentType = this.currentPaymentMode.equals(PaymentMode.AdvancePayment) ? InstalmentType.EqualInstallment : null;
+		if (isInstalmentPaymentMode)
+		{
+			instalmentType = this.getCurrentInstalmentType();
+			if (instalmentType == null)
+				return;
+		}
 		BigDecimal downPayment = this.getCurrentDownPayment();
-		if(downPayment == null) return;
+		if (downPayment == null)
+			return;
 
-		int period = (Integer)this.periodChoice.getSelectedValue();
+		InstalmentPeriod period
+			= isInstalmentPaymentMode ? (InstalmentPeriod)this.periodChoice.getSelectedValue() : InstalmentPeriod.TillPayoffInstalmentPeriod;
 
 		Price price = null;
-		if(this.limitPrice == null && this.stopPrice == null)
+		if (this.limitPrice == null && this.stopPrice == null)
 		{
 			price = this.instrument.get_LastQuotation().getBuy();
 		}
-		else if(this.limitPrice != null || this.limitPriceCheckbox.isSelected())
+		else if (this.limitPrice != null || this.limitPriceCheckbox.isSelected())
 		{
 			price = this.limitPrice;
 		}
-		else if(this.stopPrice != null || this.stopPriceCheckbox.isSelected())
+		else if (this.stopPrice != null || this.stopPriceCheckbox.isSelected())
 		{
 			price = this.stopPrice;
 		}
 
 		int decimals = this.instrument.get_Currency().get_Decimals();
 		TradePolicyDetail tradePolicyDetail =
-				this.settingsManager.getTradePolicyDetail(this.currentAccount.get_TradePolicyId(), this.instrument.get_Id());
+			this.settingsManager.getTradePolicyDetail(this.currentAccount.get_TradePolicyId(), this.instrument.get_Id());
 
 		double oddDiscount = tradePolicyDetail.get_DiscountOfOdd().doubleValue();
 		short tradePLFormula = this.instrument.get_TradePLFormula();
@@ -895,52 +1127,66 @@ public class InstalmentForm extends JDialog
 		marketValue = marketValue.setScale(decimals, RoundingMode.HALF_EVEN);
 
 		BigDecimal fee = this.caculateFee(lot, marketValue).setScale(decimals, RoundingMode.HALF_EVEN);
-	    BigDecimal downPaymentAmount = downPayment.multiply(marketValue).setScale(decimals, RoundingMode.HALF_EVEN);
+		BigDecimal downPaymentAmount = BigDecimal.ZERO;
+
+		if(this.currentInstalmentPolicyDetail.get_DownPaymentBasis().equals(DownPaymentBasis.PercentageOfAmount))
+		{
+			downPaymentAmount = downPayment.multiply(marketValue).setScale(decimals, RoundingMode.HALF_EVEN);
+		}
+		else if(this.currentInstalmentPolicyDetail.get_DownPaymentBasis().equals(DownPaymentBasis.FixedAmountPerLot))
+		{
+			downPaymentAmount = downPayment.multiply(lot).setScale(decimals, RoundingMode.HALF_EVEN);
+		}
 		BigDecimal loanAmount = marketValue.subtract(downPaymentAmount);
 
-		RecalculateRateType recalculateRateType
-			= (RecalculateRateType)this.recalculateRateTypeChoice.getSelectedValue();
+		RecalculateRateType recalculateRateType = RecalculateRateType.NextMonth;
+		if (isInstalmentPaymentMode)
+		{
+			recalculateRateType = (RecalculateRateType)this.recalculateRateTypeChoice.getSelectedValue();
+		}
 
-		boolean isInstalmentEnable = this.getIsInstalmentEnable(this.currentAccount);
-		if(this.instalmentInfoList.containsKey(this.currentAccount.get_Id()))
+		if (this.instalmentInfoList.containsKey(this.currentAccount.get_Id()))
 		{
 			InstalmentInfo instalmentInfo = this.instalmentInfoList.get(this.currentAccount.get_Id());
-			instalmentInfo.update(this.currentInstalmentPolicy.get_Id(), period, downPayment, instalmentType, recalculateRateType, fee, isInstalmentEnable);
+			instalmentInfo.update(this.currentInstalmentPolicy.get_Id(), period, downPayment, instalmentType, recalculateRateType, fee, this.currentPaymentMode);
 		}
 		else
 		{
 			InstalmentInfo instalmentInfo
-				= new InstalmentInfo(this.currentInstalmentPolicy.get_Id(), period, downPayment, instalmentType, recalculateRateType,fee, isInstalmentEnable);
+				= new InstalmentInfo(this.currentInstalmentPolicy.get_Id(), period, downPayment, instalmentType, recalculateRateType, fee, this.currentPaymentMode);
 			this.instalmentInfoList.put(this.currentAccount.get_Id(), instalmentInfo);
 		}
 
-		InstalmentCaculateResult instalmentCaculateResult = null;
-		if(instalmentType.value() == InstalmentType.EqualInstallment.value())
+		if(isInstalmentPaymentMode)
 		{
-			instalmentCaculateResult =
-				InstalmentCaculator.CalculateEqualInstalment(loanAmount, period, this.currentInstalmentPolicyDetail.get_InterestRate(), decimals);
-		}
-		else if(instalmentType.value() == InstalmentType.EqualPrincipal.value())
-		{
-			instalmentCaculateResult =
-				InstalmentCaculator.CalculateEqualPrincipal(loanAmount, period, this.currentInstalmentPolicyDetail.get_InterestRate(), decimals);
-		}
+			InstalmentCaculateResult instalmentCaculateResult = null;
+			if (instalmentType.value() == InstalmentType.EqualInstallment.value())
+			{
+				instalmentCaculateResult =
+					InstalmentCaculator.CalculateEqualInstalment(loanAmount, period.get_Period(), this.currentInstalmentPolicyDetail.get_InterestRate(), decimals);
+			}
+			else if (instalmentType.value() == InstalmentType.EqualPrincipal.value())
+			{
+				instalmentCaculateResult =
+					InstalmentCaculator.CalculateEqualPrincipal(loanAmount, period.get_Period(), this.currentInstalmentPolicyDetail.get_InterestRate(), decimals);
+			}
 
-		ArrayList<InstalmentDetail> instalmentDetails = instalmentCaculateResult.get_InstalmentDetails();
-		this.bindInstalmentDetail(instalmentDetails);
+			ArrayList<InstalmentDetail> instalmentDetails = instalmentCaculateResult.get_InstalmentDetails();
+			this.bindInstalmentDetail(instalmentDetails);
+
+			BigDecimal totalInstrest = BigDecimal.ZERO;
+			for (InstalmentDetail instalmentDetail : instalmentDetails)
+			{
+				totalInstrest = totalInstrest.add(instalmentDetail.get_Interest());
+			}
+			this.totalPrincipal.setText(AppToolkit.format(loanAmount, decimals));
+			this.totalInterest.setText(AppToolkit.format(totalInstrest, decimals));
+			this.totalAmount.setText(AppToolkit.format(loanAmount.add(totalInstrest), decimals));
+		}
 		this.totalAmountText.setText(AppToolkit.format(marketValue, decimals));
 		this.downPaymentAmountText.setText(AppToolkit.format(downPaymentAmount, decimals));
 		this.loanAmountText.setText(AppToolkit.format(loanAmount, decimals));
 		this.instalmentFeeText.setText(AppToolkit.format(fee, decimals));
-
-		BigDecimal totalInstrest = BigDecimal.ZERO;
-		for(InstalmentDetail instalmentDetail :instalmentDetails)
-		{
-			totalInstrest = totalInstrest.add(instalmentDetail.get_Interest());
-		}
-		this.totalPrincipal.setText(AppToolkit.format(loanAmount, decimals));
-		this.totalInterest.setText(AppToolkit.format(totalInstrest, decimals));
-		this.totalAmount.setText(AppToolkit.format(loanAmount.add(totalInstrest), decimals));
 	}
 
 	private BigDecimal caculateFee(BigDecimal lot, BigDecimal marketValue)
@@ -965,26 +1211,6 @@ public class InstalmentForm extends JDialog
 		}
 	}
 
-	private boolean getIsInstalmentEnable(Account account)
-	{
-		if(this.accounts.length > 1)
-		{
-			for(int index = 0; index < this.instalmentAccountTable.getRowCount(); index++)
-			{
-				InstalmentAccount instalmentAccount = (InstalmentAccount)this.instalmentAccountTable.getObject(index);
-				if(instalmentAccount.get_Account() == account)
-				{
-					return instalmentAccount.get_Enable();
-				}
-			}
-			return false;
-		}
-		else
-		{
-			return true;
-		}
-	}
-
 	private void bindInstalmentDetail(ArrayList<InstalmentDetail> instalmentDetails)
 	{
 		PropertyDescriptor[] propertyDescriptors
@@ -1005,7 +1231,8 @@ public class InstalmentForm extends JDialog
 
 	private BigDecimal getCurrentDownPayment()
 	{
-		double value = (Double)(this.downPaymentField.getValue()) / 100.0;
+		double value = (Double)(this.downPaymentField.getValue());
+		if(this.currentInstalmentPolicyDetail.get_DownPaymentBasis().equals(DownPaymentBasis.PercentageOfAmount)) value = value / 100.0;
 		return new BigDecimal(value).setScale(3, RoundingMode.HALF_EVEN);
 	}
 
@@ -1020,16 +1247,129 @@ public class InstalmentForm extends JDialog
 		stateChangedEventsEnabled = true;
 	}
 
-	private void setCurrentAccount(Account account, boolean isForInit)
+	private void adjustControlsStatus()
 	{
-		if (this.currentAccount == account)
-			return;
+		if(this.isForExecutedOrder) return;
+
+		if(this.currentPaymentMode.equals(PaymentMode.FullAmount))
+		{
+			this.instalmentTypeChoice.setEnabled(false);
+			this.periodChoice.setEnabled(false);
+			this.recalculateRateTypeChoice.setEnabled(false);
+			this.totalAmountText.setEnabled(false);
+			this.downPaymentAmountText.setEnabled(false);
+			this.loanAmountText.setEnabled(false);
+			this.totalAmount.setEnabled(false);
+			this.downPaymentField.setEnabled(false);
+			this.instalmentFeeText.setEnabled(false);
+			this.instalmentDetailTable.setEnabled(false);
+			this.interestRateText.setEnabled(false);
+			this.summaryLable.setEnabled(false);
+			this.totalAmount.setEnabled(false);
+			this.totalInterest.setEnabled(false);
+			this.totalPrincipal.setEnabled(false);
+		}
+		else if(this.currentPaymentMode.equals(PaymentMode.Instalment))
+		{
+			this.instalmentTypeChoice.setEnabled(true);
+			this.periodChoice.setEnabled(true);
+			this.recalculateRateTypeChoice.setEnabled(true);
+			this.totalAmountText.setEnabled(true);
+			this.downPaymentAmountText.setEnabled(true);
+			this.loanAmountText.setEnabled(true);
+			this.totalAmount.setEnabled(true);
+			this.downPaymentField.setEnabled(true);
+			this.instalmentFeeText.setEnabled(true);
+			this.interestRateText.setEnabled(true);
+			this.summaryLable.setEnabled(true);
+			this.totalAmount.setEnabled(true);
+			this.totalInterest.setEnabled(true);
+			this.totalPrincipal.setEnabled(true);
+
+
+			this.downPaymentAmountLable.setText(InstalmentLanguage.DownPaymentAmount);
+			this.loanAmountLable.setText(InstalmentLanguage.LoanAmount);
+
+			if(this.currentInstalmentPolicyDetail != null)
+			{
+				if (this.currentInstalmentPolicyDetail.get_DownPaymentBasis().equals(DownPaymentBasis.FixedAmountPerLot))
+				{
+					this.downPaymentPercentLable.setText(InstalmentLanguage.PerLot);
+				}
+				else if (this.currentInstalmentPolicyDetail.get_DownPaymentBasis().equals(DownPaymentBasis.PercentageOfAmount))
+				{
+					this.downPaymentPercentLable.setText("%");
+				}
+			}
+
+		}
+		else if(this.currentPaymentMode.equals(PaymentMode.AdvancePayment))
+		{
+			this.instalmentTypeChoice.setEnabled(false);
+			this.periodChoice.setEnabled(false);
+			this.recalculateRateTypeChoice.setEnabled(false);
+			this.totalAmountText.setEnabled(true);
+			this.downPaymentAmountText.setEnabled(true);
+			this.loanAmountText.setEnabled(true);
+			this.totalAmount.setEnabled(true);
+			this.downPaymentField.setEnabled(true);
+			this.instalmentFeeText.setEnabled(true);
+			this.interestRateText.setEnabled(false);
+			this.summaryLable.setEnabled(false);
+			this.totalAmount.setEnabled(false);
+			this.totalInterest.setEnabled(false);
+			this.totalPrincipal.setEnabled(false);
+
+
+			this.downPaymentAmountLable.setText(InstalmentLanguage.AdvanceAmount);
+			this.loanAmountLable.setText(InstalmentLanguage.RemainAmount);
+			if(this.currentInstalmentPolicyDetail != null)
+			{
+				if (this.currentInstalmentPolicyDetail.get_DownPaymentBasis().equals(DownPaymentBasis.FixedAmountPerLot))
+				{
+					this.downPaymentPercentLable.setText(InstalmentLanguage.PerLot);
+				}
+				else if (this.currentInstalmentPolicyDetail.get_DownPaymentBasis().equals(DownPaymentBasis.PercentageOfAmount))
+				{
+					this.downPaymentPercentLable.setText("%");
+				}
+			}
+		}
+	}
+
+	private void setCurrentAccount(Account account, PaymentMode paymentMode)
+	{
+		if (this.currentAccount == account && this.currentPaymentMode.equals(paymentMode))	return;
 
 		disableStateChangedEvents();
 
 		this.currentAccount = account;
+		this.currentPaymentMode = paymentMode;
 		this.currentInstalmentPolicy = null;
 		this.currentInstalmentPolicyDetail = null;
+
+		if(this.makeOrderAccounts != null)
+		{
+			MakeOrderAccount makeOrderAccount = this.makeOrderAccounts.get(account.get_Id());
+
+			this.fullAmountRadioButton.setVisible(makeOrderAccount.get_CanFullPayment());
+			this.advancePaymentRadioButton.setVisible(makeOrderAccount.get_CanAdvancePayment());
+			this.instalmentRadioButton.setVisible(makeOrderAccount.get_CanInstalment());
+
+			if (paymentMode.equals(PaymentMode.FullAmount))
+			{
+				this.fullAmountRadioButton.setSelected(true);
+			}
+			else if (paymentMode.equals(PaymentMode.AdvancePayment))
+			{
+				this.advancePaymentRadioButton.setSelected(true);
+			}
+			else if (paymentMode.equals(PaymentMode.Instalment))
+			{
+				this.instalmentRadioButton.setSelected(true);
+			}
+		}
+		this.adjustControlsStatus();
 
 		if (!this.isForExecutedOrder)
 		{
@@ -1043,92 +1383,144 @@ public class InstalmentForm extends JDialog
 		{
 			instalmentInfo = this.instalmentInfoList.get(account.get_Id());
 		}
+		boolean isInstalmentPaymentMode = this.currentPaymentMode.equals(PaymentMode.Instalment);
 
 		int selectedIndex = 0;
 		int index = 0;
 		if (!this.isForExecutedOrder)
 		{
-			this.periodChoice.removeAllItems();
-			for (Integer period : this.currentInstalmentPolicy.getPeriods())
+			if(isInstalmentPaymentMode)
 			{
-				if (instalmentInfo != null && instalmentInfo.get_Period() == period)
+				this.periodChoice.removeAllItems();
+				for (InstalmentPeriod period : this.currentInstalmentPolicy.getActivePeriods())
 				{
-					selectedIndex = index;
+					if (instalmentInfo != null && instalmentInfo.get_Period().equals(period))
+					{
+						selectedIndex = index;
+					}
+					this.periodChoice.addItem(period.toString(), period);
+					index++;
 				}
-				this.periodChoice.addItem(period.toString(), period);
-				index++;
+				this.periodChoice.setSelectedIndex(selectedIndex);
+				handlePeriodChanged(false);
 			}
 		}
 		else
 		{
-			int period = instalmentInfo.get_Period();
-			this.periodChoice.addItem(Integer.toString(period), period);
+			InstalmentPeriod period = instalmentInfo.get_Period();
+			this.periodChoice.addItem(period.toString(), period);
+			this.periodChoice.setSelectedIndex(0);
 		}
-		this.periodChoice.setSelectedIndex(selectedIndex);
-		if (isForInit && !this.isForExecutedOrder)
-			handlePeriodChanged(isForInit);
 
 		selectedIndex = 0;
 		if (!this.isForExecutedOrder)
 		{
-			this.instalmentTypeChoice.removeAllItems();
-
-			InstalmentType allowInstalmentTypes = this.currentInstalmentPolicy.get_AllowedInstalmentTypes();
-			if (allowInstalmentTypes.value() == InstalmentType.All.value())
+			if(isInstalmentPaymentMode)
 			{
-				this.instalmentTypeChoice.addItem(InstalmentType.EqualInstallment.toLocalString(), InstalmentType.EqualInstallment);
-				this.instalmentTypeChoice.addItem(InstalmentType.EqualPrincipal.toLocalString(), InstalmentType.EqualPrincipal);
+				this.instalmentTypeChoice.removeAllItems();
 
-				if (instalmentInfo != null && instalmentInfo.get_InstalmentType().value() == InstalmentType.EqualPrincipal.value())
+				InstalmentType allowInstalmentTypes = this.currentInstalmentPolicy.get_AllowedInstalmentTypes();
+				if (allowInstalmentTypes.value() == InstalmentType.All.value())
 				{
-					selectedIndex = 1;
+					this.instalmentTypeChoice.addItem(InstalmentType.EqualInstallment.toLocalString(), InstalmentType.EqualInstallment);
+					this.instalmentTypeChoice.addItem(InstalmentType.EqualPrincipal.toLocalString(), InstalmentType.EqualPrincipal);
+
+					if (instalmentInfo != null && instalmentInfo.get_InstalmentType().value() == InstalmentType.EqualPrincipal.value())
+					{
+						selectedIndex = 1;
+					}
 				}
-			}
-			else
-			{
-				this.instalmentTypeChoice.addItem(allowInstalmentTypes.toLocalString(), allowInstalmentTypes);
+				else
+				{
+					this.instalmentTypeChoice.addItem(allowInstalmentTypes.toLocalString(), allowInstalmentTypes);
+				}
+				this.instalmentTypeChoice.setSelectedIndex(selectedIndex);
 			}
 		}
 		else
 		{
 			InstalmentType instalmentType = instalmentInfo.get_InstalmentType();
 			this.instalmentTypeChoice.addItem(instalmentType.toLocalString(), instalmentType);
+			this.instalmentTypeChoice.setSelectedIndex(0);
 		}
-		this.instalmentTypeChoice.setSelectedIndex(selectedIndex);
 
 		selectedIndex = 0;
 		if (!this.isForExecutedOrder)
 		{
-			this.recalculateRateTypeChoice.removeAllItems();
-
-			RecalculateRateType allowRecalculateRateType = this.currentInstalmentPolicy.get_AllowedRecalculateRateTypes();
-			if (allowRecalculateRateType.value() == RecalculateRateType.All.value())
+			if(isInstalmentPaymentMode)
 			{
-				this.recalculateRateTypeChoice.addItem(RecalculateRateType.NextMonth.toLocalString(), RecalculateRateType.NextMonth);
-				this.recalculateRateTypeChoice.addItem(RecalculateRateType.NextYear.toLocalString(), RecalculateRateType.NextYear);
+				this.recalculateRateTypeChoice.removeAllItems();
 
-				if (instalmentInfo != null && instalmentInfo.get_RecalculateRateType().value() == RecalculateRateType.NextYear.value())
+				RecalculateRateType allowRecalculateRateType = this.currentInstalmentPolicy.get_AllowedRecalculateRateTypes();
+				if (allowRecalculateRateType.value() == RecalculateRateType.All.value())
 				{
-					selectedIndex = 1;
+					this.recalculateRateTypeChoice.addItem(RecalculateRateType.NextMonth.toLocalString(), RecalculateRateType.NextMonth);
+					this.recalculateRateTypeChoice.addItem(RecalculateRateType.NextYear.toLocalString(), RecalculateRateType.NextYear);
+
+					if (instalmentInfo != null && instalmentInfo.get_RecalculateRateType().value() == RecalculateRateType.NextYear.value())
+					{
+						selectedIndex = 1;
+					}
 				}
-			}
-			else
-			{
-				this.recalculateRateTypeChoice.addItem(allowRecalculateRateType.toLocalString(), allowRecalculateRateType);
+				else
+				{
+					this.recalculateRateTypeChoice.addItem(allowRecalculateRateType.toLocalString(), allowRecalculateRateType);
+				}
+				this.recalculateRateTypeChoice.setSelectedIndex(selectedIndex);
 			}
 		}
 		else
 		{
 			RecalculateRateType recalculateRateType = instalmentInfo.get_RecalculateRateType();
 			this.recalculateRateTypeChoice.addItem(recalculateRateType.toLocalString(), recalculateRateType);
+			this.recalculateRateTypeChoice.setSelectedIndex(0);
 		}
-		this.recalculateRateTypeChoice.setSelectedIndex(selectedIndex);
+
+		if(this.currentPaymentMode.equals(PaymentMode.AdvancePayment))
+		{
+			this.currentInstalmentPolicyDetail = this.currentInstalmentPolicy.get_TillPayoffDetail();
+			double maxDownPayment = this.currentInstalmentPolicyDetail.get_MaxDownPayment().doubleValue();
+			double minDownPayment = this.currentInstalmentPolicyDetail.get_MinDownPayment().doubleValue();
+			if(this.currentInstalmentPolicyDetail.get_DownPaymentBasis().equals(DownPaymentBasis.PercentageOfAmount))
+			{
+				this.downPaymentField.setModel(new SpinnerNumberModel((double)(minDownPayment * 100), (double)(minDownPayment * 100), maxDownPayment * 100, 0.1));
+				this.downPaymentPercentLable.setText("%");
+			}
+			else
+			{
+				this.downPaymentField.setModel(new SpinnerNumberModel(minDownPayment, minDownPayment, maxDownPayment, 1.0));
+				this.downPaymentPercentLable.setText(InstalmentLanguage.PerLot);
+			}
+		}
 
 		if (instalmentInfo != null)
 		{
-			this.downPaymentField.setValue(instalmentInfo.get_DownPayment().doubleValue() * 100);
+			if(instalmentInfo.isAdvancePayment())
+			{
+				this.currentInstalmentPolicyDetail = this.currentInstalmentPolicy.get_TillPayoffDetail();
+			}
+			else
+			{
+				this.currentInstalmentPolicyDetail = this.currentInstalmentPolicy.get_InstalmentPolicyDetail(instalmentInfo.get_Period());
+			}
+
+			double maxDownPayment = this.currentInstalmentPolicyDetail.get_MaxDownPayment().doubleValue();
+			double minDownPayment = this.currentInstalmentPolicyDetail.get_MinDownPayment().doubleValue();
+			if(this.currentInstalmentPolicyDetail.get_DownPaymentBasis().equals(DownPaymentBasis.PercentageOfAmount))
+			{
+				this.downPaymentField.setModel(new SpinnerNumberModel((double)(minDownPayment * 100), (double)(minDownPayment * 100), maxDownPayment * 100, 0.1));
+				this.downPaymentField.setValue(instalmentInfo.get_DownPayment().doubleValue() * 100);
+				this.downPaymentPercentLable.setText("%");
+			}
+			else
+			{
+				this.downPaymentField.setModel(new SpinnerNumberModel(minDownPayment, minDownPayment, maxDownPayment, 1.0));
+				this.downPaymentField.setValue(instalmentInfo.get_DownPayment().doubleValue());
+				this.downPaymentPercentLable.setText(InstalmentLanguage.PerLot);
+			}
 		}
-		if (isForInit && !this.isForExecutedOrder)	this.tryCaculateAndUpdateUI();
+
+		if (!this.isForExecutedOrder && instalmentInfo != null) this.tryCaculateAndUpdateUI();
 
 		enableStateChangedEvents();
 	}
@@ -1155,7 +1547,7 @@ class InstalmentCaculator
 			if (i == period && loanAmount.compareTo(BigDecimal.ZERO) != 0)
 			{
 				principal = principal.add(loanAmount);
-				interest = interest.subtract(loanAmount);
+				//interest = interest.subtract(loanAmount);
 				loanAmount = BigDecimal.ZERO;
 			}
 			totalAmount = totalAmount.add(repaymentAmount);
@@ -1207,8 +1599,16 @@ class InstalmentCaculator
 
 	static BigDecimal getRepaymentAmount(BigDecimal balance, BigDecimal rate, int installments, int decimals)
 	{
-		double tmp = Math.pow(1 + rate.doubleValue(), installments);
-		double repaymentAmount = (balance.doubleValue() * rate.doubleValue() * tmp / (tmp - 1));
+		double repaymentAmount = 0;
+		if(rate.compareTo(BigDecimal.ZERO) == 0)
+		{
+			repaymentAmount = balance.doubleValue() / installments;
+		}
+		else
+		{
+			double tmp = Math.pow(1 + rate.doubleValue(), installments);
+			repaymentAmount = (balance.doubleValue() * rate.doubleValue() * tmp / (tmp - 1));
+		}
 		return new BigDecimal(repaymentAmount).setScale(decimals, RoundingMode.HALF_EVEN);
 	}
 }

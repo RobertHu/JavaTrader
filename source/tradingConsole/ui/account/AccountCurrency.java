@@ -40,8 +40,12 @@ public class AccountCurrency
 		{
 			case Balance:
 				return AppToolkit.format(accountCurrency.get_Balance(), decimals);
+			case TotalPaidAmount:
+				return AppToolkit.format(accountCurrency.get_TotalPaidAmount(), decimals);
 			case Necessary:
-				return AppToolkit.format(accountCurrency.get_Necessary(), decimals);
+				return AppToolkit.format(accountCurrency.get_Necessary() - accountCurrency.get_NecessaryForPartialPaymentPhysicalOrder(), decimals);
+			case NecessaryForPartialPaymentPhysicalOrder:
+				return AppToolkit.format(accountCurrency.get_NecessaryForPartialPaymentPhysicalOrder(), decimals);
 			case TradePLFloat:
 				return AppToolkit.format(TradingItem.sum(accountCurrency.get_FloatTradingItem()) - accountCurrency.get_FloatTradingItem().get_ValueAsMargin(), decimals);
 			case ValueAsMargin:

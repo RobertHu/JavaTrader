@@ -9,11 +9,14 @@ import framework.lang.Enum;
 import framework.xml.XmlAttributeCollection;
 import tradingConsole.enumDefine.physical.InstalmentType;
 import framework.xml.XmlNode;
+import tradingConsole.enumDefine.physical.DownPaymentBasis;
+import tradingConsole.enumDefine.physical.InstalmentFrequence;
 
 public class InstalmentPolicyDetail
 {
 	private Guid _instalmentPolicyId;
 	private int _period;
+	private DownPaymentBasis _downPaymentBasis;
 	private BigDecimal _minDownPayment;
 	private BigDecimal _maxDownPayment;
 	private BigDecimal _interestRate;
@@ -21,6 +24,8 @@ public class InstalmentPolicyDetail
 	private BigDecimal _administrationFee;
 	private ContractTerminateType _contractTerminateType;
 	private BigDecimal _contractTerminateFee;
+	private InstalmentFrequence _instalmentFrequence = InstalmentFrequence.Month;
+	private boolean _isActive = true;
 
 	public Guid get_InstalmentPolicyId()
 	{
@@ -30,6 +35,16 @@ public class InstalmentPolicyDetail
 	public int get_Period()
 	{
 		return this._period;
+	}
+
+	public DownPaymentBasis get_DownPaymentBasis()
+	{
+		return this._downPaymentBasis;
+	}
+
+	public InstalmentFrequence get_InstalmentFrequence()
+	{
+		return this._instalmentFrequence;
 	}
 
 	public BigDecimal get_MinDownPayment()
@@ -67,10 +82,28 @@ public class InstalmentPolicyDetail
 		return this._contractTerminateFee;
 	}
 
+	public boolean get_IsActive()
+	{
+		return this._isActive;
+	}
+
 	public InstalmentPolicyDetail(DataRow dataRow)
 	{
 		this._instalmentPolicyId = (Guid)dataRow.get_Item("InstalmentPolicyId");
 		this._period = (Integer)dataRow.get_Item("Period");
+		if(dataRow.get_Table().get_Columns().contains("DownPaymentBasis"))
+		{
+			this._downPaymentBasis = Enum.valueOf(DownPaymentBasis.class, (Integer)dataRow.get_Item("DownPaymentBasis"));
+		}
+		if(dataRow.get_Table().get_Columns().contains("Frequence"))
+		{
+			this._instalmentFrequence = Enum.valueOf(InstalmentFrequence.class, (Integer)dataRow.get_Item("Frequence"));
+		}
+		if(dataRow.get_Table().get_Columns().contains("IsActive"))
+		{
+			this._isActive = (Boolean)dataRow.get_Item("IsActive");
+		}
+
 		this._minDownPayment = (BigDecimal)dataRow.get_Item("MinDownPayment");
 		this._maxDownPayment = (BigDecimal)dataRow.get_Item("MaxDownPayment");
 		this._interestRate = (BigDecimal)dataRow.get_Item("InterestRate");
@@ -96,6 +129,10 @@ public class InstalmentPolicyDetail
 			{
 				this._instalmentPolicyId = new Guid(nodeValue);
 			}
+			else if (nodeName.equals("IsActive"))
+			{
+				this._isActive = Boolean.valueOf(nodeValue);
+			}
 			else if (nodeName.equals("Period"))
 			{
 				this._period = Integer.parseInt(nodeValue);
@@ -115,6 +152,14 @@ public class InstalmentPolicyDetail
 			else if (nodeName.equals("AdministrationFeeBase"))
 			{
 				this._administrationFeeBase = Enum.valueOf(AdministrationFeeBase.class, Integer.parseInt(nodeValue));
+			}
+			else if (nodeName.equals("DownPaymentBasis"))
+			{
+				this._downPaymentBasis = Enum.valueOf(DownPaymentBasis.class, Integer.parseInt(nodeValue));
+			}
+			else if (nodeName.equals("InstalmentFrequence"))
+			{
+				this._instalmentFrequence = Enum.valueOf(InstalmentFrequence.class, Integer.parseInt(nodeValue));
 			}
 			else if (nodeName.equals("AdministrationFee"))
 			{

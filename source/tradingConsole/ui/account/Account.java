@@ -1,21 +1,18 @@
 package tradingConsole.ui.account;
 
+import java.util.*;
+
+import java.awt.*;
+import javax.swing.*;
+
+import com.jidesoft.grid.*;
 import framework.*;
-import tradingConsole.*;
+import tradingConsole.enumDefine.*;
+import tradingConsole.framework.*;
+import tradingConsole.ui.*;
+import tradingConsole.ui.colorHelper.*;
 import tradingConsole.ui.grid.*;
-import com.jidesoft.grid.HierarchicalTableModel;
-import tradingConsole.framework.PropertyDescriptor;
-import java.util.Vector;
-import tradingConsole.ui.language.AccountSingleLanguage;
-import javax.swing.SwingConstants;
-import java.awt.Color;
-import javax.swing.UIManager;
-import java.util.Enumeration;
-import tradingConsole.enumDefine.AlertLevel;
-import javax.swing.JTable;
-import tradingConsole.ui.colorHelper.NumericColor;
-import tradingConsole.ui.ColorSettings;
-import java.util.ArrayList;
+import tradingConsole.ui.language.*;
 
 public class Account
 {
@@ -114,10 +111,12 @@ public class Account
 				this._details.update(accountDetail);
 
 				if((accountDetailType == AccountDetailCategory.TotalUnrealisedSwap && (this._rawAccount.get_NotValuedTradingItem().get_Interest() + this._rawAccount.get_NotValuedTradingItem().get_Storage()) == 0)
-				   || (accountDetailType == AccountDetailCategory.UnrealisedPL && this._rawAccount.get_NotValuedTradingItem().get_Trade() == 0)
+				   ||(accountDetailType == AccountDetailCategory.UnrealisedPL && this._rawAccount.get_NotValuedTradingItem().get_Trade() == 0)
 				   ||(accountDetailType == AccountDetailCategory.CreditAmount && this._rawAccount.get_CreditAmount() == 0)
 				   ||(accountDetailType == AccountDetailCategory.FrozenFund && this._rawAccount.get_FrozenFund() == 0)
+				   ||(accountDetailType == AccountDetailCategory.TotalPaidAmount && this._rawAccount.get_TotalPaidAmount() == 0)
 				   ||(accountDetailType== AccountDetailCategory.Usable && this._rawAccount.get_Necessary() == 0)
+				   ||(accountDetailType== AccountDetailCategory.NecessaryForPartialPaymentPhysicalOrder && this._rawAccount.get_NecessaryForPartialPaymentPhysicalOrder() == 0)
 				   ||(accountDetailType == AccountDetailCategory.ValueAsMargin && this._rawAccount.get_FloatTradingItem().get_ValueAsMargin() == 0))
 				{
 					shouldRemoveDetails.add(accountDetail);
@@ -147,6 +146,13 @@ public class Account
 						shouldAddDetails.add(this.createDetail(accountDetailType));
 					}
 				}
+				else if (accountDetailType == AccountDetailCategory.NecessaryForPartialPaymentPhysicalOrder)
+				{
+					if (this._rawAccount.get_NecessaryForPartialPaymentPhysicalOrder() != 0)
+					{
+						shouldAddDetails.add(this.createDetail(accountDetailType));
+					}
+				}
 				else if (accountDetailType == AccountDetailCategory.ValueAsMargin)
 				{
 					if (this._rawAccount.get_FloatTradingItem().get_ValueAsMargin() != 0)
@@ -157,6 +163,13 @@ public class Account
 				else if (accountDetailType == AccountDetailCategory.FrozenFund)
 				{
 					if (this._rawAccount.get_FrozenFund() != 0)
+					{
+						shouldAddDetails.add(this.createDetail(accountDetailType));
+					}
+				}
+				else if (accountDetailType == AccountDetailCategory.TotalPaidAmount)
+				{
+					if (this._rawAccount.get_TotalPaidAmount() != 0)
 					{
 						shouldAddDetails.add(this.createDetail(accountDetailType));
 					}
@@ -178,9 +191,36 @@ public class Account
 
 		for(AccountDetail accountDetail : shouldAddDetails)
 		{
-			this._details.insert(this._details.getRowCount() - 1, accountDetail);
+			int index = this.findInsertIndex(accountDetail.get_Type());
+			this._details.insert(index, accountDetail);
 			this.applyColor(accountDetail);
 		}
+	}
+
+	private int findInsertIndex(AccountDetailCategory accountDetailCategory)
+	{
+		int insertIndex = this._details.getRowCount() - 1;
+
+		boolean isOversteped = false;
+		for(AccountDetailCategory category : AccountDetailCategory.values())
+		{
+			if(isOversteped)
+			{
+				for(int index = 0; index < this._details.getRowCount(); index++)
+				{
+					AccountDetail accountDetail = (AccountDetail)this._details.getObject(index);
+					if(accountDetail.get_Type().equals(category))
+					{
+						return index;
+					}
+				}
+			}
+			else if(category.equals(accountDetailCategory))
+			{
+				isOversteped = true;
+			}
+		}
+		return insertIndex;
 	}
 
 	private AccountDetail createDetail(AccountDetailCategory accountDetailCategory)
@@ -288,6 +328,7 @@ public class Account
 		{
 			if ((accountDetailType == AccountDetailCategory.Unclear && account.get_UnclearAmount() == 0)
 				|| (accountDetailType == AccountDetailCategory.CreditAmount && account.get_CreditAmount() == 0)
+				||(accountDetailType == AccountDetailCategory.NecessaryForPartialPaymentPhysicalOrder && account.get_NecessaryForPartialPaymentPhysicalOrder() == 0)
 				|| (accountDetailType == AccountDetailCategory.TotalUnrealisedSwap && (account.get_NotValuedTradingItem().get_Interest() + account.get_NotValuedTradingItem().get_Storage()) == 0)
 				|| (accountDetailType == AccountDetailCategory.UnrealisedPL && account.get_NotValuedTradingItem().get_Trade() == 0)
 				|| (accountDetailType == AccountDetailCategory.ValueAsMargin && account.get_FloatTradingItem().get_ValueAsMargin() == 0))
@@ -339,8 +380,10 @@ public class Account
 	{
 		return accountDetailCategory == AccountDetailCategory.Balance
 			|| accountDetailCategory == AccountDetailCategory.Necessary
+			|| accountDetailCategory == AccountDetailCategory.NecessaryForPartialPaymentPhysicalOrder
 			|| accountDetailCategory == AccountDetailCategory.TradePLFloat
 			|| accountDetailCategory == AccountDetailCategory.FrozenFund
+			|| accountDetailCategory == AccountDetailCategory.TotalPaidAmount
 			|| accountDetailCategory == AccountDetailCategory.ValueAsMargin
 			|| (accountDetailCategory == AccountDetailCategory.TotalUnrealisedSwap)
 			|| (accountDetailCategory == AccountDetailCategory.UnrealisedPL)

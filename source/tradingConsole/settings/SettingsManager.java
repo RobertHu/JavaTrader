@@ -18,6 +18,8 @@ import tradingConsole.enumDefine.*;
 import tradingConsole.physical.*;
 import tradingConsole.service.*;
 import tradingConsole.ui.*;
+import framework.lang.Enum;
+import tradingConsole.enumDefine.physical.InstalmentFrequence;
 import Packet.GuidMapping;
 import java.util.concurrent.Semaphore;
 import org.apache.log4j.Logger;
@@ -1109,8 +1111,6 @@ public class SettingsManager
 			}
 		}
 
-
-
 		dataTable = tables.get_Item("VolumeNecessary");
 		if(dataTable != null)
 		{
@@ -1740,12 +1740,18 @@ public class SettingsManager
 		if (updateType.equals("Modify"))
 		{
 			XmlAttributeCollection attributes = xmlNode.get_Attributes();
-			Guid instalmentPolicyId = new Guid(attributes.get_ItemOf("Id").get_Value());
+			Guid instalmentPolicyId = new Guid(attributes.get_ItemOf("ID").get_Value());
 			if(this._instalmentPolicys.containsKey(instalmentPolicyId))
 			{
 				InstalmentPolicy instalmentPolicy = this._instalmentPolicys.get(instalmentPolicyId);
 				instalmentPolicy.update(xmlNode);
 			}
+		}
+		else if (updateType.equals("Delete"))
+		{
+			XmlAttributeCollection attributes = xmlNode.get_Attributes();
+			Guid instalmentPolicyId = new Guid(attributes.get_ItemOf("Id").get_Value());
+			this._instalmentPolicys.remove(instalmentPolicyId);
 		}
 	}
 
@@ -1766,10 +1772,23 @@ public class SettingsManager
 			XmlAttributeCollection attributes = xmlNode.get_Attributes();
 			Guid instalmentPolicyId = new Guid(attributes.get_ItemOf("InstalmentPolicyId").get_Value());
 			int period = Integer.parseInt(attributes.get_ItemOf("Period").get_Value());
+			InstalmentFrequence frequence = Enum.valueOf(InstalmentFrequence.class, Integer.parseInt(attributes.get_ItemOf("Frequence").get_Value()));
 			if(this._instalmentPolicys.containsKey(instalmentPolicyId))
 			{
 				InstalmentPolicy instalmentPolicy = this._instalmentPolicys.get(instalmentPolicyId);
-				instalmentPolicy.get_InstalmentPolicyDetail(period).update(xmlNode);
+				instalmentPolicy.get_InstalmentPolicyDetail(InstalmentPeriod.create(period, frequence)).update(xmlNode);
+			}
+		}
+		else if (updateType.equals("Delete"))
+		{
+			XmlAttributeCollection attributes = xmlNode.get_Attributes();
+			Guid instalmentPolicyId = new Guid(attributes.get_ItemOf("InstalmentPolicyId").get_Value());
+			int period = Integer.parseInt(attributes.get_ItemOf("Period").get_Value());
+			InstalmentFrequence frequence = Enum.valueOf(InstalmentFrequence.class, Integer.parseInt(attributes.get_ItemOf("InstalmentFrequence").get_Value()));
+			if(this._instalmentPolicys.containsKey(instalmentPolicyId))
+			{
+				InstalmentPolicy instalmentPolicy = this._instalmentPolicys.get(instalmentPolicyId);
+				instalmentPolicy.remove(InstalmentPeriod.create(period, frequence));
 			}
 		}
 	}

@@ -5,20 +5,21 @@ import java.math.*;
 import framework.*;
 import tradingConsole.*;
 import tradingConsole.enumDefine.physical.*;
+import tradingConsole.settings.*;
 import tradingConsole.ui.language.*;
 
 public class InstalmentInfo
 {
 	private Guid instalmentPolicyId;
-	private boolean enable;
+	private PaymentMode paymentMode;
 	private InstalmentType instalmentType;
-	private int period;
+	private InstalmentPeriod period;
 	private BigDecimal downPayment;
 	private BigDecimal fee;
 	private RecalculateRateType recalculateRateType;
 
-	public InstalmentInfo(Guid instalmentPolicyId, int period, BigDecimal downPayment,
-						  InstalmentType instalmentType, RecalculateRateType recalculateRateType, BigDecimal fee, boolean enable)
+	public InstalmentInfo(Guid instalmentPolicyId, InstalmentPeriod period, BigDecimal downPayment,
+						  InstalmentType instalmentType, RecalculateRateType recalculateRateType, BigDecimal fee, PaymentMode paymentMode)
 	{
 		this.instalmentPolicyId = instalmentPolicyId;
 		this.instalmentType = instalmentType;
@@ -26,23 +27,28 @@ public class InstalmentInfo
 		this.downPayment = downPayment;
 		this.recalculateRateType = recalculateRateType;
 		this.fee = fee;
-		this.enable = enable;
+		this.paymentMode = paymentMode;
 	}
 
 	public InstalmentInfo clone()
 	{
 		return new InstalmentInfo(this.instalmentPolicyId, this.period, this.downPayment,
-								  this.instalmentType, this.recalculateRateType, this.fee, this.enable);
+								  this.instalmentType, this.recalculateRateType, this.fee, this.paymentMode);
 	}
 
-	public boolean isEnabled()
+	public PaymentMode get_PaymentMode()
 	{
-		return this.enable;
+		return this.paymentMode;
 	}
 
-	public void setEnabled(boolean value)
+	public void set_PaymentMode(PaymentMode value)
 	{
-		this.enable = value;
+		this.paymentMode = value;
+	}
+
+	public boolean isFullPayment()
+	{
+		return this.paymentMode.equals(PaymentMode.FullAmount);
 	}
 
 	public Guid get_InstalmentPolicyId()
@@ -55,7 +61,7 @@ public class InstalmentInfo
 		return this.instalmentType;
 	}
 
-	public int get_Period()
+	public InstalmentPeriod get_Period()
 	{
 		return this.period;
 	}
@@ -80,16 +86,30 @@ public class InstalmentInfo
 		return this.fee;
 	}
 
-	public String getVerificationInfo()
+	public boolean isAdvancePayment()
 	{
-		return InstalmentLanguage.InstalmentType + ":" + this.instalmentType.toLocalString() + "  "
-			+ InstalmentLanguage.Period + ":" + Integer.toString(this.period)  + "  "
-			+ InstalmentLanguage.DownPayment + ":" + this.get_DownPaymentInFormat()  + "  "
-			+ InstalmentLanguage.RecalculateRateType + ":" + this.recalculateRateType.toLocalString();
+		return this.period.get_Frequence().equals(InstalmentFrequence.TillPayoff);
 	}
 
-	public void update(Guid instalmentPolicyId, int period, BigDecimal downPayment,
-					   InstalmentType instalmentType, RecalculateRateType recalculateRateType, BigDecimal fee, boolean enable)
+	public String getVerificationInfo(BigDecimal lot, int decimals)
+	{
+		if(this.isAdvancePayment())
+		{
+			String advanceAmount = AppToolkit.format(lot.multiply(this.downPayment), decimals);
+			return InstalmentLanguage.PaymentMode + ":" + InstalmentLanguage.AdvancePayment +
+				"  " + InstalmentLanguage.AdvanceAmount + ":" + advanceAmount;
+		}
+		else
+		{
+			return InstalmentLanguage.InstalmentType + ":" + this.instalmentType.toLocalString() + "  "
+				+ InstalmentLanguage.Period + ":" + this.period.toString() + "  "
+				+ InstalmentLanguage.DownPayment + ":" + this.get_DownPaymentInFormat() + "  "
+				+ InstalmentLanguage.RecalculateRateType + ":" + this.recalculateRateType.toLocalString();
+		}
+	}
+
+	public void update(Guid instalmentPolicyId, InstalmentPeriod period, BigDecimal downPayment,
+					   InstalmentType instalmentType, RecalculateRateType recalculateRateType, BigDecimal fee, PaymentMode paymentMode)
 	{
 		this.instalmentPolicyId = instalmentPolicyId;
 		this.period = period;
@@ -97,6 +117,38 @@ public class InstalmentInfo
 		if(instalmentType != null) this.instalmentType = instalmentType;
 		if(recalculateRateType != null) this.recalculateRateType = recalculateRateType;
 		this.fee = fee;
-		this.enable = enable;
+		this.paymentMode = paymentMode;
+	}
+
+	public static InstalmentInfo createDefaultAdvancePaymentInfo(MakeOrderAccount makeOrderAccount)
+	{
+		InstalmentPolicy instalmentPolicy = makeOrderAccount.get_InstalmentPolicy();
+		return new InstalmentInfo(instalmentPolicy.get_Id(), InstalmentPeriod.TillPayoffInstalmentPeriod,
+			instalmentPolicy.get_TillPayoffDetail().get_MinDownPayment(), InstalmentType.EqualInstallment, RecalculateRateType.NextMonth, BigDecimal.ZERO, PaymentMode.AdvancePayment);
+	}
+
+	public static InstalmentInfo createDefaultInstalmentInfo(MakeOrderAccount makeOrderAccount)
+	{
+		InstalmentPolicy instalmentPolicy = makeOrderAccount.get_InstalmentPolicy();
+		InstalmentPeriod maxPeriod = null;
+		for(InstalmentPeriod period : instalmentPolicy.getActivePeriods())
+		{
+			if(maxPeriod == null || maxPeriod.get_Period() < period.get_Period()) maxPeriod = period;
+		}
+		if(maxPeriod == null) return null;
+		InstalmentPolicyDetail instalmentPolicyDetail = instalmentPolicy.get_InstalmentPolicyDetail(maxPeriod);
+		InstalmentType instalmentType = InstalmentType.EqualInstallment;
+		if((instalmentPolicy.get_AllowedInstalmentTypes().value() & InstalmentType.EqualInstallment.value()) != InstalmentType.EqualInstallment.value())
+		{
+			instalmentType = InstalmentType.EqualPrincipal;
+		}
+		RecalculateRateType recalculateRateType = RecalculateRateType.NextMonth;
+		if((instalmentPolicy.get_AllowedRecalculateRateTypes().value() & RecalculateRateType.NextMonth.value()) != RecalculateRateType.NextMonth.value())
+		{
+			recalculateRateType = RecalculateRateType.NextYear;
+		}
+		BigDecimal fee = BigDecimal.ZERO;
+		return new InstalmentInfo(instalmentPolicy.get_Id(), maxPeriod,
+			instalmentPolicyDetail.get_MinDownPayment(), instalmentType, recalculateRateType, fee, PaymentMode.Instalment);
 	}
 }

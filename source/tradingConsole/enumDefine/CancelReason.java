@@ -43,6 +43,8 @@ public class CancelReason extends Enum<CancelReason>
 	public static final CancelReason PriceChanged = new CancelReason("PriceChanged", 27);
 	public static final CancelReason OpenOrderIsClosed = new CancelReason("OpenOrderIsClosed", 28);
 	public static final CancelReason ReplacedWithMaxLot = new CancelReason("ReplacedWithMaxLot", 29);
+	public static final CancelReason SplittedForHasShortSell = new CancelReason("SplittedForHasShortSell", 30);
+	public static final CancelReason AdjustedToFullPaidOrderForHasShortSell = new CancelReason("AdjustedToFullPaidOrderForHasShortSell", 31);
 
 	private CancelReason(String name, int value)
 	{
@@ -170,6 +172,18 @@ public class CancelReason extends Enum<CancelReason>
 		if (this.value() == ReplacedWithMaxLot.value())
 		{
 			return Language.ReplacedWithMaxLot;
+		}
+		if (this.value() == SplittedForHasShortSell.value())
+		{
+			return Language.SplittedForHasShortSell;
+		}
+		if (this.value() == SplittedForHasShortSell.value())
+		{
+			return Language.SplittedForHasShortSell;
+		}
+		if (this.value() == AdjustedToFullPaidOrderForHasShortSell.value())
+		{
+			return Language.AdjustedToFullPaidOrderForHasShortSell;
 		}
 
 		return this.name();

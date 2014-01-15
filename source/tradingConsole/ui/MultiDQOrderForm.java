@@ -2,12 +2,14 @@ package tradingConsole.ui;
 
 import java.math.*;
 import java.text.*;
+import java.util.*;
 
 import java.awt.*;
 import java.awt.event.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import javax.swing.*;
+import javax.swing.Timer;
 import javax.swing.event.*;
 
 import com.jidesoft.grid.*;
@@ -22,8 +24,6 @@ import tradingConsole.ui.colorHelper.*;
 import tradingConsole.ui.columnKey.*;
 import tradingConsole.ui.grid.*;
 import tradingConsole.ui.language.*;
-import java.util.ArrayList;
-import java.util.HashMap;
 
 public class MultiDQOrderForm extends FrameBase2
 {
@@ -112,7 +112,7 @@ public class MultiDQOrderForm extends FrameBase2
 		this.submitButton.setText(Language.OrderMultiDQbtnSubmit);
 		this.exitButton.setText(Language.OrderMultiDQbtnExit);
 		this.closeAllButton.setText(Language.CloseAll);
-		this.instalmentButton.setText(InstalmentLanguage.Instalment);
+		this.instalmentButton.setText(InstalmentLanguage.PaymentMode);
 
 		//this.instrumentDescriptionStaticText.setText(this._instrument.get_Description());
 		this.setTitle(this._instrument.get_DescriptionForTrading());
@@ -130,7 +130,15 @@ public class MultiDQOrderForm extends FrameBase2
 				updateInstalmentButtonStatus();
 			}
 		});
-
+		boolean isBuy = Instrument.getSelectIsBuy(this._instrument, isDblClickAsk);
+		if(isBuy)
+		{
+			for(int index = 0; index < this.accountTable.get_BindingSource().getRowCount(); index++)
+			{
+				MakeOrderAccount makeOrderAccount = (MakeOrderAccount) (this.accountTable.get_BindingSource()).getObject(index);
+				this.updateInstalmentInfoForCurrent(makeOrderAccount, isBuy);
+			}
+		}
 		this.updateInstalmentButtonStatus();
 		this.initializeSaveMaxMove();
 		this.updateAccountTableEditable();
@@ -185,7 +193,6 @@ public class MultiDQOrderForm extends FrameBase2
 		}
 
 		//init outstanding Order Grid
-		boolean isBuy = Instrument.getSelectIsBuy(this._instrument, this._isDblClickAsk);
 		this._makeOrderAccount.set_IsBuyForCurrent(isBuy);
 		this._makeOrderAccount.initializeOutstanding(this.outstandingOrderTable, isBuy, false, BuySellType.Both,
 			( (!isBuy) ? BuySellType.Buy : BuySellType.Sell), this._relationOrderSite);
@@ -329,16 +336,11 @@ public class MultiDQOrderForm extends FrameBase2
 		for(int index = 0; index < makeOrderAccounts.getRowCount(); index++)
 		{
 			MakeOrderAccount makeOrderAccount = (MakeOrderAccount)makeOrderAccounts.getObject(index);
-			TradePolicyDetail tradePolicyDetail = this._settingsManager.getTradePolicyDetail(makeOrderAccount.get_Account().get_TradePolicyId(),
-				this._instrument.get_Id());
-			if(makeOrderAccount.get_IsBuyForCurrent() && tradePolicyDetail.get_InstalmentPolicyId() != null)
+			if(makeOrderAccount.get_IsBuyForCurrent() &&
+			   (makeOrderAccount.get_CanAdvancePayment() || makeOrderAccount.get_CanInstalment()))
 			{
-				InstalmentPolicy instalmentPolicy = this._settingsManager.getInstalmentPolicy(tradePolicyDetail.get_InstalmentPolicyId());
-				if(instalmentPolicy != null && instalmentPolicy.getPeriods().size() > 0 && makeOrderAccount.get_BuyLot().compareTo(BigDecimal.ZERO) > 0)
-				{
-					canInstalment = true;
-					break;
-				}
+				canInstalment = true;
+				break;
 			}
 		}
 		this.instalmentButton.setVisible(canInstalment);
@@ -346,7 +348,7 @@ public class MultiDQOrderForm extends FrameBase2
 
 	private void doSetupInstalment()
 	{
-		ArrayList<Account> accounts = new ArrayList<Account>();
+		ArrayList<MakeOrderAccount> accounts = new ArrayList<MakeOrderAccount>();
 		HashMap<Guid, BigDecimal> lots = new HashMap<Guid,BigDecimal>();
 
 		BindingSource makeOrderAccounts = this.accountTable.get_BindingSource();
@@ -357,15 +359,15 @@ public class MultiDQOrderForm extends FrameBase2
 				this._instrument.get_Id());
 			if(makeOrderAccount.get_IsBuyForCurrent() && tradePolicyDetail.get_InstalmentPolicyId() != null)
 			{
-				InstalmentPolicy instalmentPolicy = this._settingsManager.getInstalmentPolicy(tradePolicyDetail.get_InstalmentPolicyId());
-				if(instalmentPolicy != null && instalmentPolicy.getPeriods().size() > 0 && makeOrderAccount.get_BuyLot().compareTo(BigDecimal.ZERO) > 0)
+				if((makeOrderAccount.get_CanAdvancePayment() || makeOrderAccount.get_CanInstalment())
+				   && makeOrderAccount.get_BuyLot().compareTo(BigDecimal.ZERO) > 0)
 				{
-					accounts.add(makeOrderAccount.get_Account());
+					accounts.add(makeOrderAccount);
 					lots.put(makeOrderAccount.get_Account().get_Id(), makeOrderAccount.get_BuyLot());
 				}
 			}
 		}
-		Account[] accountArray = new Account[accounts.size()];
+		MakeOrderAccount[] accountArray = new MakeOrderAccount[accounts.size()];
 		accountArray = accounts.toArray(accountArray);
 		InstalmentForm form
 			= new InstalmentForm(this, accountArray, lots, this._instrument, this._settingsManager, this.instalmentInfoList);
@@ -912,7 +914,7 @@ public class MultiDQOrderForm extends FrameBase2
 		for(Guid accountId : this.instalmentInfoList.keySet())
 		{
 			InstalmentInfo instalmentInfo = this.instalmentInfoList.get(accountId);
-			if(instalmentInfo.isEnabled())
+			if(!instalmentInfo.isFullPayment())
 			{
 				for (int index = 0; index < makeOrderAccounts.getRowCount(); index++)
 				{
@@ -1032,6 +1034,7 @@ public class MultiDQOrderForm extends FrameBase2
 					this._owner._makeOrderAccount.clearOutStandingTable(isBuy ? BuySellType.Buy : BuySellType.Sell, this._owner.getOrderType().isSpot(), null);
 					isBuy = e.get_NewValue().toString().equalsIgnoreCase(Language.Buy);
 					this._owner._makeOrderAccount.set_IsBuyForCurrent(isBuy);
+					this._owner.updateInstalmentInfoForCurrent(isBuy);
 					this._owner._makeOrderAccount.update(this._owner._makeSpotTradeOrder.get_DataSourceKey(), this._owner._isDblClickAsk);
 					this._owner._makeOrderAccount.initializeOutstanding(this._owner.outstandingOrderTable, isBuy, false, BuySellType.Both,
 						( (!isBuy) ? BuySellType.Buy : BuySellType.Sell), this._owner._relationOrderSite);
@@ -1341,7 +1344,7 @@ public class MultiDQOrderForm extends FrameBase2
 	{
 		this.addWindowListener(new MultiDQOrderUi_this_windowAdapter(this));
 
-		this.setSize(_dQMaxMove > 0 ? 552 : 502, 470);
+		this.setSize(_dQMaxMove > 0 ? 572 : 552, 520);
 		this.setResizable(true);
 
 		this.getContentPane().add(tabbedPane, java.awt.BorderLayout.CENTER);
@@ -1653,6 +1656,35 @@ public class MultiDQOrderForm extends FrameBase2
 	private void rebind()
 	{
 		this.initializeOutstanding();
+	}
+
+	private void updateInstalmentInfoForCurrent(boolean isBuy)
+	{
+		MakeOrderAccount makeOrderAccount = this._makeOrderAccount;
+		this.updateInstalmentInfoForCurrent(makeOrderAccount, isBuy);
+	}
+
+	private void updateInstalmentInfoForCurrent(MakeOrderAccount makeOrderAccount, boolean isBuy)
+	{
+		if(makeOrderAccount.get_CanAdvancePayment()
+			|| (makeOrderAccount.get_CanInstalment() && !makeOrderAccount.hasMultiPayment()))
+		{
+			Guid accountId = makeOrderAccount.get_Account().get_Id();
+			if (isBuy && (this.instalmentInfoList == null || !this.instalmentInfoList.containsKey(accountId)))
+			{
+				InstalmentInfo instalmentInfo = makeOrderAccount.get_CanAdvancePayment()?
+					InstalmentInfo.createDefaultAdvancePaymentInfo(makeOrderAccount) :
+					InstalmentInfo.createDefaultInstalmentInfo(makeOrderAccount);
+
+				if (this.instalmentInfoList == null)
+					this.instalmentInfoList = new HashMap<Guid, InstalmentInfo> ();
+				this.instalmentInfoList.put(accountId, instalmentInfo);
+			}
+			else
+			{
+				this.instalmentInfoList.remove(accountId);
+			}
+		}
 	}
 }
 

@@ -18,6 +18,7 @@ import framework.*;
 import framework.diagnostics.*;
 import tradingConsole.*;
 import tradingConsole.enumDefine.*;
+import tradingConsole.enumDefine.physical.*;
 import tradingConsole.settings.*;
 import tradingConsole.ui.colorHelper.*;
 import tradingConsole.ui.grid.*;
@@ -117,21 +118,50 @@ public class SpotTradeOrderForm extends FrameBase2
 		this.instalmentCheckBox.setText(InstalmentLanguage.Instalment);
 		this.instalmentButton.setText(InstalmentLanguage.Setup);
 		this.closeAllButton.setText(Language.CloseAll);
+		this.paymentModeStaticText.setText(InstalmentLanguage.PaymentMode);
+		this.advancePaymentCheckBox.setText(InstalmentLanguage.AdvancePayment);
+		this.advancePaymentButton.setText(InstalmentLanguage.Setup);
+		this.fullAmountCheckBox.setText(InstalmentLanguage.FullAmount);
 
-		boolean canInstalment = this.canInstalment();
 		this.instalmentButton.setEnabled(false);
-		this.instalmentCheckBox.setVisible(canInstalment);
-		this.instalmentButton.setVisible(canInstalment);
-		if(canInstalment)
+		this.advancePaymentButton.setEnabled(false);
+
+		this.paymentModeStaticText.setVisible(this._makeOrderAccount.hasMultiPayment());
+		this.fullAmountCheckBox.setVisible(this._makeOrderAccount.get_CanFullPayment() && this._makeOrderAccount.hasMultiPayment());
+		if(fullAmountCheckBox.isVisible())
 		{
+			fullAmountCheckBox.addChangeListener(new ChangeListener()
+			{
+				public void stateChanged(ChangeEvent e)
+				{
+					if (fullAmountCheckBox.isSelected() && instalmentInfo != null)
+					{
+						instalmentInfo.set_PaymentMode(PaymentMode.FullAmount);
+					}
+				}
+			});
+		}
+
+		this.instalmentCheckBox.setVisible(this._makeOrderAccount.get_CanInstalment());
+		this.instalmentButton.setVisible(this._makeOrderAccount.get_CanInstalment());
+		if(this._makeOrderAccount.get_CanInstalment())
+		{
+			if(!this._makeOrderAccount.hasMultiPayment())
+			{
+				this.instalmentCheckBox.setSelected(true);
+				this.instalmentButton.setEnabled(true);
+				this.instalmentInfo = InstalmentInfo.createDefaultInstalmentInfo(this._makeOrderAccount);
+			}
+
 			this.instalmentCheckBox.addChangeListener(new ChangeListener()
 			{
 				public void stateChanged(ChangeEvent e)
 				{
 					instalmentButton.setEnabled(instalmentCheckBox.isSelected());
-					if(instalmentCheckBox.isSelected() && instalmentInfo == null)
+					if(instalmentCheckBox.isSelected() &&
+					   (instalmentInfo == null || instalmentInfo.get_Period().get_Frequence().equals(InstalmentFrequence.TillPayoff)))
 					{
-						setupInstalment();
+						setupInstalment(PaymentMode.Instalment);
 					}
 				}
 			});
@@ -139,9 +169,41 @@ public class SpotTradeOrderForm extends FrameBase2
 			{
 				public void actionPerformed(ActionEvent e)
 				{
-					setupInstalment();
+					setupInstalment(PaymentMode.Instalment);
 				}
 			});
+		}
+
+		this.advancePaymentCheckBox.setVisible(this._makeOrderAccount.get_CanAdvancePayment());
+		this.advancePaymentButton.setVisible(this._makeOrderAccount.get_CanAdvancePayment());
+		if(this._makeOrderAccount.get_CanAdvancePayment())
+		{
+			this.advancePaymentCheckBox.setSelected(true);
+			advancePaymentButton.setEnabled(true);
+			this.instalmentInfo = InstalmentInfo.createDefaultAdvancePaymentInfo(this._makeOrderAccount);
+			this.advancePaymentCheckBox.addChangeListener(new ChangeListener()
+			{
+				public void stateChanged(ChangeEvent e)
+				{
+					advancePaymentButton.setEnabled(advancePaymentCheckBox.isSelected());
+					if(advancePaymentCheckBox.isSelected()
+					   && (instalmentInfo == null || !instalmentInfo.get_Period().get_Frequence().equals(InstalmentFrequence.TillPayoff)))
+					{
+						setupInstalment(PaymentMode.AdvancePayment);
+					}
+				}
+			});
+			this.advancePaymentButton.addActionListener(new ActionListener()
+			{
+				public void actionPerformed(ActionEvent e)
+				{
+					setupInstalment(PaymentMode.AdvancePayment);
+				}
+			});
+		}
+		else if(this._makeOrderAccount.get_CanFullPayment())
+		{
+			this.fullAmountCheckBox.setSelected(true);
 		}
 
 		if(allowSpt && this._instrument.get_MaxDQLot().compareTo(BigDecimal.ZERO) > 0)
@@ -156,7 +218,7 @@ public class SpotTradeOrderForm extends FrameBase2
 
 		boolean showDeliveryForm = makeOrderAccount == null ?
 			TradingConsole.DeliveryHelper.getDeliveryAccounts(this._tradingConsole, this._instrument).size() > 0 :
-			(TradingConsole.DeliveryHelper.isDeliveryAccount(makeOrderAccount.get_Account(), this._instrument) && TradingConsole.DeliveryHelper.hasInventory(this._tradingConsole, makeOrderAccount.get_Account(), this._instrument));
+			(TradingConsole.DeliveryHelper.isDeliveryAccount(makeOrderAccount.get_Account(), this._instrument) && TradingConsole.DeliveryHelper.hasCanDeliveryInventory(this._tradingConsole, makeOrderAccount.get_Account(), this._instrument));
 		if(showDeliveryForm)
 		{
 			deliveryForm
@@ -309,25 +371,13 @@ public class SpotTradeOrderForm extends FrameBase2
 		}
 	}
 
-	private boolean canInstalment()
+	private void setupInstalment(PaymentMode paymentMode)
 	{
-		if(this._instrument.get_Category().equals(InstrumentCategory.Physical))
-		{
-			TradePolicyDetail tradePolicyDetail
-				= this._settingsManager.getTradePolicyDetail(this._makeOrderAccount.get_Account().get_TradePolicyId(), this._instrument.get_Id());
-			return tradePolicyDetail.get_InstalmentPolicyId() != null;
-		}
-		else
-		{
-			return false;
-		}
-	}
+		if(this.instalmentForm != null) return;
 
-	private void setupInstalment()
-	{
 		BigDecimal lot = AppToolkit.convertStringToBigDecimal(this.totalLotTextField.getText());
 		this.instalmentForm
-			= new InstalmentForm(this, this._makeOrderAccount.get_Account(), lot, this._instrument, this._settingsManager, null, null, this.instalmentInfo);
+			= new InstalmentForm(this, this._makeOrderAccount.get_Account(), lot, this._instrument, this._settingsManager, null, null, this.instalmentInfo, paymentMode, false);
 		JideSwingUtilities.centerWindow(instalmentForm);
 		this.instalmentForm.show();
 		this.instalmentForm.toFront();
@@ -335,12 +385,25 @@ public class SpotTradeOrderForm extends FrameBase2
 		if(this.instalmentForm.get_IsConfirmed())
 		{
 			this.instalmentInfo = this.instalmentForm.get_InstalmentInfoList().get(this._makeOrderAccount.get_Account().get_Id());
-			this.instalmentCheckBox.setSelected(true);
+		}
+
+		if(this.instalmentInfo == null)
+		{
+			this.fullAmountCheckBox.setSelected(true);
 		}
 		else
 		{
-			this.instalmentCheckBox.setSelected(this.instalmentInfo != null);
+			if(this.instalmentInfo.isAdvancePayment())
+			{
+				this.advancePaymentCheckBox.setSelected(true);
+			}
+			else
+			{
+				this.instalmentCheckBox.setSelected(true);
+			}
 		}
+
+		this.instalmentForm = null;
 	}
 
 	private void initializeOutstanding()
@@ -895,6 +958,7 @@ public class SpotTradeOrderForm extends FrameBase2
 			{
 				this.bidButton.setEnabled(enableBuyButton);
 			}
+			this.updateInstalmentControlsStatus(enableBuyButton);
 			//this.buyButton.setEnabled(enableBuyButton);
 
 			//this.sellButton.setVisible(true);
@@ -911,6 +975,19 @@ public class SpotTradeOrderForm extends FrameBase2
 
 			this.dealButton.setEnabled(false);
 			this.dealButton.setVisible(false);
+		}
+	}
+
+	private void updateInstalmentControlsStatus(boolean enableBuyButton)
+	{
+		if(this._makeOrderAccount.get_CanAdvancePayment() || this._makeOrderAccount.get_CanInstalment())
+		{
+			if(this._makeOrderAccount.hasMultiPayment()) this.paymentModeStaticText.setVisible(enableBuyButton);
+			if(this._makeOrderAccount.get_CanFullPayment()) this.fullAmountCheckBox.setVisible(enableBuyButton);
+			if(this._makeOrderAccount.get_CanInstalment()) this.instalmentCheckBox.setVisible(enableBuyButton);
+			if(this._makeOrderAccount.get_CanInstalment()) this.instalmentButton.setVisible(enableBuyButton);
+			if(this._makeOrderAccount.get_CanAdvancePayment()) this.advancePaymentCheckBox.setVisible(enableBuyButton);
+			if(this._makeOrderAccount.get_CanAdvancePayment()) this.advancePaymentButton.setVisible(enableBuyButton);
 		}
 	}
 
@@ -1305,7 +1382,7 @@ public class SpotTradeOrderForm extends FrameBase2
 			this._makeOrderAccount.set_BuySellType( (isBuy) ? BuySellType.Buy : BuySellType.Sell);
 			this._makeOrderAccount.set_IsBuyForCurrent(isBuy);
 			this._makeOrderAccount.set_DQMaxMove((Integer)this.dQMaxMoveNumeric.getValue());
-			if(isBuy && this.instalmentCheckBox.isSelected())
+			if(isBuy && (this.instalmentCheckBox.isSelected() || this.advancePaymentCheckBox.isSelected() ))
 			{
 				this._makeOrderAccount.set_InstalmentInfo(this.instalmentInfo);
 			}
@@ -1395,7 +1472,7 @@ public class SpotTradeOrderForm extends FrameBase2
 		this.totalLotTextField.addPropertyChangeListener(propertyChangeListener);
 		this.addWindowListener(new SpotTradeOrderForm_this_windowAdapter(this));
 
-		this.setSize(490, 470);
+		this.setSize(550, 520);
 		this.setResizable(true);
 		this.setTitle(Language.spotTradeOrderFormTitle);
 
@@ -1420,6 +1497,9 @@ public class SpotTradeOrderForm extends FrameBase2
 		closeLotStaticText.setFont(font);
 		instrumentQuoteDescription.setFont(font);
 		this.instalmentCheckBox.setFont(font);
+		this.advancePaymentCheckBox.setFont(font);
+		this.fullAmountCheckBox.setFont(font);
+		this.paymentModeStaticText.setFont(font);
 
 		font = new Font("SansSerif", Font.BOLD, 14);
 		instrumentDescriptionStaticText.setFont(font);
@@ -1510,9 +1590,26 @@ public class SpotTradeOrderForm extends FrameBase2
 			, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, new Insets(6, 0, 2, 1), 0, 0));
 
 		instalmentCheckBox.setBackground(null);
-		spotTradePanel.add(instalmentCheckBox, new GridBagConstraints(0, 9, 3, 1, 0.0, 0.0
+		advancePaymentCheckBox.setBackground(null);
+		fullAmountCheckBox.setBackground(null);
+		ButtonGroup group = new ButtonGroup();
+		group.add(instalmentCheckBox);
+		group.add(advancePaymentCheckBox);
+		group.add(fullAmountCheckBox);
+		spotTradePanel.add(this.paymentModeStaticText, new GridBagConstraints(0, 9, 3, 1, 0.0, 0.0
 			, GridBagConstraints.SOUTHWEST, GridBagConstraints.HORIZONTAL, new Insets(5, 5, 0, 1), 0, 0));
-		spotTradePanel.add(instalmentButton, new GridBagConstraints(3, 9, 1, 1, 0.0, 0.0
+
+		spotTradePanel.add(fullAmountCheckBox, new GridBagConstraints(0, 10, 3, 1, 0.0, 0.0
+			, GridBagConstraints.SOUTHWEST, GridBagConstraints.HORIZONTAL, new Insets(0, 15, 0, 1), 0, 0));
+
+		spotTradePanel.add(advancePaymentCheckBox, new GridBagConstraints(0, 11, 3, 1, 0.0, 0.0
+			, GridBagConstraints.SOUTHWEST, GridBagConstraints.HORIZONTAL, new Insets(0, 15, 0, 1), 0, 0));
+		spotTradePanel.add(advancePaymentButton, new GridBagConstraints(3, 11, 1, 1, 0.0, 0.0
+			, GridBagConstraints.SOUTHWEST, GridBagConstraints.HORIZONTAL, new Insets(0, 0, 2, 1), 0, 0));
+
+		spotTradePanel.add(instalmentCheckBox, new GridBagConstraints(0, 12, 3, 1, 0.0, 0.0
+			, GridBagConstraints.SOUTHWEST, GridBagConstraints.HORIZONTAL, new Insets(0, 15, 0, 1), 0, 0));
+		spotTradePanel.add(instalmentButton, new GridBagConstraints(3, 12, 1, 1, 0.0, 0.0
 			, GridBagConstraints.SOUTHWEST, GridBagConstraints.HORIZONTAL, new Insets(0, 0, 2, 1), 0, 0));
 
 		/*spotTradePanel.add(setPriceAskStaticText, new GridBagConstraints(7, 0, 1, 3, 1.0, 0.0
@@ -1556,21 +1653,21 @@ public class SpotTradeOrderForm extends FrameBase2
 		};
 		outstandingOrderTable.addSelectedRowChangedListener(selectedRowChangedListener);*/
 		outstandingOrderTable.enableRowStripe();
-		spotTradePanel.add(instrumentDescriptionStaticText, new GridBagConstraints(0, 8, 4, 1, 0.0, 0.0
+		spotTradePanel.add(instrumentDescriptionStaticText, new GridBagConstraints(0, 11, 4, 1, 0.0, 0.0
 			, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(15, 5, 5, 10), 0, 0));
-		spotTradePanel.add(scrollPane, new GridBagConstraints(4, 0, 4, 11, 1.0, 1.0
+		spotTradePanel.add(scrollPane, new GridBagConstraints(4, 0, 4, 14, 1.0, 1.0
 			, GridBagConstraints.CENTER, GridBagConstraints.BOTH, new Insets(5, 10, 5, 10), 0, 0));
-		spotTradePanel.add(exitButton, new GridBagConstraints(6, 12, 2, 1, 0.0, 0.0
+		spotTradePanel.add(exitButton, new GridBagConstraints(6, 15, 2, 1, 0.0, 0.0
 			, GridBagConstraints.EAST, GridBagConstraints.NONE, new Insets(0, 1, 10, 10), 10, 0));
 		/*spotTradePanel.add(sellButton, new GridBagConstraints(0, 9, 3, 1, 0.0, 0.0
 			, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(0, 10, 10, 1), 10, 0));
 		spotTradePanel.add(buyButton, new GridBagConstraints(3, 9, 1, 1, 0.0, 0.0
 			, GridBagConstraints.EAST, GridBagConstraints.NONE, new Insets(0, 1, 10, 2), 10, 0));*/
-		spotTradePanel.add(resetButton, new GridBagConstraints(4, 12, 1, 1, 0.0, 0.0
+		spotTradePanel.add(resetButton, new GridBagConstraints(4, 15, 1, 1, 0.0, 0.0
 			, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(0, 10, 10, 0), 0, 0));
-		spotTradePanel.add(closeAllButton, new GridBagConstraints(5, 10, 1, 1, 0.0, 0.0
+		spotTradePanel.add(closeAllButton, new GridBagConstraints(5, 15, 1, 1, 0.0, 0.0
 			, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(0, 1, 10, 0), 0, 0));
-		spotTradePanel.add(dealButton, new GridBagConstraints(0, 12, 4, 1, 0.0, 0.0
+		spotTradePanel.add(dealButton, new GridBagConstraints(0, 15, 4, 1, 0.0, 0.0
 			, GridBagConstraints.SOUTH, GridBagConstraints.HORIZONTAL, new Insets(0, 5, 10, 2), 10, 0));
 	}
 
@@ -1614,6 +1711,10 @@ public class SpotTradeOrderForm extends FrameBase2
 	JideTabbedPane tabbedPane = new JideTabbedPane();
 	JPanel spotTradePanel = new JPanel();
 
+	PVStaticText2 paymentModeStaticText = new PVStaticText2();
+	JCheckBox fullAmountCheckBox = new JCheckBox();
+	JCheckBox advancePaymentCheckBox = new JCheckBox();
+	PVButton2 advancePaymentButton = new PVButton2();
 	JCheckBox instalmentCheckBox = new JCheckBox();
 	PVButton2 instalmentButton = new PVButton2();
 	InstalmentForm instalmentForm = null;

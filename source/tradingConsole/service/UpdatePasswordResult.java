@@ -1,7 +1,6 @@
 package tradingConsole.service;
 
 import nu.xom.Element;
-import Util.CommandConstants;
 
 public class UpdatePasswordResult
 {

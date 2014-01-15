@@ -684,6 +684,18 @@ public class WebService extends SoapHttpClientProtocol
 		return results;
 	}
 
+	public Object[] instalmentPayoff(Guid accountId, Guid currencyId,
+											 Double sumSourcePaymentAmount, Double sumSourceTerminateFee,
+											 XmlNode instalmentXml, XmlNode terminateXml)
+	{
+		Object[] results = this.invoke("InstalmentPayoff", ServiceTimeoutSetting.place,
+									   new Object[]{accountId, currencyId,
+									   sumSourcePaymentAmount, sumSourceTerminateFee,
+									   instalmentXml, terminateXml});
+		return results;
+	}
+
+
 	/// <remarks/>
 	public Object[] place(XmlNode tran)
 	{

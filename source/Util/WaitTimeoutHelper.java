@@ -9,8 +9,7 @@ public class WaitTimeoutHelper
 	public static void wait(Object signal) throws WaitTimeoutException,
 			InterruptedException {
 		synchronized (signal) {
-			long endTimeMillis = System.currentTimeMillis()
-					+ Settings.getWaitTimeout() ;
+			long endTimeMillis = System.currentTimeMillis()	+ Settings.getWaitTimeout() ;
 			signal.wait(Settings.getWaitTimeout());
 			if (System.currentTimeMillis() >= endTimeMillis) {
 				logger.info("wait time out");

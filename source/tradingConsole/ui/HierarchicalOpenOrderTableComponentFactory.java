@@ -23,10 +23,12 @@ import java.awt.Color;
 import javax.swing.BorderFactory;
 import tradingConsole.ui.grid.IActionListener;
 import javax.swing.JTable;
+import tradingConsole.ui.grid.TableColumnChooser;
 
 public class HierarchicalOpenOrderTableComponentFactory implements com.jidesoft.grid.HierarchicalTableComponentFactory
 {
 	private IActionListener _actionListener;
+	private IColumnVisibilityProvider _columnVisibilityProvider;
 	private HashMap<BindingSource, TreeLikeHierarchicalPanel> _cache = new HashMap<BindingSource, TreeLikeHierarchicalPanel>();
 
 	public HierarchicalOpenOrderTableComponentFactory()
@@ -36,7 +38,46 @@ public class HierarchicalOpenOrderTableComponentFactory implements com.jidesoft.
 
 	public HierarchicalOpenOrderTableComponentFactory(IActionListener actionListener)
 	{
+		this(actionListener, null);
+	}
+
+	public HierarchicalOpenOrderTableComponentFactory(IActionListener actionListener, IColumnVisibilityProvider columnVisibilityProvider)
+	{
 		this._actionListener = actionListener;
+		this._columnVisibilityProvider = columnVisibilityProvider;
+		if(this._columnVisibilityProvider != null)
+		{
+			this._columnVisibilityProvider.addColumnVisibilityChangedHandler(new IColumnVisibilityProvider.IColumnVisibilityChangedHandler()
+			{
+				public void handleColumnVisibilityChanged(BindingSource bindingSource, String columnName, boolean isVisible)
+				{
+					doHandleColumnVisibilityChanged(bindingSource, columnName, isVisible);
+				}
+			});
+		}
+	}
+
+	private void doHandleColumnVisibilityChanged(BindingSource model, String columnName, boolean isVisible)
+	{
+		if(this._cache.containsKey(model))
+		{
+			DataGrid childTable = (DataGrid)this._cache.get(model).getClientProperty("childTable");
+			int modelIndex = model.getColumnByName(columnName);
+			if (isVisible)
+			{
+				if(!TableColumnChooser.isVisibleColumn(childTable.getColumnModel(), modelIndex))
+				{
+					TableColumnChooser.showColumn(childTable, modelIndex, -1);
+				}
+			}
+			else
+			{
+				if(TableColumnChooser.isVisibleColumn(childTable.getColumnModel(), modelIndex))
+				{
+					TableColumnChooser.hideColumn(childTable, modelIndex);
+				}
+			}
+		}
 	}
 
 	public Component createChildComponent(HierarchicalTable hierarchicalTable, Object object, int row)
@@ -71,6 +112,18 @@ public class HierarchicalOpenOrderTableComponentFactory implements com.jidesoft.
 			childTable.setRowSelectionAllowed(false);
 			childTable.setColumnSelectionAllowed(false);
 			childTable.setModel(model);
+			if(this._columnVisibilityProvider != null)
+			{
+				for(int index = 0; index < childTable.getColumnCount(); index++)
+				{
+					String columnName = childTable.getColumnName(index);
+					if(!this._columnVisibilityProvider.isVisible(model, columnName))
+					{
+						int modelIndex = model.getColumnByName(columnName);
+						TableColumnChooser.hideColumn(childTable, modelIndex);
+					}
+				}
+			}
 			childTable.setOptimized(true);
 			childTable.getTableHeader().setReorderingAllowed(false);
 			childTable.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);

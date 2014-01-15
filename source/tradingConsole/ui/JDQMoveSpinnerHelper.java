@@ -12,11 +12,16 @@ import javax.swing.SpinnerNumberModel;
  */
 public class JDQMoveSpinnerHelper
 {
-	public static void applyMaxDQMove(JSpinner spinner, int maxDQMove, int stepSize)
+	public static void applyMaxDQMove(JSpinner spinner, int value, int maxDQMove, int stepSize)
 	{
-		SpinnerNumberModel model = new SpinnerNumberModel(0, 0, maxDQMove, stepSize);
+		SpinnerNumberModel model = new SpinnerNumberModel(value, 0, maxDQMove, stepSize);
 		spinner.setModel(model);
 		((JSpinner.NumberEditor)spinner.getEditor()).getTextField().addKeyListener(new DQMoveKeyAdapter(maxDQMove));
+	}
+
+	public static void applyMaxDQMove(JSpinner spinner, int maxDQMove, int stepSize)
+	{
+		JDQMoveSpinnerHelper.applyMaxDQMove(spinner, 0, maxDQMove, stepSize);
 	}
 
 	private static class DQMoveKeyAdapter extends KeyAdapter

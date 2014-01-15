@@ -701,7 +701,8 @@ public class Instrument implements Scheduler.ISchedulerCallback
 
 	public int get_PriceValidTime()
 	{
-		return this._priceValidTime;
+		DealingPolicyDetail dealingPolicyDetail = this.getDealingPolicyDetail();
+		return dealingPolicyDetail == null ? this._priceValidTime :  dealingPolicyDetail.get_PriceValidTime();
 	}
 
 	public BigDecimal get_DQQuoteMinLot()
@@ -858,6 +859,11 @@ public class Instrument implements Scheduler.ISchedulerCallback
 	public HashMap<Guid,Double> get_Margins()
 	{
 		return this._margins;
+	}
+
+	public HashMap<Guid,Double> get_PartialPaymentPhysicalMargins()
+	{
+		return this._partialPaymentPhysicalMargins;
 	}
 
 	public String get_Ask()
@@ -2486,10 +2492,18 @@ public class Instrument implements Scheduler.ISchedulerCallback
 						necssaryCalculateTemporarys.put(accountId, necssaryCalculateTemporary);
 					}
 
-					necssaryCalculateTemporary.BuySum += isBuy ? quantity : 0;
-					necssaryCalculateTemporary.SellSum += isBuy ? 0 : quantity;
-					necssaryCalculateTemporary.BuyMarginSum += isBuy ? order.get_Margin() : 0;
-					necssaryCalculateTemporary.SellMarginSum += isBuy ? 0 : order.get_Margin();
+					if(order.isPartialPaymentPhysicalOrder())
+					{
+						necssaryCalculateTemporary.BuyMarginSumForPartialPaymentPhysicalOrder += isBuy ? order.get_Margin() : 0;
+						necssaryCalculateTemporary.SellMarginSumForPartialPaymentPhysicalOrder += isBuy ? 0 : order.get_Margin();
+					}
+					else
+					{
+						necssaryCalculateTemporary.BuySum += isBuy ? quantity : 0;
+						necssaryCalculateTemporary.SellSum += isBuy ? 0 : quantity;
+						necssaryCalculateTemporary.BuyMarginSum += isBuy ? order.get_Margin() : 0;
+						necssaryCalculateTemporary.SellMarginSum += isBuy ? 0 : order.get_Margin();
+					}
 					order.update(false);
 					if(transaction.needCalculateSummary()) this.addToSummary(order);
 				}
@@ -2504,9 +2518,11 @@ public class Instrument implements Scheduler.ISchedulerCallback
 	}
 
 	private HashMap<Guid, Double> _margins = new HashMap<Guid,Double>();
+	private HashMap<Guid, Double> _partialPaymentPhysicalMargins = new HashMap<Guid,Double>();
 	private void calculateMargin(HashMap<Guid, NecssaryCalculateTemporary> necssaryCalculateTemporarys)
 	{
 		this._margins.clear();
+		this._partialPaymentPhysicalMargins.clear();
 
 		boolean shouldUseDayNecessary = this.shouldUseDayNecessary();
 		for (Iterator<Guid> iterator2 = necssaryCalculateTemporarys.keySet().iterator(); iterator2.hasNext(); )
@@ -2519,6 +2535,19 @@ public class Instrument implements Scheduler.ISchedulerCallback
 			double margin = 0;
 			double netNecessary = 0;
 			double hedgeNecessary = 0;
+
+			double partialPaymentPhysicalNecessary = 0;
+			double partialPaymentPhysicalMargin = necssaryCalculateTemporary.BuyMarginSumForPartialPaymentPhysicalOrder + necssaryCalculateTemporary.SellMarginSumForPartialPaymentPhysicalOrder;
+			if(shouldUseDayNecessary)
+			{
+				partialPaymentPhysicalNecessary = partialPaymentPhysicalMargin * account.get_RateMarginD().doubleValue() * tradePolicyDetail.get_PartPaidPhysicalNecessary().doubleValue();
+			}
+			else
+			{
+				partialPaymentPhysicalNecessary = partialPaymentPhysicalMargin * account.get_RateMarginO().doubleValue() * tradePolicyDetail.get_PartPaidPhysicalNecessary().doubleValue();
+			}
+			this._partialPaymentPhysicalMargins.put(accountId, partialPaymentPhysicalNecessary);
+
 			if (this._marginFormula == 0 || this._marginFormula == 1)
 			{
 				if(shouldUseDayNecessary)
@@ -2573,6 +2602,7 @@ public class Instrument implements Scheduler.ISchedulerCallback
 				}
 			}
 
+			netNecessary += partialPaymentPhysicalNecessary;
 			margin = AppToolkit.round((netNecessary + hedgeNecessary), decimals);
 			TradingConsole.traceSource.trace(TraceType.Verbose, this._code + ": " + margin);
 			this._margins.put(accountId, margin);
@@ -3457,4 +3487,6 @@ class NecssaryCalculateTemporary
 	public double SellSum = 0;
 	public double BuyMarginSum = 0;
 	public double SellMarginSum = 0;
+	public double BuyMarginSumForPartialPaymentPhysicalOrder = 0;
+	public double SellMarginSumForPartialPaymentPhysicalOrder = 0;
 }

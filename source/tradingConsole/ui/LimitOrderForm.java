@@ -26,6 +26,8 @@ import tradingConsole.ui.fontHelper.*;
 import tradingConsole.ui.grid.*;
 import tradingConsole.ui.language.*;
 import com.jidesoft.swing.JideSwingUtilities;
+import tradingConsole.enumDefine.physical.InstalmentFrequence;
+import tradingConsole.enumDefine.physical.PaymentMode;
 
 public class LimitOrderForm extends JPanel implements IPriceSpinnerSite
 {
@@ -99,6 +101,7 @@ public class LimitOrderForm extends JPanel implements IPriceSpinnerSite
 			//this.setIconImage(TradingConsole.get_TraderImage());
 
 			this.instalmentButton.setEnabled(false);
+			this.advancePaymentButton.setEnabled(false);
 		}
 		catch (Throwable exception)
 		{
@@ -106,38 +109,79 @@ public class LimitOrderForm extends JPanel implements IPriceSpinnerSite
 			//exception.printStackTrace();
 		}
 	}
+
+	private boolean fullAmountCheckBoxChangeListenerAdded = false;
 	private void updataInstalmentStatus(boolean isBuy)
 	{
 		if(isBuy)
 		{
-			boolean canInstalment = this.canInstalment();
-			this.instalmentCheckBox.setVisible(canInstalment);
-			this.instalmentButton.setVisible(canInstalment);
+			if(!this._makeOrderAccount.get_CanInstalment() && !this._makeOrderAccount.get_CanAdvancePayment())
+			{
+				this.hideInstalmentControls();
+			}
+			else
+			{
+				this.paymentModeStaticText.setVisible(this._makeOrderAccount.hasMultiPayment());
+				this.fullAmountCheckBox.setVisible(this._makeOrderAccount.hasMultiPayment() && this._makeOrderAccount.get_CanFullPayment());
+				if(!fullAmountCheckBoxChangeListenerAdded)
+				{
+					fullAmountCheckBoxChangeListenerAdded = true;
+					fullAmountCheckBox.addChangeListener(new ChangeListener()
+					{
+						public void stateChanged(ChangeEvent e)
+						{
+							if (fullAmountCheckBox.isSelected() && instalmentInfo != null)
+							{
+								instalmentInfo.set_PaymentMode(PaymentMode.FullAmount);
+							}
+						}
+					});
+				}
+				this.instalmentCheckBox.setVisible(this._makeOrderAccount.get_CanInstalment());
+				this.instalmentButton.setVisible(this._makeOrderAccount.get_CanInstalment());
+
+				this.advancePaymentCheckBox.setVisible(this._makeOrderAccount.get_CanAdvancePayment());
+				this.advancePaymentButton.setVisible(this._makeOrderAccount.get_CanAdvancePayment());
+				if(this.advancePaymentCheckBox.isVisible())
+				{
+					this.advancePaymentCheckBox.setSelected(true);
+				}
+				else if(this.instalmentCheckBox.isVisible())
+				{
+					this.instalmentCheckBox.setSelected(true);
+					this.instalmentButton.setEnabled(true);
+				}
+				else
+				{
+					this.fullAmountCheckBox.setSelected(true);
+					this.instalmentButton.setEnabled(false);
+				}
+			}
 		}
 		else
 		{
-			this.instalmentCheckBox.setVisible(false);
-			this.instalmentButton.setVisible(false);
+			this.hideInstalmentControls();
 		}
 	}
 
-	private boolean canInstalment()
+	private void hideInstalmentControls()
 	{
-		if(this._instrument.get_Category().equals(InstrumentCategory.Physical))
-		{
-			TradePolicyDetail tradePolicyDetail
-				= this._settingsManager.getTradePolicyDetail(this._makeOrderAccount.get_Account().get_TradePolicyId(), this._instrument.get_Id());
-			return tradePolicyDetail.get_InstalmentPolicyId() != null;
-		}
-		else
-		{
-			return false;
-		}
+		this.paymentModeStaticText.setVisible(false);
+		this.fullAmountCheckBox.setVisible(false);
+
+		this.advancePaymentCheckBox.setVisible(false);
+		this.advancePaymentButton.setVisible(false);
+
+		this.instalmentCheckBox.setVisible(false);
+		this.instalmentButton.setVisible(false);
 	}
 
-	private void setupInstalment()
+	private void setupInstalment(PaymentMode paymentMode)
 	{
+		if(this.instalmentForm != null) return;
+
 		BigDecimal lot = AppToolkit.convertStringToBigDecimal(this.totalLotTextField.getText());
+		if(lot.compareTo(BigDecimal.ZERO) <= 0) return;
 
 		Price limitPrice = null, stopPrice = null;
 		OrderType orderType = this.getOrderType();
@@ -147,8 +191,9 @@ public class LimitOrderForm extends JPanel implements IPriceSpinnerSite
 			if(this.limitCheckBox.isSelected()) limitPrice = Price.parse(this.priceEdit.getText(), this._instrument.get_NumeratorUnit(), this._instrument.get_Denominator());
 			if(this.stopCheckBox.isSelected()) stopPrice = Price.parse(this.stopPriceEdit.getText(), this._instrument.get_NumeratorUnit(), this._instrument.get_Denominator());
 		}
+
 		this.instalmentForm
-			= new InstalmentForm(this.getFrame(), this._makeOrderAccount.get_Account(), lot, this._instrument, this._settingsManager, limitPrice, stopPrice, this.instalmentInfo);
+			= new InstalmentForm(this.getFrame(), this._makeOrderAccount.get_Account(), lot, this._instrument, this._settingsManager, limitPrice, stopPrice, this.instalmentInfo, paymentMode, false);
 		JideSwingUtilities.centerWindow(instalmentForm);
 		this.instalmentForm.show();
 		this.instalmentForm.toFront();
@@ -156,12 +201,25 @@ public class LimitOrderForm extends JPanel implements IPriceSpinnerSite
 		if(this.instalmentForm.get_IsConfirmed())
 		{
 			this.instalmentInfo = this.instalmentForm.get_InstalmentInfoList().get(this._makeOrderAccount.get_Account().get_Id());
-			this.instalmentCheckBox.setSelected(true);
+		}
+
+		if(this.instalmentInfo == null)
+		{
+			this.fullAmountCheckBox.setSelected(true);
 		}
 		else
 		{
-			this.instalmentCheckBox.setSelected(this.instalmentInfo != null);
+			if(this.instalmentInfo.isAdvancePayment())
+			{
+				this.advancePaymentCheckBox.setSelected(true);
+			}
+			else
+			{
+				this.instalmentCheckBox.setSelected(true);
+			}
 		}
+
+		this.instalmentForm = null;
 	}
 
 	private void autoCompleteBy(BestLimit bestLimit)
@@ -354,27 +412,69 @@ public class LimitOrderForm extends JPanel implements IPriceSpinnerSite
 		}
 
 		this.updataInstalmentStatus(this.getIsBuy());
-		if (this.canInstalment())
+
+		//if (this._makeOrderAccount.get_CanInstalment())
 		{
 			this.instalmentCheckBox.addChangeListener(new ChangeListener()
 			{
 				public void stateChanged(ChangeEvent e)
 				{
 					instalmentButton.setEnabled(instalmentCheckBox.isSelected());
-					if(instalmentCheckBox.isSelected() && instalmentInfo == null)
+					if(instalmentCheckBox.isSelected() &&
+					   (instalmentInfo == null || instalmentInfo.get_Period().get_Frequence().equals(InstalmentFrequence.TillPayoff)))
 					{
-						setupInstalment();
+						setupInstalment(PaymentMode.Instalment);
 					}
 				}
 			});
+
 			this.instalmentButton.addActionListener(new ActionListener()
 			{
 				public void actionPerformed(ActionEvent e)
 				{
-					setupInstalment();
+					setupInstalment(PaymentMode.Instalment);
 				}
 			});
 		}
+
+		if (this._makeOrderAccount.get_CanAdvancePayment())
+		{
+			this.advancePaymentCheckBox.setSelected(true);
+			this.advancePaymentButton.setEnabled(true);
+			this.instalmentInfo = InstalmentInfo.createDefaultAdvancePaymentInfo(this._makeOrderAccount);
+		}
+		else if(this._makeOrderAccount.get_CanInstalment() && !this._makeOrderAccount.get_CanFullPayment())
+		{
+			this.instalmentCheckBox.setSelected(true);
+			this.instalmentButton.setEnabled(true);
+			this.instalmentInfo = InstalmentInfo.createDefaultInstalmentInfo(this._makeOrderAccount);
+		}
+		else if(this._makeOrderAccount.get_CanFullPayment())
+		{
+			this.fullAmountCheckBox.setSelected(true);
+		}
+
+		this.advancePaymentCheckBox.addChangeListener(new ChangeListener()
+		{
+			public void stateChanged(ChangeEvent e)
+			{
+				advancePaymentButton.setEnabled(advancePaymentCheckBox.isSelected());
+				if(advancePaymentCheckBox.isSelected() &&
+				   (instalmentInfo == null || !instalmentInfo.isAdvancePayment()))
+				{
+					setupInstalment(PaymentMode.AdvancePayment);
+				}
+			}
+		});
+
+		this.advancePaymentButton.addActionListener(new ActionListener()
+		{
+			public void actionPerformed(ActionEvent e)
+			{
+				setupInstalment(PaymentMode.AdvancePayment);
+			}
+		});
+
 	}
 
 	public Boolean get_CloseAllSell()
@@ -1467,6 +1567,21 @@ public class LimitOrderForm extends JPanel implements IPriceSpinnerSite
 			this.updateOcoCheckBoxStatus();
 			this.updateIfDoneCheckBoxStatus();
 			this.updateCloseLotVisible(true);
+			if(this._makeOrderAccount.get_CanAdvancePayment())
+			{
+				this.instalmentInfo = InstalmentInfo.createDefaultAdvancePaymentInfo(this._makeOrderAccount);
+			}
+			else
+			{
+				if(this._makeOrderAccount.get_CanInstalment() && !this._makeOrderAccount.get_CanFullPayment())
+				{
+					this.instalmentInfo = InstalmentInfo.createDefaultInstalmentInfo(this._makeOrderAccount);
+				}
+				else
+				{
+					this.instalmentInfo = null;
+				}
+			}
 			this.isBuyChoice_OnChange();
 			this.closeLotTextField.setText("");
 		}
@@ -2618,7 +2733,7 @@ public class LimitOrderForm extends JPanel implements IPriceSpinnerSite
 		this._makeOrderAccount.set_SellSetPrice2( (isBuy) ? null : setPrice2);
 		this._makeOrderAccount.set_BuySellType( (isBuy) ? BuySellType.Buy : BuySellType.Sell);
 		this._makeOrderAccount.set_IsBuyForCurrent(isBuy);
-		if(isBuy && this.instalmentCheckBox.isSelected())
+		if(isBuy && (this.instalmentCheckBox.isSelected() || this.advancePaymentCheckBox.isSelected()))
 		{
 			this._makeOrderAccount.set_InstalmentInfo(this.instalmentInfo);
 		}
@@ -2858,6 +2973,9 @@ public class LimitOrderForm extends JPanel implements IPriceSpinnerSite
 		expireTimeStaticText.setFont(font);
 		totalLotTextField.setText("Numeric1");
 		this.instalmentCheckBox.setFont(font);
+		this.paymentModeStaticText.setFont(font);
+		this.fullAmountCheckBox.setFont(font);
+		this.advancePaymentCheckBox.setFont(font);
 		totalLotTextField.addFocusListener(new LimitOrderForm_lotNumeric_focusAdapter(this));
 		KeyListener keyListener = new KeyListener()
 		{
@@ -2958,6 +3076,10 @@ public class LimitOrderForm extends JPanel implements IPriceSpinnerSite
 		ifDoneCheckBox.setText(Language.IfDonePrompt);
 		instalmentCheckBox.setText(InstalmentLanguage.Instalment);
 		instalmentButton.setText(InstalmentLanguage.Setup);
+		paymentModeStaticText.setText(InstalmentLanguage.PaymentMode);
+		advancePaymentCheckBox.setText(InstalmentLanguage.AdvancePayment);
+		advancePaymentButton.setText(InstalmentLanguage.Setup);
+		fullAmountCheckBox.setText(InstalmentLanguage.FullAmount);
 
 		actionListener = new ActionListener()
 		{
@@ -3107,12 +3229,12 @@ public class LimitOrderForm extends JPanel implements IPriceSpinnerSite
 
 		if (this._instrument.isFromBursa())
 		{
-			this.add(scrollPane, new GridBagConstraints(8, 2, 4, 15, 1.0, 1.0
+			this.add(scrollPane, new GridBagConstraints(8, 2, 4, 18, 1.0, 1.0
 				, GridBagConstraints.CENTER, GridBagConstraints.BOTH, new Insets(5, 10, 0, 5), 0, 0));
 
 			JPanel panel = new JPanel();
 			panel.setBackground(null);
-			this.add(panel, new GridBagConstraints(8, 2, 4, 15, 1.0, 1.0
+			this.add(panel, new GridBagConstraints(8, 2, 4, 18, 1.0, 1.0
 				, GridBagConstraints.CENTER, GridBagConstraints.BOTH, new Insets(5, 10, 0, 5), 0, 0));
 
 			panel.setLayout(new GridBagLayout());
@@ -3123,12 +3245,12 @@ public class LimitOrderForm extends JPanel implements IPriceSpinnerSite
 		}
 		else
 		{
-			this.add(scrollPane, new GridBagConstraints(8, 0, 4, 15, 1.0, 1.0
-				, GridBagConstraints.CENTER, GridBagConstraints.BOTH, new Insets(5, 10, 0, 5), 220, 0));
+			this.add(scrollPane, new GridBagConstraints(8, 0, 4, 18, 1.0, 1.0
+				, GridBagConstraints.CENTER, GridBagConstraints.BOTH, new Insets(5, 10, 0, 5), 250, 0));
 
 			JPanel panel = new JPanel();
 			panel.setBackground(null);
-			this.add(panel, new GridBagConstraints(8, 0, 4, 15, 1.0, 1.0
+			this.add(panel, new GridBagConstraints(8, 0, 4, 18, 1.0, 1.0
 				, GridBagConstraints.CENTER, GridBagConstraints.BOTH, new Insets(5, 10, 0, 5), 40, 0));
 
 			panel.setLayout(new GridBagLayout());
@@ -3141,20 +3263,34 @@ public class LimitOrderForm extends JPanel implements IPriceSpinnerSite
 		ifStopDonePanel.setVisible(false);
 
 		instalmentCheckBox.setBackground(null);
+		this.fullAmountCheckBox.setBackground(null);
+		this.advancePaymentCheckBox.setBackground(null);
 		/*this.add(this.instalmentCheckBox, new GridBagConstraints(0, 7, 1, 1, 0.0, 0.0
 			, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, new Insets(5, 6, 10, 0), 0, 0));*/
-		this.add(this.instalmentCheckBox, new GridBagConstraints(0, 14, 5, 1, 0.0, 0.0
-			, GridBagConstraints.SOUTHWEST, GridBagConstraints.HORIZONTAL, new Insets(2, 2, 0, 0), 0, 0));
-		this.add(this.instalmentButton, new GridBagConstraints(5, 14, 3, 1, 0.0, 0.0
-			, GridBagConstraints.SOUTHWEST, GridBagConstraints.HORIZONTAL, new Insets(0, 0, 0, 0), 0, 0));
+		ButtonGroup group = new ButtonGroup();
+		group.add(this.fullAmountCheckBox);
+		group.add(this.advancePaymentCheckBox);
+		group.add(this.instalmentCheckBox);
+		this.add(this.paymentModeStaticText, new GridBagConstraints(0, 14, 5, 1, 0.0, 0.0
+			, GridBagConstraints.NORTHWEST, GridBagConstraints.NONE, new Insets(2, 5, 0, 0), 0, 0));
+		this.add(this.fullAmountCheckBox, new GridBagConstraints(0, 15, 5, 1, 0.0, 0.0
+			, GridBagConstraints.NORTHWEST, GridBagConstraints.NONE, new Insets(0, 15, 0, 0), 0, 0));
+		this.add(this.advancePaymentCheckBox, new GridBagConstraints(0, 16, 5, 1, 0.0, 0.0
+			, GridBagConstraints.NORTHWEST, GridBagConstraints.NONE, new Insets(0, 15, 0, 0), 0, 0));
+		this.add(this.advancePaymentButton, new GridBagConstraints(5, 16, 3, 1, 0.0, 0.0
+			, GridBagConstraints.NORTHWEST, GridBagConstraints.HORIZONTAL, new Insets(0, 0, 0, 0), 0, 0));
+		this.add(this.instalmentCheckBox, new GridBagConstraints(0, 17, 5, 1, 0.0, 0.0
+			, GridBagConstraints.NORTHWEST, GridBagConstraints.NONE, new Insets(0, 15, 0, 0), 0, 0));
+		this.add(this.instalmentButton, new GridBagConstraints(5, 17, 3, 1, 0.0, 0.0
+			, GridBagConstraints.NORTHWEST, GridBagConstraints.HORIZONTAL, new Insets(0, 0, 0, 0), 0, 0));
 
-		this.add(submitButton, new GridBagConstraints(0, 15, 8, 1, 0.0, 0.0
+		this.add(submitButton, new GridBagConstraints(0, 18, 8, 1, 0.0, 0.0
 			, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, new Insets(5, 6, 10, 0), 0, 0));
-		this.add(resetButton, new GridBagConstraints(8, 15, 1, 1, 0.0, 0.0
+		this.add(resetButton, new GridBagConstraints(8, 18, 1, 1, 0.0, 0.0
 			, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(5, 8, 10, 0), 0, 0));
-		this.add(closeAllButton, new GridBagConstraints(9, 15, 1, 1, 0.0, 0.0
+		this.add(closeAllButton, new GridBagConstraints(9, 18, 1, 1, 0.0, 0.0
 			, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(5, 1, 10, 0), 0, 0));
-		this.add(exitButton, new GridBagConstraints(11, 15, 1, 1, 0.0, 0.0
+		this.add(exitButton, new GridBagConstraints(11, 18, 1, 1, 0.0, 0.0
 			, GridBagConstraints.EAST, GridBagConstraints.NONE, new Insets(5, 1, 10, 5), 0, 0));
 
 		stopPriceEdit.getDocument().addDocumentListener(new DocumentListener()
@@ -3220,12 +3356,12 @@ public class LimitOrderForm extends JPanel implements IPriceSpinnerSite
 			, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(1, -4, 1, 0), 0, 0));
 
 		this.add(priceEdit, new GridBagConstraints(6, 8, 2, 1, 1.0, 0.0
-			, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, new Insets(1, 0, 1, 2), 58, 0));
+			, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, new Insets(1, 0, 1, 2), 20, 0));
 
 		this.add(stopCheckBox, new GridBagConstraints(5, 9, 1, 1, 0.0, 0.0
 			, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(1, -4, 1, 0), 0, 0));
 		this.add(stopPriceEdit, new GridBagConstraints(6, 9, 2, 1, 1.0, 0.0
-			, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, new Insets(1, 0, 1, 2), 58, 0));
+			, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, new Insets(1, 0, 1, 2), 20, 0));
 
 		priceEdit.getDocument().addDocumentListener(new DocumentListener()
 		{
@@ -3319,6 +3455,10 @@ public class LimitOrderForm extends JPanel implements IPriceSpinnerSite
 	JCheckBox limitCheckBoxForIfStopDone = new JCheckBox();
 	JCheckBox stopCheckBoxForIfStopDone = new JCheckBox();
 
+	PVStaticText2 paymentModeStaticText = new PVStaticText2();
+	JCheckBox fullAmountCheckBox = new JCheckBox();
+	JCheckBox advancePaymentCheckBox = new JCheckBox();
+	PVButton2 advancePaymentButton = new PVButton2();
 	JCheckBox instalmentCheckBox = new JCheckBox();
 	PVButton2 instalmentButton = new PVButton2();
 	InstalmentForm instalmentForm = null;

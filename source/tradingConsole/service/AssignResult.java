@@ -4,7 +4,6 @@ import framework.xml.XmlNode;
 
 import tradingConsole.common.TransactionError;
 import nu.xom.*;
-import Util.CommandConstants;
 import Util.*;
 public class AssignResult
 {

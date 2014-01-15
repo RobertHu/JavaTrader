@@ -20,24 +20,19 @@ import tradingConsole.enumDefine.*;
 import tradingConsole.service.*;
 import tradingConsole.settings.*;
 import tradingConsole.ui.language.*;
-
 import Packet.*;
 import nu.xom.Element;
-import Util.XmlElementHelper;
-import Connection.*;
 import org.apache.log4j.Logger;
 import Util.RequestCommandHelper;
 import Util.XmlNodeHelper;
 import Util.CommandHelper;
-import Util.CommandConstants;
-import Util.SignalHelper;
 import tradingConsole.Transaction.PlaceCallback;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import tradingConsole.ui.BankAccountForm;
 import tradingConsole.ui.BankAccountCallback;
 import tradingConsole.settings.VerificationOrderManager.MultipleCloseCallback;
 import tradingConsole.ui.TradingInstructionForm.CancelCallback;
+import tradingConsole.common.TransactionError;;
 
 public class TradingConsoleServer implements ITimeSyncService, Scheduler.ISchedulerCallback, TimeAdjustedEventHandler, SlidingWindow.ICommandStream, SlidingWindow.ICommandProcessor
 {
@@ -1062,6 +1057,34 @@ public class TradingConsoleServer implements ITimeSyncService, Scheduler.ISchedu
 		}
 	}
 
+	public TransactionError instalmentPayoff(Guid accountId, Guid currencyId,
+											 Double sumSourcePaymentAmount, Double sumSourceTerminateFee,
+											 XmlNode instalmentXml, XmlNode terminateXml)
+	{
+		TransactionError result =TransactionError.RuntimeError ;
+		try
+		{
+			ComunicationObject command = CommandHelper.buildInstalmentPayoff(accountId, currencyId,
+											 sumSourcePaymentAmount, sumSourceTerminateFee,
+											 instalmentXml, terminateXml);
+
+			SignalObject signal = RequestCommandHelper.request(command);
+			if(signal.getIsError()){
+				return result;
+			}
+			String value =RequestCommandHelper.getStringFromResponse(signal.getResult());
+			result = TransactionError.valueOf(TransactionError.class,value);
+			return result;
+
+		}
+		catch (Throwable throwable)
+		{
+			this.logger.error("InstalmentPayoff",throwable);
+			this.throwableProcess("InstalmentPayoff", throwable);
+			return result;
+		}
+	}
+
 	public PlaceResult place(XmlNode tran)
 	{
 		PlaceResult result = null;
@@ -1309,22 +1332,41 @@ public class TradingConsoleServer implements ITimeSyncService, Scheduler.ISchedu
 
 	public UpdatePasswordResult updatePassword2(String loginId, String oldPassword, String newPassword, String[][] recoverPasswordDatas)
 	{
-		throw new UnsupportedOperationException();
+		UpdatePasswordResult result = null;
+		try
+		{
+			ComunicationObject command = CommandHelper.buildUpdatePassword2Command(loginId,oldPassword,newPassword,recoverPasswordDatas);
+			SignalObject signal = RequestCommandHelper.request(command);
+			if(signal.getIsError())
+			{
+				return result;
+			}
+			result= new UpdatePasswordResult(signal.getResult());
+		}
+		catch (Throwable throwable)
+		{
+			this.throwableProcess("updatePassword2--Message  ", throwable);
+		}
+		return result;
+
 	}
 
 	public UpdatePasswordResult updatePassword(String loginId, String oldPassword, String newPassword)
 	{
 		UpdatePasswordResult result = null;
-		String message = "";
 		try
 		{
 			ComunicationObject command = CommandHelper.buildUpdatePasswordCommand(loginId,oldPassword,newPassword);
 			SignalObject signal = RequestCommandHelper.request(command);
+			if(signal.getIsError())
+			{
+				return result;
+			}
 			result= new UpdatePasswordResult(signal.getResult());
 		}
 		catch (Throwable throwable)
 		{
-			this.throwableProcess("updatePassword--Message is " + message, throwable);
+			this.throwableProcess("updatePassword--Message is ", throwable);
 		}
 		return result;
 	}

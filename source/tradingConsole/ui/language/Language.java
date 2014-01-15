@@ -28,6 +28,8 @@ public class Language
 	public static String tradingFactButtonCaption = "Trading fact";
 	public static String executePriceCaption = "Exec Price";
 
+	public static String orderCode = "Order code";
+
 	public static String complainSuccessfully="Complaint is sent successfully";
 	public static String shortSellWarning="Short selling may occurred for {0}, please click CONFIRM to proceed";
 
@@ -499,6 +501,8 @@ public class Language
 	public static String TransactionExpired = "Order has expired.";
 	public static String ExceedMaxOpenLot = "The placed order exceeds permitted trading quantity for open position.";
 	public static String ReplacedWithMaxLot = "Order replaced for exceed max lot";
+	public static String SplittedForHasShortSell = "As open position exists, the order is splited for liquidation";
+	public static String AdjustedToFullPaidOrderForHasShortSell = "Adjusted to a full paid order";
 	public static String FillOnMarketCloseNotAllowed = "The order didn't allowed to deal on market closed time.";
 	public static String FailedToCancel = "Fail to cancel the selected order, please try again!";
 	public static String InstrumentSelectlblSelectInstrument = "Please select items to display:";
@@ -736,6 +740,7 @@ public class Language
 	public static String FailedToModifyOrder = "Failed to modify order";
 	public static String BalanceOrEquityIsShortForApplyDelivery = "Account balance {0} or usalbe margin {1} is short, please pay attention";
 	public static String FailedToDelivery = "Delivery apply failed";
+	public static String FailedToRepayment = "Repayment failed";
 	public static String TheOrderNotModified = "The order is not modified";
 	public static String OpenOrderIsClosed = "Open order changed, close quantity is not valid, close order is canceled by the system";
 	public static String InvalidSetPrice = "Set price is invalid, please modify the price";
@@ -930,6 +935,8 @@ public class Language
 			Language.setValue(RecalculateRateTypeLanguage.class, xmlNode.get_Item("RecalculateRateTypeLanguage"));
 			Language.setValue(ContractTerminateTypeLanguage.class, xmlNode.get_Item("ContractTerminateTypeLanguage"));
 			Language.setValue(InstalmentLanguage.class, xmlNode.get_Item("InstalmentLanguage"));
+			Language.setValue(InstalmentFrequenceLanguage.class, xmlNode.get_Item("InstalmentFrequenceLanguage"));
+			Language.setValue(AdministrationFeeBaseLanguage.class, xmlNode.get_Item("AdministrationFeeBaseLanguage"));
 
 			Locale.setDefault(PublicParametersManager.getLocal());
 		}

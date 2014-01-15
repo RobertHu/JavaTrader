@@ -337,6 +337,7 @@ public class DeliveryForm extends JPanel
 		if(deliveryChargeId != null)
 		{
 			DeliveryCharge deliveryCharge = this._settingsManager.getDeliveryCharge(deliveryChargeId);
+
 			Price price = null;
 			if (deliveryCharge.get_PriceType().equals(MarketValuePriceType.DayOpenPrice))
 			{
@@ -356,24 +357,42 @@ public class DeliveryForm extends JPanel
 				return;
 			}
 
-			double oddDiscount = tradePolicyDetail.get_DiscountOfOdd().doubleValue();
-			short tradePLFormula = this._instrument.get_TradePLFormula();
-			double marketValue = Order.caculateMarketValue(price, tradePLFormula, totalLot, tradePolicyDetail.get_ContractSize().doubleValue(), oddDiscount);
-			double charge = marketValue * deliveryCharge.get_ChargeRate().doubleValue();
-			charge = Math.max(charge, deliveryCharge.get_MinCharge().doubleValue());
-
-			if (this._makeOrderAccount.get_Account().get_IsMultiCurrency() == false)
+			double charge = 0;
+			if (deliveryCharge.get_PriceType().equals(MarketValuePriceType.UnitFixAmount))
 			{
-				Guid instrumentCurrencyId = this._instrument.get_Currency().get_Id();
-				Guid accountCurrencyId = this._makeOrderAccount.get_Account().get_Currency().get_Id();
-				CurrencyRate currencyRate = this._settingsManager.getCurrencyRate(instrumentCurrencyId, accountCurrencyId);
-				charge = currencyRate.exchange(charge);
-				this.deliveryChargeTextField.setText(AppToolkit.format(charge, this._makeOrderAccount.get_Account().get_Currency().get_Decimals()));
+				charge = totalLot.doubleValue() * deliveryCharge.get_ChargeRate().doubleValue();
+				charge = Math.max(charge, deliveryCharge.get_MinCharge().doubleValue());
+				if (this._makeOrderAccount.get_Account().get_IsMultiCurrency())
+				{
+					this.deliveryChargeTextField.setText(AppToolkit.format(charge, this._instrument.get_Currency().get_Decimals()));
+				}
+				else
+				{
+					this.deliveryChargeTextField.setText(AppToolkit.format(charge, this._makeOrderAccount.get_Account().get_Currency().get_Decimals()));
+				}
 			}
 			else
 			{
-				this.deliveryChargeTextField.setText(AppToolkit.format(charge, this._instrument.get_Currency().get_Decimals()));
+				double oddDiscount = tradePolicyDetail.get_DiscountOfOdd().doubleValue();
+				short tradePLFormula = this._instrument.get_TradePLFormula();
+				double marketValue = Order.caculateMarketValue(price, tradePLFormula, totalLot, tradePolicyDetail.get_ContractSize().doubleValue(), oddDiscount);
+				charge = marketValue * deliveryCharge.get_ChargeRate().doubleValue();
+				charge = Math.max(charge, deliveryCharge.get_MinCharge().doubleValue());
+
+				if (this._makeOrderAccount.get_Account().get_IsMultiCurrency() == false)
+				{
+					Guid instrumentCurrencyId = this._instrument.get_Currency().get_Id();
+					Guid accountCurrencyId = this._makeOrderAccount.get_Account().get_Currency().get_Id();
+					CurrencyRate currencyRate = this._settingsManager.getCurrencyRate(instrumentCurrencyId, accountCurrencyId);
+					charge = currencyRate.exchange(charge);
+					this.deliveryChargeTextField.setText(AppToolkit.format(charge, this._makeOrderAccount.get_Account().get_Currency().get_Decimals()));
+				}
+				else
+				{
+					this.deliveryChargeTextField.setText(AppToolkit.format(charge, this._instrument.get_Currency().get_Decimals()));
+				}
 			}
+
 			this._deliverCharge = charge;
 			this.updateDeliveryChargeVisibility();
 		}
@@ -412,6 +431,8 @@ public class DeliveryForm extends JPanel
 					{
 						relation.set_IsSelected(true);
 						relation.updateLiquidation(makeOrderAccount.get_OutstandingKey());
+						this.updateTotalColseLot(relation.get_LiqLot());
+						//this.closeLotTextField.setText(this.totalLotTextField.getText());
 						break;
 					}
 				}
@@ -422,6 +443,7 @@ public class DeliveryForm extends JPanel
 				this.closeAll();
 			}
 
+			if(this.outstandingOrderTable.getRowCount() > 0) this.outstandingOrderTable.changeSelection(0,0,false,false);
 		}
 	}
 

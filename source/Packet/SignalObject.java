@@ -1,7 +1,6 @@
 package Packet;
 
 import nu.xom.Element;
-import Util.CommandConstants;
 
 public class SignalObject
 {

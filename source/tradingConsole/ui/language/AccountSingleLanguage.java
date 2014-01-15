@@ -7,6 +7,7 @@ public class AccountSingleLanguage
   public static String CurrencyCode = "Curr";
   public static String Balance = "Balance";
   public static String Necessary = "Necessary";
+  public static String NecessaryForPartialPaymentPhysicalOrder = "Upkeep requirement";
   public static String TradePLFloat = "Float";
   public static String TotalUnrealisedSwap = "TotalUnrealisedSwap";
   public static String UnrealisedPL = "Unrealised PL";
@@ -18,4 +19,6 @@ public class AccountSingleLanguage
   public static String Ratio = "Ratio";
   public static String ValueAsMargin = "ValueAsMargin";
   public static String FrozenFund = "FrozeFund";
+  public static String TotalPaidAmount = "Paid Amount";
+  public static String TotalPledge = "Paid Pledge";
 }

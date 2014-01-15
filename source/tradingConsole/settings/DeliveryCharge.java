@@ -65,7 +65,7 @@ public class DeliveryCharge
 		this._code = (String)dataRow.get_Item("Code");
 		this._chargeRate = (BigDecimal)dataRow.get_Item("ChargeRate");
 		this._minCharge = (BigDecimal)dataRow.get_Item("MinCharge");
-		this._priceType = Enum.valueOf(MarketValuePriceType.class, (Short)(dataRow.get_Item("PriceType")));
+		this._priceType = Enum.valueOf(MarketValuePriceType.class, (Short)(dataRow.get_Item("ChargeBasis")));
 	}
 
 	public void update(XmlNode node)
@@ -92,7 +92,7 @@ public class DeliveryCharge
 			{
 				this._minCharge = new BigDecimal(nodeValue);
 			}
-			else if (nodeName.equals("PriceType"))
+			else if (nodeName.equals("ChargeBasis"))
 			{
 				this._priceType = Enum.valueOf(MarketValuePriceType.class, Integer.parseInt(nodeValue));
 			}

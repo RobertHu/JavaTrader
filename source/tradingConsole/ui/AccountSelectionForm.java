@@ -193,7 +193,7 @@ public class AccountSelectionForm extends JDialog implements IChangedListener
 			for (int index = 0; index < rows.get_Count(); index++)
 			{
 				DataRow row = rows.get_Item(index);
-				String name = (String)row.get_Item("Name");
+				String code = (String)row.get_Item("Code");
 				boolean selected = (Boolean)row.get_Item("IsSelected");
 				String groupName = (String)row.get_Item("GroupName");
 				Guid id = (Guid)row.get_Item("ID");
@@ -208,7 +208,7 @@ public class AccountSelectionForm extends JDialog implements IChangedListener
 				{
 					accountGroup = accountGroups.get(groupName);
 				}
-				AccountSelection account = new AccountSelection(accountGroup, id, name, selected);
+				AccountSelection account = new AccountSelection(accountGroup, id, code, selected);
 				accountGroup.add(account);
 				accountGroup.setChecked(accountGroup.getChecked() & account.getChecked());
 			}

@@ -518,7 +518,11 @@ public class VerificationOrderForm extends JDialog implements Scheduler.ISchedul
 		for (Iterator<MakeOrderAccount> iterator = this._makeOrderAccounts.values().iterator(); iterator.hasNext(); )
 		{
 			MakeOrderAccount makeOrderAccount = iterator.next();
-			BigDecimal lot = makeOrderAccount.get_IsBuyForCurrent() ? BigDecimal.ZERO : makeOrderAccount.get_SellLot();
+			BigDecimal lot = BigDecimal.ZERO;
+			if(!makeOrderAccount.get_IsBuyForCurrent())
+			{
+				lot = this._operateType.equals(OperateType.DirectLiq) ? makeOrderAccount.getSumLiqLots(false) : makeOrderAccount.get_SellLot();
+			}
 			if ( lot.compareTo(BigDecimal.ZERO) > 0)
 			{
 				BigDecimal totalBuyLot = BigDecimal.ZERO;

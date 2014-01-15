@@ -65,7 +65,6 @@ public class XmlElementHelper
 			XmlDocument doc = new XmlDocument();
 			doc.loadXml(xml);
 			return doc.get_DocumentElement();
-
 		}
 		catch (Exception ex)
 		{
@@ -75,12 +74,8 @@ public class XmlElementHelper
 
 	}
 
-
-
-
 	private static XmlNode convertToXmlNodeForDataset(String content)
 	{
-		//String xml = StringEscapeUtils.unescapeXml(content);
 		return ConvertToXmlNodeCommon(content);
 	}
 

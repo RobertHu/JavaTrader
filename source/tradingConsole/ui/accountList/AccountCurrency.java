@@ -12,8 +12,8 @@ import framework.Guid;
 
 public class AccountCurrency
 {
-	public final static String[] propertyNames = new String[]{"Currency", "Balance",
-		"Necessary", "TradePLFloat", "TotalUnrealisedSwap",	"UnrealisedPL",	"Equity", "Usable", "UnclearAmount",
+	public final static String[] propertyNames = new String[]{"Currency", "Balance","TotalPaidAmount",
+		"Necessary", "NecessaryForPartialPaymentPhysicalOrder", "TradePLFloat", "TotalUnrealisedSwap",	"UnrealisedPL",	"Equity", "Usable", "UnclearAmount",
 		"ValueAsMargin", "FrozenFund"};
 
 	private Color[] foregroundColors = new Color[propertyNames.length];
@@ -35,7 +35,11 @@ public class AccountCurrency
 		index++;
 		propertyDescriptors[index] = PropertyDescriptor.create(AccountCurrency.class, propertyNames[index], true, null, AccountSingleLanguage.Balance, 60, SwingConstants.LEFT, null, Account.LightGray);
 		index++;
+		propertyDescriptors[index] = PropertyDescriptor.create(AccountCurrency.class, propertyNames[index], true, null, AccountSingleLanguage.TotalPaidAmount, 60, SwingConstants.LEFT, null, Account.LightGray);
+		index++;
 		propertyDescriptors[index] = PropertyDescriptor.create(AccountCurrency.class, propertyNames[index], true, null, AccountSingleLanguage.Necessary, 60, SwingConstants.LEFT, null, Account.LightGray);
+		index++;
+		propertyDescriptors[index] = PropertyDescriptor.create(AccountCurrency.class, propertyNames[index], true, null, AccountSingleLanguage.NecessaryForPartialPaymentPhysicalOrder, 60, SwingConstants.LEFT, null, Account.LightGray);
 		index++;
 		propertyDescriptors[index] = PropertyDescriptor.create(AccountCurrency.class, propertyNames[index], true, null, AccountSingleLanguage.TradePLFloat, 60, SwingConstants.LEFT, null, Account.LightGray);
 		index++;
@@ -69,61 +73,73 @@ public class AccountCurrency
 		return AppToolkit.format(this._rawAccountCurrency.get_Balance(), decimals);
 	}
 
+	public String get_TotalPaidAmount()
+	{
+		this.foregroundColors[2] = NumericColor.getColor(this._rawAccountCurrency.get_TotalPaidAmount(), true);
+		return AppToolkit.format(this._rawAccountCurrency.get_TotalPaidAmount(), decimals);
+	}
+
 	public String get_Necessary()
 	{
-		this.foregroundColors[2] = NumericColor.getColor(this._rawAccountCurrency.get_Necessary(), true);
+		this.foregroundColors[3] = NumericColor.getColor(this._rawAccountCurrency.get_Necessary(), true);
 		return AppToolkit.format(this._rawAccountCurrency.get_Necessary(), decimals);
+	}
+
+	public String get_NecessaryForPartialPaymentPhysicalOrder()
+	{
+		this.foregroundColors[4] = NumericColor.getColor(this._rawAccountCurrency.get_NecessaryForPartialPaymentPhysicalOrder(), true);
+		return AppToolkit.format(this._rawAccountCurrency.get_NecessaryForPartialPaymentPhysicalOrder(), decimals);
 	}
 
 	public String get_TradePLFloat()
 	{
 		double value
 			= TradingItem.sum(this._rawAccountCurrency.get_FloatTradingItem()) - this._rawAccountCurrency.get_FloatTradingItem().get_ValueAsMargin();
-		this.foregroundColors[3] = NumericColor.getColor(value, true);
+		this.foregroundColors[5] = NumericColor.getColor(value, true);
 		return AppToolkit.format(value, decimals);
 	}
 
 	public String get_TotalUnrealisedSwap()
 	{
 		double value = this._rawAccountCurrency.get_NotValuedTradingItem().get_Interest() + this._rawAccountCurrency.get_NotValuedTradingItem().get_Storage();
-		this.foregroundColors[4] = NumericColor.getColor(value, true);
+		this.foregroundColors[6] = NumericColor.getColor(value, true);
 		return AppToolkit.format(value, decimals);
 	}
 
 	public String get_UnrealisedPL()
 	{
-		this.foregroundColors[5] = NumericColor.getColor(this._rawAccountCurrency.get_NotValuedTradingItem().get_Trade(), true);
+		this.foregroundColors[7] = NumericColor.getColor(this._rawAccountCurrency.get_NotValuedTradingItem().get_Trade(), true);
 		return AppToolkit.format(this._rawAccountCurrency.get_NotValuedTradingItem().get_Trade(), decimals);
 	}
 
 	public String get_Equity()
 	{
-		this.foregroundColors[6] = NumericColor.getColor(this._rawAccountCurrency.get_Equity(), true);
+		this.foregroundColors[8] = NumericColor.getColor(this._rawAccountCurrency.get_Equity(), true);
 		return AppToolkit.format(this._rawAccountCurrency.get_Equity(), decimals);
 	}
 
 	public String get_Usable()
 	{
 		double value = this._rawAccountCurrency.get_Equity() - this._rawAccountCurrency.get_Necessary();
-		this.foregroundColors[7] = NumericColor.getColor(value, true);
+		this.foregroundColors[9] = NumericColor.getColor(value, true);
 		return AppToolkit.format(value, decimals);
 	}
 
 	public String get_UnclearAmount()
 	{
-		this.foregroundColors[8] = NumericColor.getColor(this._rawAccountCurrency.get_UnclearAmount(), true);
+		this.foregroundColors[10] = NumericColor.getColor(this._rawAccountCurrency.get_UnclearAmount(), true);
 		return AppToolkit.format(this._rawAccountCurrency.get_UnclearAmount(), decimals);
 	}
 
 	public String get_ValueAsMargin()
 	{
-		this.foregroundColors[9] = NumericColor.getColor(this._rawAccountCurrency.get_FloatTradingItem().get_ValueAsMargin(), true);
+		this.foregroundColors[11] = NumericColor.getColor(this._rawAccountCurrency.get_FloatTradingItem().get_ValueAsMargin(), true);
 		return AppToolkit.format(this._rawAccountCurrency.get_FloatTradingItem().get_ValueAsMargin(), decimals);
 	}
 
 	public String get_FrozenFund()
 	{
-		this.foregroundColors[10] = NumericColor.getColor(this._rawAccountCurrency.get_FrozenFund(), true);
+		this.foregroundColors[12] = NumericColor.getColor(this._rawAccountCurrency.get_FrozenFund(), true);
 		return AppToolkit.format(this._rawAccountCurrency.get_FrozenFund(), decimals);
 	}
 

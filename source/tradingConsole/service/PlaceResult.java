@@ -2,7 +2,6 @@ package tradingConsole.service;
 
 import tradingConsole.common.TransactionError;
 import nu.xom.Element;
-import Util.CommandConstants;
 
 public class PlaceResult
 {

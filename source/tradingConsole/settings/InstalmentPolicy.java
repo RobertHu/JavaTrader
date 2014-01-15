@@ -1,16 +1,13 @@
 package tradingConsole.settings;
 
-import framework.data.DataRow;
-import framework.Guid;
-import tradingConsole.enumDefine.physical.InstalmentType;
-import tradingConsole.enumDefine.physical.InstalmentCloseOption;
-import java.math.BigDecimal;
-import tradingConsole.enumDefine.physical.RecalculateRateType;
+import java.math.*;
+import java.util.*;
+
+import framework.*;
+import framework.data.*;
 import framework.lang.Enum;
-import framework.xml.XmlNode;
-import framework.xml.XmlAttributeCollection;
-import java.util.HashMap;
-import java.util.Set;
+import framework.xml.*;
+import tradingConsole.enumDefine.physical.*;
 
 public class InstalmentPolicy
 {
@@ -21,7 +18,8 @@ public class InstalmentPolicy
 	private RecalculateRateType _recalculateRateTypes;
 	private BigDecimal _valueDiscountAsMargin;
 
-	private HashMap<Integer, InstalmentPolicyDetail> _instalmentPolicyDetails = new HashMap<Integer, InstalmentPolicyDetail>();
+	private InstalmentPolicyDetail tillPayoffInstalmentPolicyDetail = null;
+	private HashMap<InstalmentPeriod, InstalmentPolicyDetail> _instalmentPolicyDetails = new HashMap<InstalmentPeriod, InstalmentPolicyDetail>();
 
 	public Guid get_Id()
 	{
@@ -43,6 +41,11 @@ public class InstalmentPolicy
 		return this._closeOption;
 	}
 
+	public InstalmentPolicyDetail get_TillPayoffDetail()
+	{
+		return this.tillPayoffInstalmentPolicyDetail;
+	}
+
 	public RecalculateRateType get_AllowedRecalculateRateTypes()
 	{
 		return this._recalculateRateTypes;
@@ -53,9 +56,18 @@ public class InstalmentPolicy
 		return this._valueDiscountAsMargin;
 	}
 
-	public Set<Integer> getPeriods()
+	public ArrayList<InstalmentPeriod> getActivePeriods()
 	{
-		return this._instalmentPolicyDetails.keySet();
+		ArrayList<InstalmentPeriod> activePeriods = new ArrayList<InstalmentPeriod>();
+		for(InstalmentPeriod period : this._instalmentPolicyDetails.keySet())
+		{
+			InstalmentPolicyDetail detail = this._instalmentPolicyDetails.get(period);
+			if(detail.get_IsActive())
+			{
+				activePeriods.add(period);
+			}
+		}
+		return activePeriods;
 	}
 
 	public InstalmentPolicy(DataRow dataRow)
@@ -96,11 +108,21 @@ public class InstalmentPolicy
 
 	public void add(InstalmentPolicyDetail instalmentPolicyDetail)
 	{
-		this._instalmentPolicyDetails.put(instalmentPolicyDetail.get_Period(), instalmentPolicyDetail);
+		if(instalmentPolicyDetail.get_InstalmentFrequence().equals(InstalmentFrequence.TillPayoff))
+		{
+			this.tillPayoffInstalmentPolicyDetail = instalmentPolicyDetail;
+		}
+		else
+		{
+			this._instalmentPolicyDetails.put(InstalmentPeriod.create(instalmentPolicyDetail.get_Period(), instalmentPolicyDetail.get_InstalmentFrequence()),
+											  instalmentPolicyDetail);
+		}
 	}
 
-	public InstalmentPolicyDetail get_InstalmentPolicyDetail(int period)
+	public InstalmentPolicyDetail get_InstalmentPolicyDetail(InstalmentPeriod period)
 	{
+		if(period.equals(InstalmentPeriod.TillPayoffInstalmentPeriod)) return this.tillPayoffInstalmentPolicyDetail;
+
 		if(this._instalmentPolicyDetails.containsKey(period))
 		{
 			return this._instalmentPolicyDetails.get(period);
@@ -109,5 +131,11 @@ public class InstalmentPolicy
 		{
 			return null;
 		}
+	}
+
+
+	public void remove(InstalmentPeriod period)
+	{
+		this._instalmentPolicyDetails.remove(period);
 	}
 }

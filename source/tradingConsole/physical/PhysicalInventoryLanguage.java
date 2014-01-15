@@ -14,4 +14,7 @@ public class PhysicalInventoryLanguage
 	public static String ReferencePrice = "Market Price";
 	public static String ShortSellPrice = "Short Sell Price";
 	public static String ShortSellDate = "Short Sell Date";
+	public static String UnpaidValue = "Unpaid Value";
+	public static String PaidValue = "Paid Value";
+	public static String PledgeValue = "Pledge Value";
 }

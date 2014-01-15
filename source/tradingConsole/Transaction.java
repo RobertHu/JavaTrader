@@ -1013,7 +1013,7 @@ public class Transaction implements ISchedulerCallback
 			}
 
 			//Relation Orders Process-----------------------------------------------------------------------------------
-			TradingItem pLTradingItem = TradingItem.create(0.00, 0.00, 0.00, 0.00);
+			TradingItem pLTradingItem = TradingItem.create(0.00, 0.00, 0.00, 0.00, 0.00);
 			boolean needUpdatePLTradingItem = false;
 			//special process for another user(as agent user) make order
 			boolean needUpdateRelationOrder = order.get_RelationOrders().size() <= 0;
@@ -1027,6 +1027,7 @@ public class Transaction implements ISchedulerCallback
 				Guid openOrderId = Guid.empty;
 				XmlAttributeCollection relationOrderCollection = relationOrderNode.get_Attributes();
 				int relationOrderCollectionCount = relationOrderCollection.get_Count();
+				String payBackPledge = "", closedPhysicalValue = "";
 				if (relationOrderCollectionCount > 0)
 				{
 					openOrderId = new Guid(relationOrderCollection.get_ItemOf("OpenOrderID").get_Value());
@@ -1046,10 +1047,26 @@ public class Transaction implements ISchedulerCallback
 								closedLot = AppToolkit.convertStringToBigDecimal(nodeValue);
 								closedLotSum = closedLotSum.add(closedLot);
 							}
+							else if (nodeName.equals("PayBackPledge"))
+							{
+								payBackPledge = nodeValue;
+								needUpdatePLTradingItem = true;
+							}
+							else if (nodeName.equals("ClosedPhysicalValue"))
+							{
+								closedPhysicalValue = nodeValue;
+								needUpdatePLTradingItem = true;
+							}
 							else if (nodeName.equals("TradePL"))
 							{
 								//pLTradingItem.set_Trade(AppToolkit.round(pLTradingItem.get_Trade() + Double.valueOf(nodeValue).doubleValue(),order.getDisplayDecimals()));
 								pLTradingItem.set_Trade(pLTradingItem.get_Trade() + Double.valueOf(nodeValue).doubleValue());
+								needUpdatePLTradingItem = true;
+							}
+							else if (nodeName.equals("PhysicalTradePL"))
+							{
+								//pLTradingItem.set_Trade(AppToolkit.round(pLTradingItem.get_Trade() + Double.valueOf(nodeValue).doubleValue(),order.getDisplayDecimals()));
+								pLTradingItem.set_PhysicalTrade(pLTradingItem.get_PhysicalTrade() + Double.valueOf(nodeValue).doubleValue());
 								needUpdatePLTradingItem = true;
 							}
 							else if (nodeName.equals("InterestPL"))
@@ -1070,6 +1087,8 @@ public class Transaction implements ISchedulerCallback
 						{
 							RelationOrder relationOrder = new RelationOrder(tradingConsole, settingsManager, openOrder);
 							relationOrder.set_LiqLot(closedLot);
+							relationOrder.set_PaybackPledge(payBackPledge);
+							relationOrder.set_ClosedPhysicalValue(closedPhysicalValue);
 							order.get_RelationOrders().put(relationOrder.get_OpenOrderId(), relationOrder);
 						}
 					}
@@ -1323,11 +1342,15 @@ public class Transaction implements ISchedulerCallback
 					{
 						openOrderId = new Guid(relationOrderCollection.get_ItemOf("OpenOrderID").get_Value());
 						closedLot = AppToolkit.convertStringToBigDecimal(relationOrderCollection.get_ItemOf("ClosedLot").get_Value());
+						String payBackPledge = relationOrderCollection.get_ItemOf("PayBackPledge") == null ? "" : relationOrderCollection.get_ItemOf("PayBackPledge").get_Value();
+						String closedPhysicalValue = relationOrderCollection.get_ItemOf("ClosedPhysicalValue") == null ? "" : relationOrderCollection.get_ItemOf("ClosedPhysicalValue").get_Value();
 						Order openOrder = tradingConsole.getOrder(openOrderId);
 						if (openOrder != null)
 						{
 							RelationOrder relationOrder = new RelationOrder(tradingConsole, settingsManager, openOrder);
 							relationOrder.set_LiqLot(closedLot);
+							relationOrder.set_PaybackPledge(payBackPledge);
+							relationOrder.set_ClosedPhysicalValue(closedPhysicalValue);
 							order.get_RelationOrders().put(relationOrder.get_OpenOrderId(), relationOrder);
 							openOrder.addCloseOrder(order);
 						}
@@ -1384,7 +1407,7 @@ public class Transaction implements ISchedulerCallback
 				assignedLot = assignedLot.add(lot);
 			}
 
-			TradingItem pLTradingItem = TradingItem.create(0.00, 0.00, 0.00, 0.00);
+			TradingItem pLTradingItem = TradingItem.create(0.00, 0.00, 0.00, 0.00, 0.00);
 			boolean needUpdatePLTradingItem = false;
 			/*
 			 String peerOrderIDs2 = "";
@@ -1401,6 +1424,8 @@ public class Transaction implements ISchedulerCallback
 				XmlNode relationOrderNode = relationOrderNodeList.item(j);
 
 				BigDecimal closedLot = BigDecimal.ZERO;
+				String payBackPledge = "";
+				String closedPhysicalValue = "";
 				Guid openOrderId = Guid.empty;
 				XmlAttributeCollection relationOrderCollection = relationOrderNode.get_Attributes();
 				int relationOrderCollectionCount = relationOrderCollection.get_Count();
@@ -1428,10 +1453,24 @@ public class Transaction implements ISchedulerCallback
 								closedLot = AppToolkit.convertStringToBigDecimal(nodeValue);
 								closedLotSum = closedLotSum.add(closedLot);
 							}
+							else if(nodeName.equals("PayBackPledge"))
+							{
+								payBackPledge = nodeValue;
+							}
+							else if(nodeName.equals("ClosedPhysicalValue"))
+							{
+								closedPhysicalValue = nodeValue;
+							}
 							else if (nodeName.equals("TradePL"))
 							{
 								//pLTradingItem.set_Trade(AppToolkit.round(pLTradingItem.get_Trade() + Double.valueOf(nodeValue).doubleValue(),order.getDisplayDecimals()));
 								pLTradingItem.set_Trade(pLTradingItem.get_Trade() + Double.valueOf(nodeValue).doubleValue());
+								needUpdatePLTradingItem = true;
+							}
+							else if (nodeName.equals("PhysicalTradePL"))
+							{
+								//pLTradingItem.set_Trade(AppToolkit.round(pLTradingItem.get_Trade() + Double.valueOf(nodeValue).doubleValue(),order.getDisplayDecimals()));
+								pLTradingItem.set_PhysicalTrade(pLTradingItem.get_PhysicalTrade() + Double.valueOf(nodeValue).doubleValue());
 								needUpdatePLTradingItem = true;
 							}
 							else if (nodeName.equals("InterestPL"))
@@ -1452,6 +1491,8 @@ public class Transaction implements ISchedulerCallback
 						{
 							RelationOrder relationOrder = new RelationOrder(tradingConsole, settingsManager, openOrder);
 							relationOrder.set_LiqLot(closedLot);
+							relationOrder.set_ClosedPhysicalValue(closedPhysicalValue);
+							relationOrder.set_PaybackPledge(payBackPledge);
 							order.get_RelationOrders().put(relationOrder.get_OpenOrderId(), relationOrder);
 							openOrder.addCloseOrder(order);
 						}
@@ -1694,6 +1735,9 @@ public class Transaction implements ISchedulerCallback
 
 	private static String openOrderID = "OpenOrderID";
 	private static String closedLot = "ClosedLot";
+	private static String physicalValue = "PhysicalValue";
+	private static String payBackPledge = "PayBackPledge";
+
 	private static XmlElement fixExtensionToXmlElement(String extension)
 	{
 		XmlDocument document = new XmlDocument();
@@ -1827,9 +1871,20 @@ public class Transaction implements ISchedulerCallback
 		orderRelation.setAttribute(Transaction.openOrderID, openOrderID);
 
 		index = extension.indexOf(Transaction.closedLot) + Transaction.closedLot.length() + 1;
-		index2 = extension.indexOf("/OrderRelation", index);
+		index2 = extension.indexOf(" ", index);
 		String closedLot = extension.substring(index, index2);
 		orderRelation.setAttribute(Transaction.closedLot, closedLot);
+
+		index = extension.indexOf(Transaction.physicalValue) + Transaction.physicalValue.length() + 1;
+		index2 = extension.indexOf(" ", index);
+		String physicalValue = extension.substring(index, index2);
+		orderRelation.setAttribute(Transaction.physicalValue, physicalValue);
+
+		index = extension.indexOf(Transaction.payBackPledge) + Transaction.payBackPledge.length() + 1;
+		index2 = extension.indexOf("/OrderRelation", index);
+		String payBackPledge = extension.substring(index, index2);
+		orderRelation.setAttribute(Transaction.payBackPledge, payBackPledge);
+
 
 		if(extension.indexOf(Transaction.orderId, index2) > 0)
 		{
@@ -1892,9 +1947,19 @@ public class Transaction implements ISchedulerCallback
 			orderRelation.setAttribute(Transaction.openOrderID, openOrderID);
 
 			index = extension.indexOf(Transaction.closedLot) + Transaction.closedLot.length() + 1;
-			index2 = extension.indexOf("/OrderRelation", index);
+			index2 = extension.indexOf(" ", index);
 			closedLot = extension.substring(index, index2);
 			orderRelation.setAttribute(Transaction.closedLot, closedLot);
+
+			index = extension.indexOf(Transaction.physicalValue) + Transaction.physicalValue.length() + 1;
+			index2 = extension.indexOf(" ", index);
+			physicalValue = extension.substring(index, index2);
+			orderRelation.setAttribute(Transaction.physicalValue, physicalValue);
+
+			index = extension.indexOf(Transaction.payBackPledge) + Transaction.payBackPledge.length() + 1;
+			index2 = extension.indexOf("/OrderRelation", index);
+			payBackPledge = extension.substring(index, index2);
+			orderRelation.setAttribute(Transaction.payBackPledge, payBackPledge);
 		}
 
 		return transaction;
@@ -1984,6 +2049,11 @@ public class Transaction implements ISchedulerCallback
 		{
 			Order order = iterator.next();
 			order.cancel(message, isRejectDQByDealer);
+			if(message.equalsIgnoreCase(Language.SplittedForHasShortSell)
+				|| message.equalsIgnoreCase(Language.AdjustedToFullPaidOrderForHasShortSell))
+			{
+				shouldRemovedOrders.add(order);
+			}
 			if (removeAssignOrder && order.get_IsAssignOrder())
 			{
 				shouldRemovedOrders.add(order);
