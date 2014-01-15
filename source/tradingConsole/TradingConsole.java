@@ -1144,13 +1144,19 @@ public class TradingConsole extends Applet implements Scheduler.ISchedulerCallba
 			}
 		});
 		final Semaphore semaphore = new Semaphore(1, true);
+		try{
+			semaphore.acquire();
+		}
+		catch(Exception ex){
+			this.logger.error(ex);
+		}
+
 		executorService.execute(new Runnable()
 		{
 			public void run()
 			{
 				try
 				{
-					semaphore.acquire();
 					initData(semaphore, loginResult);
 				}
 				catch (Exception ex)
@@ -1160,14 +1166,7 @@ public class TradingConsole extends Applet implements Scheduler.ISchedulerCallba
 			}
 		});
 
-		try
-		{
-			Thread.sleep(10);
-		}
-		catch (InterruptedException e)
-		{
-			this.logger.error(e);
-		}
+
 
 		executorService.execute(new Runnable()
 		{
