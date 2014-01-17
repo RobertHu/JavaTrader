@@ -746,36 +746,6 @@ public class SettingsManager
 			DeliveryHoliday.instance.initailize(dataTable);
 		}
 
-		dataTable = tables.get_Item("Instrument");
-		if (dataTable != null)
-		{
-			dataRowCollection = dataTable.get_Rows();
-			for (int rowIndex = 0; rowIndex < dataRowCollection.get_Count(); rowIndex++)
-			{
-				dataRow = dataRowCollection.get_Item(rowIndex);
-
-				Guid id = new Guid(dataRow.get_Item("ID").toString());
-				if (this._instruments.containsKey(id))
-				{
-					Instrument instrument = (Instrument)this._instruments.get(id);
-					instrument.replace(dataRow);
-				}
-				else
-				{
-					Instrument instrument = new Instrument(this._tradingConsole, this, dataRow);
-					this._instruments.put(id, instrument);
-				}
-			}
-			fillGuidMapping(dataTable);
-		}
-		Instrument.fillInstrumentsToSubtotal(this._instruments.values());
-
-		if (semaphore != null)
-		{
-			semaphore.release();
-		}
-
-
 		dataTable = tables.get_Item("Customer");
 		if (dataTable != null)
 		{
@@ -1040,6 +1010,31 @@ public class SettingsManager
 			TradingConsole.traceSource.trace(TraceType.Information, "accountCurrency.addNode end");
 		}
 
+		dataTable = tables.get_Item("Instrument");
+		if (dataTable != null)
+		{
+			dataRowCollection = dataTable.get_Rows();
+			for (int rowIndex = 0; rowIndex < dataRowCollection.get_Count(); rowIndex++)
+			{
+				dataRow = dataRowCollection.get_Item(rowIndex);
+
+				Guid id = new Guid(dataRow.get_Item("ID").toString());
+				if (this._instruments.containsKey(id))
+				{
+					Instrument instrument = (Instrument)this._instruments.get(id);
+					instrument.replace(dataRow);
+				}
+				else
+				{
+					Instrument instrument = new Instrument(this._tradingConsole, this, dataRow);
+					this._instruments.put(id, instrument);
+				}
+			}
+			fillGuidMapping(dataTable);
+		}
+		Instrument.fillInstrumentsToSubtotal(this._instruments.values());
+
+
 
 		dataTable = tables.get_Item("TradePolicyDetail");
 		if (dataTable != null)
@@ -1170,7 +1165,10 @@ public class SettingsManager
 			this.updatePaymentInstructionRemark(dataTable);
 		}
 
-
+		if (semaphore != null)
+		{
+			semaphore.release();
+		}
 		TradingConsole.traceSource.trace(TraceType.Information, "SettingsManager.initialize() end");
 	}
 

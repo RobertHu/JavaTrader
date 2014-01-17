@@ -1143,49 +1143,21 @@ public class TradingConsole extends Applet implements Scheduler.ISchedulerCallba
 				{}
 			}
 		});
-		final Semaphore semaphore = new Semaphore(1, true);
-		try{
-			semaphore.acquire();
-		}
-		catch(Exception ex){
-			this.logger.error(ex);
-		}
 
-		executorService.execute(new Runnable()
+	    try
+		{
+			initData(null, loginResult);
+		}
+		catch (Exception ex)
+		{
+			TradingConsole.traceSource.trace(TraceType.Error, "[TradingConsole.enterMainForm] " + FrameworkException.getStackTrace(ex));
+		}
+		if(firstShowInstrumentSelection) return;
+		SwingUtilities.invokeLater(new Runnable()
 		{
 			public void run()
 			{
-				try
-				{
-					initData(semaphore, loginResult);
-				}
-				catch (Exception ex)
-				{
-					TradingConsole.traceSource.trace(TraceType.Error, "[TradingConsole.enterMainForm] " + FrameworkException.getStackTrace(ex));
-				}
-			}
-		});
-
-
-
-		executorService.execute(new Runnable()
-		{
-			public void run()
-			{
-				try
-				{
-					semaphore.acquire();
-				}
-				catch (Exception ex)
-				{}
-				SwingUtilities.invokeLater(new Runnable()
-				{
-					public void run()
-					{
-						enterMainFormHelper();
-						semaphore.release();
-					}
-				});
+				enterMainFormHelper();
 			}
 		});
 	}
@@ -1232,6 +1204,7 @@ public class TradingConsole extends Applet implements Scheduler.ISchedulerCallba
 			}
 		}
 		this.applyUserLayout();
+		this.logger.warn("applyUserLayout");
 		if (this._hasMessage && this._mainForm.get_MessageTable().getRowCount() > 0)
 		{
 			Message message = (Message)this._mainForm.get_MessageTable().getObject(0);
