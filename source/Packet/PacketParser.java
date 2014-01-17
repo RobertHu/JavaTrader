@@ -40,8 +40,13 @@ public class PacketParser
 			}
 			else if(isInitData){
 				final int invokeIDLength = 36;
+				final int originContentLength = 4;
+				byte[] originContentLengthBytes = new byte[originContentLength];
+				System.arraycopy(contentBytes,invokeIDLength,originContentLengthBytes,0,originContentLength);
+				int originContentCount = IntegerHelper.toCustomerInt(originContentLengthBytes);
 				String invokeId =new String(contentBytes,0,invokeIDLength,PacketContants.ContentEncoding);
-				byte[] decompressContentBytes = ZlibHelper.Decompress(contentBytes,invokeIDLength,contentBytes.length - invokeIDLength);
+				int offset = invokeIDLength + originContentLength;
+				byte[] decompressContentBytes = ZlibHelper.Decompress(contentBytes,offset,contentBytes.length - offset ,originContentCount);
 				String rawContent = new String(decompressContentBytes,PacketContants.ContentEncoding);
 				result = ComunicationObject.CreateForInitData(invokeId,rawContent);
 			}
