@@ -159,8 +159,8 @@ public class AsyncManager implements Runnable
 					Element content = target.getContent();
 					Attribute sequenceA = content.getAttribute(PacketContants.COMMAND_SEQUENCE);
 					content.removeAttribute(sequenceA);
-					String sequence = sequenceA.getValue();
-					String xml = String.format("<Commands FirstSequence=\"%s\" LastSequence=\"%s\">%s</Commands>", sequence, sequence,
+					String[] sequence = sequenceA.getValue().split("-");
+					String xml = String.format("<Commands FirstSequence=\"%s\" LastSequence=\"%s\">%s</Commands>", sequence[0], sequence[1],
 											   content.toXML());
 					command2 = XmlElementHelper.parse(xml);
 				}
@@ -170,9 +170,9 @@ public class AsyncManager implements Runnable
 				else{
 					XmlNode cmd = XmlElementHelper.ConvertToXmlNode(target.getRawContent());
 					XmlElement commandElement = (XmlElement)cmd;
-					String sequence = commandElement.getAttribute(PacketContants.COMMAND_SEQUENCE);
+					String[] sequence = commandElement.getAttribute(PacketContants.COMMAND_SEQUENCE).split("-");
 					commandElement.removeAttribute(PacketContants.COMMAND_SEQUENCE);
-					String xml = String.format("<Commands FirstSequence=\"%s\" LastSequence=\"%s\">%s</Commands>", sequence, sequence,target.getRawContent());
+					String xml = String.format("<Commands FirstSequence=\"%s\" LastSequence=\"%s\">%s</Commands>", sequence[0], sequence[1],target.getRawContent());
 					command = XmlElementHelper.ConvertToXmlNode(xml);
 				}
 
