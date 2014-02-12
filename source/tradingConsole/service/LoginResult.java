@@ -10,6 +10,7 @@ import framework.data.DataRow;
 import framework.data.DataTable;
 import framework.data.DataRowCollection;
 import framework.data.DataTableCollection;
+
 public class LoginResult
 {
 	private Guid _userId;
@@ -89,25 +90,13 @@ public class LoginResult
 		return this.commandSeqence;
 	}
 
-
+	public LoginResult(){
+		_userId = Guid.empty;
+	}
 
 	public LoginResult(Element result)
 	{
 		parseLoginData(result);
-	}
-
-	private void parseLoginData(Element result){
-		this._tradingAccountData = XmlElementHelper.convertToDataset(result.getFirstChildElement("tradingAccountData"));
-		this._recoverPasswordData = XmlElementHelper.convertToDataset(result.getFirstChildElement("recoverPasswordData"));
-		this._companyName = result.getFirstChildElement("companyName").getValue();
-		this._disallowLogin = Boolean.parseBoolean(result.getFirstChildElement("disallowLogin").getValue());
-		this._needActiveAccount = Boolean.parseBoolean(result.getFirstChildElement("isActivateAccount").getValue());
-		this._companyLogo = Base64Helper.decode(result.getFirstChildElement("companyLogo").getValue());
-		this._colorSettings = XmlElementHelper.ConvertToXmlNode(result.getFirstChildElement("colorSettings"));
-		this._parameter = XmlElementHelper.ConvertToXmlNode(result.getFirstChildElement("parameter"));
-		this._settings = XmlElementHelper.ConvertToXmlNode(result.getFirstChildElement("settings"));
-		this._userId = new Guid(result.getFirstChildElement("userId").getValue());
-		this.session = result.getFirstChildElement("session").getValue();
 	}
 
 	public LoginResult(String content){
@@ -133,9 +122,7 @@ public class LoginResult
 				this.logger.error("parse login data error",ex);
 			}
 		}
-
 	}
-
 
 
 	public LoginResult(Object[] results)
@@ -151,4 +138,20 @@ public class LoginResult
 		this._tradingAccountData = (DataSet) (results[9]);
 		this._userId = (Guid) results[0];
 	}
+
+	private void parseLoginData(Element result){
+		this._tradingAccountData = XmlElementHelper.convertToDataset(result.getFirstChildElement("tradingAccountData"));
+		this._recoverPasswordData = XmlElementHelper.convertToDataset(result.getFirstChildElement("recoverPasswordData"));
+		this._companyName = result.getFirstChildElement("companyName").getValue();
+		this._disallowLogin = Boolean.parseBoolean(result.getFirstChildElement("disallowLogin").getValue());
+		this._needActiveAccount = Boolean.parseBoolean(result.getFirstChildElement("isActivateAccount").getValue());
+		this._companyLogo = Base64Helper.decode(result.getFirstChildElement("companyLogo").getValue());
+		this._colorSettings = XmlElementHelper.ConvertToXmlNode(result.getFirstChildElement("colorSettings"));
+		this._parameter = XmlElementHelper.ConvertToXmlNode(result.getFirstChildElement("parameter"));
+		this._settings = XmlElementHelper.ConvertToXmlNode(result.getFirstChildElement("settings"));
+		this._userId = new Guid(result.getFirstChildElement("userId").getValue());
+		this.session = result.getFirstChildElement("session").getValue();
+	}
+
+
 }

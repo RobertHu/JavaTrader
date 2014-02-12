@@ -39,4 +39,6 @@ public class OrderColKey
 	public static final String LevySumString = "LevySumString";
 
 	public static final String LotString = "LotString";
+
+	public static final String DQMaxMove = "DQMaxMove";
 }

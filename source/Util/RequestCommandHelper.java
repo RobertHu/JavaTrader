@@ -109,7 +109,7 @@ public class RequestCommandHelper
 
 	public static String[] getStringArrayFromResponse(Element response){
 		Element data = getDataByNormal(response);
-		String[] result = data.getValue().split(StringConstants.ArrayItemSeparator);
+		String[] result = data.getValue().split(new Character(StringConstants.ArrayItemSeparator).toString());
 		return result;
 	}
 

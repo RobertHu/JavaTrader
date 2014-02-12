@@ -434,6 +434,7 @@ public class TradingConsoleServer implements ITimeSyncService, Scheduler.ISchedu
 				password, version,appType);
 			SignalObject signal=RequestCommandHelper.request(loginCommand);
 			if(signal.getIsError()){
+				result = new LoginFailedResult(signal.getResult());
 				return result;
 			}
 			String content= signal.getRowContent();

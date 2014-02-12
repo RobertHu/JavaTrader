@@ -465,24 +465,31 @@ public class LoginForm extends JFrame
 					}
 					else
 					{
-						this.passwordPassword.setText("");
-						String message = (!result.get_DisallowLogin()) ? Login.lblLoginPrompt2 : Login.lblLoginPrompt22;
-						if (result.get_Parameter() != null && result.get_Parameter().get_OuterXml().indexOf("ExceedMaxRetryLimit") > 0)
-						{
-							AlertDialogForm.showDialog(this, null, true, Login.lblLoginPrompt24);
+						LoginFailedResult failedResult=null;
+						if(result instanceof LoginFailedResult){
+							failedResult = (LoginFailedResult)result;
 						}
-						else
+						if (failedResult != null)
 						{
-							this.messageStaticText.setText(message);
+							this.passwordPassword.setText("");
+							String message = !failedResult.disallowLogin()? Login.lblLoginPrompt2 : Login.lblLoginPrompt22;
+							if (failedResult.status() == LoginResultStatus.ExceedMaxRetryCount)
+							{
+								AlertDialogForm.showDialog(this, null, true, Login.lblLoginPrompt24);
+							}
+							else
+							{
+								this.messageStaticText.setText(message);
+							}
+
+							if (++loginFailedCount >= LoginForm.maxTryCount)
+							{
+								Runtime.getRuntime().exit( -2);
+								return;
+							}
+
 						}
 
-						if (++loginFailedCount >= LoginForm.maxTryCount
-							/*|| JOptionPane.showConfirmDialog(this, message, Login.LoginFailed, JOptionPane. YES_NO_OPTION) == 1*/
-							)
-						{
-							Runtime.getRuntime().exit( -2);
-							return;
-						}
 					}
 					break;
 				}

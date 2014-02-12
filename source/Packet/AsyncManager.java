@@ -172,8 +172,7 @@ public class AsyncManager implements Runnable
 					XmlElement commandElement = (XmlElement)cmd;
 					String sequence = commandElement.getAttribute(PacketContants.COMMAND_SEQUENCE);
 					commandElement.removeAttribute(PacketContants.COMMAND_SEQUENCE);
-					String xml = String.format("<Commands FirstSequence=\"%s\" LastSequence=\"%s\">%s</Commands>", sequence, sequence,
-											   commandElement.get_OuterXml());
+					String xml = String.format("<Commands FirstSequence=\"%s\" LastSequence=\"%s\">%s</Commands>", sequence, sequence,target.getRawContent());
 					command = XmlElementHelper.ConvertToXmlNode(xml);
 				}
 

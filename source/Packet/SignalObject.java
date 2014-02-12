@@ -1,6 +1,7 @@
 package Packet;
 
 import nu.xom.Element;
+import Packet.StringConstants;
 
 public class SignalObject
 {
@@ -46,12 +47,10 @@ public class SignalObject
 	public synchronized boolean getIsError()
 	{
 		if(this._result!=null){
-			Element error = this._result.getFirstChildElement("error");
+			Element error = this._result.getFirstChildElement(StringConstants.ErrorNodeName);
 			return error != null ? true : false;
 		}
-		else{
-			return false;
-		}
+		return false;
 	}
 
 	public synchronized void setResult(Element _result)

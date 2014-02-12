@@ -105,7 +105,7 @@ public final class CommandHelper
 
 	public static ComunicationObject buildUpdateInstrumentSetting(String[] instrumentIds){
 		RequestWithRootAndArgumentNode target = newRootElementWithArgument();
-		XmlElementHelper.appendChild(target.args, "instrumentIds", StringHelper.join(instrumentIds,","));
+		XmlElementHelper.appendChild(target.args, "instrumentIds", StringHelper.join(instrumentIds,StringConstants.ArrayItemSeparator));
 		ComunicationObject request = RequestCommandHelper.newCommandWithSession("UpdateInstrumentSetting",target.root);
 		return request;
 	}
@@ -151,14 +151,14 @@ public final class CommandHelper
 
 	public static ComunicationObject buildUpdateAccountsSettingCommand(Guid[] accountIds){
 		RequestWithRootAndArgumentNode target = newRootElementWithArgument();
-		buildRequestArgumentsHelper(target.args,StringHelper.join(accountIds,","));
+		buildRequestArgumentsHelper(target.args,StringHelper.join(accountIds,StringConstants.ArrayItemSeparator));
 		ComunicationObject request = RequestCommandHelper.newCommandWithSession("UpdateAccountsSetting",target.root);
 		return request;
 	}
 
 	public static ComunicationObject buildGetMerchantInfoFor99BillCommand(Guid[] organizationIds){
 		RequestWithRootAndArgumentNode target = newRootElementWithArgument();
-		buildRequestArgumentsHelper(target.args,StringHelper.join(organizationIds,","));
+		buildRequestArgumentsHelper(target.args,StringHelper.join(organizationIds,StringConstants.ArrayItemSeparator));
 		ComunicationObject request = RequestCommandHelper.newCommandWithSession("GetMerchantInfoFor99Bill",target.root);
 		return request;
 	}

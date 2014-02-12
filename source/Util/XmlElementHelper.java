@@ -10,14 +10,6 @@ import nu.xom.ValidityException;
 import framework.xml.*;
 import  framework.data.DataSet;
 import org.apache.log4j.Logger;
-import org.apache.commons.lang3.StringEscapeUtils;
-import java.nio.CharBuffer;
-import Packet.PacketContants;
-import java.io.ByteArrayInputStream;
-import javax.xml.parsers.DocumentBuilderFactory;
-import javax.xml.parsers.DocumentBuilder;
-import java.io.ByteArrayOutputStream;
-import com.ms.xml.util.XMLOutputStream;
 public class XmlElementHelper
 {
 	private static Logger logger= Logger.getLogger(XmlElementHelper.class);

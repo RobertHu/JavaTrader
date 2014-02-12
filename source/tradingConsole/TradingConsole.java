@@ -179,13 +179,20 @@ public class TradingConsole extends Applet implements Scheduler.ISchedulerCallba
 	{
 		this._serviceManager = ServiceManager.Create();
 		ColorSettings.useBlackAsBackground = this._serviceManager.get_UseBlackAsBackground();
-		if (ColorSettings.useBlackAsBackground)
+
+		try
 		{
-			( (Office2003Painter)Office2003Painter.getInstance()).setColorName("Metallic");
+			if (ColorSettings.useBlackAsBackground)
+			{
+				( (Office2003Painter)Office2003Painter.getInstance()).setColorName("Metallic");
+			}
+			else
+			{
+				( (Office2003Painter)Office2003Painter.getInstance()).setColorName("NormalColor");
+			}
 		}
-		else
+		catch (Exception ex)
 		{
-			( (Office2003Painter)Office2003Painter.getInstance()).setColorName("NormalColor");
 		}
 	}
 
@@ -1593,14 +1600,19 @@ public class TradingConsole extends Applet implements Scheduler.ISchedulerCallba
 	private void adjustWorkingListColumn(boolean isInitialize)
 	{
 		boolean shouldShowRebateColumn = false;
+		boolean shouldShowMaxMoveColumn = false;
 		for(int index = 0; index < this._bindingSourceForWorkingOrderList.getRowCount(); index++)
 		{
 			Order order = (Order)(this._bindingSourceForWorkingOrderList.getObject(index));
 			if(order.hasRebate())
 			{
 				shouldShowRebateColumn = true;
-				break;
 			}
+			if(order.get_DQMaxMove() > 0)
+			{
+				shouldShowMaxMoveColumn = true;
+			}
+			if(shouldShowRebateColumn && shouldShowMaxMoveColumn) break;
 		}
 
 		if(isInitialize)
@@ -1610,13 +1622,31 @@ public class TradingConsole extends Applet implements Scheduler.ISchedulerCallba
 				int autoLimitColumn = this._bindingSourceForWorkingOrderList.getColumnByName(OrderColKey.RebateString);
 				com.jidesoft.grid.TableColumnChooser.hideColumn(this.get_MainForm().get_OrderTable(), autoLimitColumn);
 			}
-		}
-		else if(shouldShowRebateColumn)
-		{
-			int autoLimitColumn = this._bindingSourceForWorkingOrderList.getColumnByName(OrderColKey.RebateString);
-			if(!com.jidesoft.grid.TableColumnChooser.isVisibleColumn(this.get_MainForm().get_OrderTable().getColumnModel(), autoLimitColumn))
+
+			if(!shouldShowMaxMoveColumn)
 			{
-				com.jidesoft.grid.TableColumnChooser.showColumn(this.get_MainForm().get_OrderTable(), autoLimitColumn, -1);
+				int column = this._bindingSourceForWorkingOrderList.getColumnByName(OrderColKey.DQMaxMove);
+				com.jidesoft.grid.TableColumnChooser.hideColumn(this.get_MainForm().get_OrderTable(), column);
+			}
+		}
+		else
+		{
+			if (shouldShowRebateColumn)
+			{
+				int autoLimitColumn = this._bindingSourceForWorkingOrderList.getColumnByName(OrderColKey.RebateString);
+				if (!com.jidesoft.grid.TableColumnChooser.isVisibleColumn(this.get_MainForm().get_OrderTable().getColumnModel(), autoLimitColumn))
+				{
+					com.jidesoft.grid.TableColumnChooser.showColumn(this.get_MainForm().get_OrderTable(), autoLimitColumn, -1);
+				}
+			}
+
+			if (shouldShowMaxMoveColumn)
+			{
+				int autoLimitColumn = this._bindingSourceForWorkingOrderList.getColumnByName(OrderColKey.DQMaxMove);
+				if (!com.jidesoft.grid.TableColumnChooser.isVisibleColumn(this.get_MainForm().get_OrderTable().getColumnModel(), autoLimitColumn))
+				{
+					com.jidesoft.grid.TableColumnChooser.showColumn(this.get_MainForm().get_OrderTable(), autoLimitColumn, -1);
+				}
 			}
 		}
 	}

@@ -172,7 +172,16 @@ public class PriceSpinner extends JSpinner
 		public Object getNextValue()
 		{
 			Price price = Price.parse(this._value, this._priceSpinnerSite.getInstrument().get_NumeratorUnit(), this._priceSpinnerSite.getInstrument().get_Denominator());
+			if(price==null)
+			{
+				return _value;
+			}
 			Price nextPrice = Price.add(price, this._priceSpinnerSite.getInstrument().get_NumeratorUnit());
+			if(nextPrice ==null)
+			{
+				return _value;
+			}
+
 			if (this.isValidPirce(nextPrice))
 			{
 				return Price.toString(nextPrice);
@@ -186,7 +195,15 @@ public class PriceSpinner extends JSpinner
 		public Object getPreviousValue()
 		{
 			Price price = Price.parse(this._value, this._priceSpinnerSite.getInstrument().get_NumeratorUnit(), this._priceSpinnerSite.getInstrument().get_Denominator());
+			if(price == null)
+			{
+				return _value;
+			}
 			Price previousPrice = Price.subStract(price, this._priceSpinnerSite.getInstrument().get_NumeratorUnit());
+			if(previousPrice == null)
+			{
+				return _value;
+			}
 			if (this.isValidPirce(previousPrice))
 			{
 				return Price.toString(previousPrice);

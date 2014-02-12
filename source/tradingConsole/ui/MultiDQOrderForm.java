@@ -948,6 +948,18 @@ public class MultiDQOrderForm extends FrameBase2
 					this._instrument.get_Id(), maxMove);
 			}
 		}
+		else
+		{
+			MaxMoveAutoFillHelper.clearDefaultMaxMove(Guid.empty, this._instrument.get_Id());
+			BindingSource makeOrderAccounts = this.accountTable.get_BindingSource();
+			for (int index = 0; index < makeOrderAccounts.getRowCount(); index++)
+			{
+				MakeOrderAccount makeOrderAccount = (MakeOrderAccount)makeOrderAccounts.getObject(index);
+				MaxMoveAutoFillHelper.clearDefaultMaxMove(makeOrderAccount.get_Account().get_Id(),
+					this._instrument.get_Id());
+			}
+
+		}
 	}
 
 	static class SelectedAccountChangedListener implements ISelectedRowChangedListener

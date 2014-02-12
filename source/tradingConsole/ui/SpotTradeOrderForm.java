@@ -1345,6 +1345,11 @@ public class SpotTradeOrderForm extends FrameBase2
 				MaxMoveAutoFillHelper.setDefaultMaxMove(this._makeOrderAccount.get_Account().get_Id(), this._instrument.get_Id(),
 					(Integer)this.dQMaxMoveNumeric.getValue());
 			}
+			else
+			{
+				MaxMoveAutoFillHelper.clearDefaultMaxMove(this._makeOrderAccount.get_Account().get_Id(),
+					this._instrument.get_Id());
+			}
 			//set value to MakeOrderAccount
 			this.updateBuySellLot();
 

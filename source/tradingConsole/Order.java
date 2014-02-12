@@ -1750,7 +1750,7 @@ public class Order
 	//WorkingOrderList use
 	public static PropertyDescriptor[] getPropertyDescriptorsForWorkingOrderList(SettingsManager settingsManager)
 	{
-		PropertyDescriptor[] propertyDescriptors = new PropertyDescriptor[14];
+		PropertyDescriptor[] propertyDescriptors = new PropertyDescriptor[15];
 
 		UISetting uiSetting = settingsManager.getUISetting(UISetting.workingOrderListUiSetting);
 		HashMap<String, UISetting2> uiSetting2s = uiSetting.get_UiSetting2s();
@@ -1798,6 +1798,11 @@ public class Order
 
 		uiSetting2 = uiSetting2s.get(OrderColKey.SetPriceString);
 		propertyDescriptor = PropertyDescriptor.create(Order.class, OrderColKey.SetPriceString, true, null, OrderLanguage.SetPriceString,
+			uiSetting2.get_ColWidth(), SwingConstants.RIGHT, null, null);
+		propertyDescriptors[uiSetting2.get_Sequence()] = propertyDescriptor;
+
+		uiSetting2 = uiSetting2s.get(OrderColKey.DQMaxMove);
+		propertyDescriptor = PropertyDescriptor.create(Order.class, OrderColKey.DQMaxMove, true, null, Language.OrderSingleDQlblDQMaxMove,
 			uiSetting2.get_ColWidth(), SwingConstants.RIGHT, null, null);
 		propertyDescriptors[uiSetting2.get_Sequence()] = propertyDescriptor;
 

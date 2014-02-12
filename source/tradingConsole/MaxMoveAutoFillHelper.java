@@ -1,15 +1,11 @@
 package tradingConsole;
 
-import java.util.HashMap;
-import framework.Guid;
-import java.io.File;
-import java.io.BufferedReader;
-import framework.io.DirectoryHelper;
-import java.io.FileReader;
-import framework.diagnostics.TraceType;
-import framework.FrameworkException;
-import framework.StringHelper;
-import java.io.PrintWriter;
+import java.io.*;
+import java.util.*;
+
+import framework.*;
+import framework.diagnostics.*;
+import framework.io.*;
 
 public class MaxMoveAutoFillHelper
 {
@@ -220,6 +216,19 @@ public class MaxMoveAutoFillHelper
 		catch (Exception ex)
 		{
 			TradingConsole.traceSource.trace(TraceType.Error, "[MaxMoveAutoFillHelper.save] " + FrameworkException.getStackTrace(ex));
+		}
+	}
+
+	public static void clearDefaultMaxMove(Guid accountId, Guid instrumentId)
+	{
+		if (MaxMoveAutoFillHelper._maxMoves.containsKey(accountId))
+		{
+			HashMap<Guid, Integer> maxMoves = MaxMoveAutoFillHelper._maxMoves.get(accountId);
+			if(maxMoves.containsKey(instrumentId))
+			{
+				maxMoves.remove(instrumentId);
+				MaxMoveAutoFillHelper.save();
+			}
 		}
 	}
 }

@@ -1,5 +1,7 @@
 package Util;
 
+import nu.xom.Element;
+
 public class StringHelper
 {
 	public static boolean IsNullOrEmpty(String input)
@@ -7,7 +9,7 @@ public class StringHelper
 		return input == null || (input.length() == 0);
 	}
 
-	public static<T>  String join(T[] source,String separator){
+	public static<T>  String join(T[] source,char separator){
 		if(source==null || source.length==0) return "";
 		StringBuilder sb=new StringBuilder();
 		for (T item : source) {
@@ -17,16 +19,19 @@ public class StringHelper
 		return sb.toString().substring(0, sb.length() - 1);
 	}
 
-	public static<T> String join2(T[][] source, String parentSeparator, String childSeparator){
+	public static<T> String join2(T[][] source, char parentSeparator, char childSeparator){
 		if(source==null || source.length == 0) {
 			return "";
 		}
-		StringBuilder sb = new StringBuilder();
+		Element root = new Element("Data");
 		for(T[] item : source){
-			sb.append(join(item,childSeparator));
-			sb.append(parentSeparator);
+			Element parent = new Element("Parent");
+			for(T subItem: item){
+				XmlElementHelper.appendChild(parent,"Child",subItem.toString());
+			}
+			root.appendChild(parent);
 		}
-		return sb.toString().substring(0,sb.length()-1);
+		return root.toXML();
 	}
 
 }
